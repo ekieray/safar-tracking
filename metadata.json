@@ -1,0 +1,11 @@
+{
+  "name": "safar tracking",
+  "description": "aplikasi untuk tracking jamaah haji, umroh ",
+  "requestFramePermissions": [
+    "geolocation",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

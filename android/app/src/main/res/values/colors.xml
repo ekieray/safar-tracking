@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="konvoiku_blue">#1D4ED8</color>
+    <color name="konvoiku_orange">#EA580C</color>
+    <color name="konvoiku_asphalt">#0F172A</color>
+    <color name="konvoiku_surface_light">#F4F6FA</color>
+    <color name="konvoiku_surface_dark">#0A0F16</color>
+    <color name="ic_launcher_background">#0F172A</color>
+</resources>

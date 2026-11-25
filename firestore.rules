@@ -1,0 +1,957 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdminEmail() {
+      return isSignedIn() &&
+        request.auth.token.email == 'ekie.ray@gmail.com' &&
+        request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isAdminEmail() ||
+        (isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    function isValidRoomId(roomId) {
+      return roomId is string && roomId.size() >= 4 && roomId.size() <= 32 && roomId.matches('^[A-Za-z0-9_\\-]+$');
+    }
+
+    function roomDoc(roomId) {
+      return get(/databases/$(database)/documents/rooms/$(roomId)).data;
+    }
+
+    function roomExists(roomId) {
+      return exists(/databases/$(database)/documents/rooms/$(roomId));
+    }
+
+    function isRoomLeader(roomId) {
+      return isSignedIn() && roomExists(roomId) && roomDoc(roomId).leaderUid == request.auth.uid;
+    }
+
+    function isEffectiveRoomLeader(roomId) {
+      return isRoomLeader(roomId) || (
+        isSignedIn() &&
+        roomExists(roomId) &&
+        ('actingLeaderUid' in roomDoc(roomId)) &&
+        roomDoc(roomId).actingLeaderUid is string &&
+        roomDoc(roomId).actingLeaderUid.size() >= 1 &&
+        roomDoc(roomId).actingLeaderUid == request.auth.uid
+      );
+    }
+
+    function isRoomMember(roomId) {
+      return isSignedIn() && exists(/databases/$(database)/documents/rooms/$(roomId)/members/$(request.auth.uid));
+    }
+
+    function isRoomActive(roomId) {
+      return roomExists(roomId) && roomDoc(roomId).status == 'ACTIVE';
+    }
+
+    function isValidUserPrivateProfile(data, userId) {
+      return data.keys().hasAll([
+        'uid',
+        'fullName',
+        'vehicleType',
+        'vehicleDetail',
+        'licensePlate',
+        'emergencyContact',
+        'avatarPreset',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'uid',
+        'email',
+        'authProvider',
+        'fullName',
+        'clubName',
+        'homeCity',
+        'bio',
+        'instagramHandle',
+        'avatarPhotoUrl',
+        'vehicleType',
+        'vehicleDetail',
+        'licensePlate',
+        'emergencyContact',
+        'avatarPreset',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.uid is string && data.uid == userId && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+      data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 80 &&
+      data.vehicleType in ['MOBIL', 'MOTOR'] &&
+      data.vehicleDetail is string && data.vehicleDetail.size() <= 80 &&
+      data.licensePlate is string && data.licensePlate.size() <= 24 &&
+      data.emergencyContact is string && data.emergencyContact.size() <= 40 &&
+      data.avatarPreset is string && data.avatarPreset.size() >= 1 && data.avatarPreset.size() <= 40 &&
+      (!('email' in data) || (data.email is string && data.email.size() <= 160)) &&
+      (!('authProvider' in data) || data.authProvider in ['google', 'facebook', 'instagram', 'email', 'local']) &&
+      (!('clubName' in data) || (data.clubName is string && data.clubName.size() <= 80)) &&
+      (!('homeCity' in data) || (data.homeCity is string && data.homeCity.size() <= 80)) &&
+      (!('bio' in data) || (data.bio is string && data.bio.size() <= 240)) &&
+      (!('instagramHandle' in data) || (data.instagramHandle is string && data.instagramHandle.size() <= 60)) &&
+      (!('avatarPhotoUrl' in data) || (data.avatarPhotoUrl is string && data.avatarPhotoUrl.size() <= 120000)) &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidTripRecord(data, userId) {
+      return data.keys().hasAll([
+        'id',
+        'ownerUid',
+        'roomId',
+        'tourTitle',
+        'dateLabel',
+        'timeRangeLabel',
+        'durationLabel',
+        'durationMinutes',
+        'distanceKm',
+        'avgSpeedKmh',
+        'maxSpeedKmh',
+        'userRole',
+        'destinationName',
+        'destinationAddress',
+        'createdAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id',
+        'ownerUid',
+        'roomId',
+        'tourTitle',
+        'dateLabel',
+        'timeRangeLabel',
+        'durationLabel',
+        'durationMinutes',
+        'distanceKm',
+        'avgSpeedKmh',
+        'maxSpeedKmh',
+        'userRole',
+        'destinationName',
+        'destinationAddress',
+        'encodedPolyline',
+        'participants',
+        'createdAt'
+      ]) &&
+      data.id is string && data.id.size() >= 1 && data.id.size() <= 64 &&
+      data.ownerUid is string && data.ownerUid == userId && data.ownerUid.size() <= 128 &&
+      isValidRoomId(data.roomId) &&
+      data.tourTitle is string && data.tourTitle.size() >= 1 && data.tourTitle.size() <= 100 &&
+      data.dateLabel is string && data.dateLabel.size() <= 32 &&
+      data.timeRangeLabel is string && data.timeRangeLabel.size() <= 32 &&
+      data.durationLabel is string && data.durationLabel.size() <= 32 &&
+      data.durationMinutes is number &&
+      data.distanceKm is number &&
+      data.avgSpeedKmh is number &&
+      data.maxSpeedKmh is number &&
+      data.userRole in ['TOUR_LEADER', 'MEMBER'] &&
+      data.destinationName is string && data.destinationName.size() <= 120 &&
+      data.destinationAddress is string && data.destinationAddress.size() <= 240 &&
+      (!('encodedPolyline' in data) || (data.encodedPolyline is string && data.encodedPolyline.size() <= 16384)) &&
+      (!('participants' in data) || (
+        data.participants is list &&
+        data.participants.size() <= 40 &&
+        (data.participants.size() == 0 || data.participants[0] is map)
+      )) &&
+      data.createdAt is timestamp;
+    }
+
+    function isValidConvoyRoom(data, roomId) {
+      return data.keys().hasAll([
+        'roomId',
+        'roomTitle',
+        'leaderUid',
+        'destinationName',
+        'destinationAddress',
+        'destLat',
+        'destLng',
+        'originLat',
+        'originLng',
+        'encodedPolyline',
+        'totalRouteMeters',
+        'offRouteToleranceMeters',
+        'maxStragglerDistanceMeters',
+        'soundAlertEnabled',
+        'status',
+        'sosActive',
+        'sosSenderUid',
+        'sosSenderName',
+        'sosSenderVehicle',
+        'sosLat',
+        'sosLng',
+        'sosLocationText',
+        'sosTriggeredAtLabel',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'roomId',
+        'roomTitle',
+        'leaderUid',
+        'coLeaderUid',
+        'actingLeaderUid',
+        'leaderTroubleActive',
+        'leaderTroubleReason',
+        'destinationName',
+        'destinationAddress',
+        'destinationStops',
+        'destLat',
+        'destLng',
+        'originName',
+        'originAddress',
+        'originLat',
+        'originLng',
+        'encodedPolyline',
+        'routePreference',
+        'routeInstructions',
+        'totalRouteMeters',
+        'estimatedDurationMillis',
+        'offRouteToleranceMeters',
+        'maxStragglerDistanceMeters',
+        'soundAlertEnabled',
+        'status',
+        'sosActive',
+        'sosSenderUid',
+        'sosSenderName',
+        'sosSenderVehicle',
+        'sosLat',
+        'sosLng',
+        'sosLocationText',
+        'sosTriggeredAtLabel',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      isValidRoomId(data.roomId) && data.roomId == roomId &&
+      data.roomTitle is string && data.roomTitle.size() >= 1 && data.roomTitle.size() <= 100 &&
+      data.leaderUid is string && data.leaderUid.size() >= 1 && data.leaderUid.size() <= 128 &&
+      (!('coLeaderUid' in data) || (data.coLeaderUid is string && data.coLeaderUid.size() <= 128)) &&
+      (!('actingLeaderUid' in data) || (data.actingLeaderUid is string && data.actingLeaderUid.size() <= 128)) &&
+      (!('leaderTroubleActive' in data) || data.leaderTroubleActive is bool) &&
+      (!('leaderTroubleReason' in data) || (data.leaderTroubleReason is string && data.leaderTroubleReason.size() <= 80)) &&
+      data.destinationName is string && data.destinationName.size() >= 1 && data.destinationName.size() <= 120 &&
+      data.destinationAddress is string && data.destinationAddress.size() >= 1 && data.destinationAddress.size() <= 240 &&
+      (!('destinationStops' in data) || (
+        data.destinationStops is list &&
+        data.destinationStops.size() <= 12 &&
+        (data.destinationStops.size() == 0 || (
+          data.destinationStops[0] is map &&
+          data.destinationStops[0].id is string && data.destinationStops[0].id.size() >= 1 && data.destinationStops[0].id.size() <= 64 &&
+          data.destinationStops[0].name is string && data.destinationStops[0].name.size() >= 1 && data.destinationStops[0].name.size() <= 120 &&
+          data.destinationStops[0].address is string && data.destinationStops[0].address.size() <= 240 &&
+          data.destinationStops[0].latitude is number &&
+          data.destinationStops[0].longitude is number
+        ))
+      )) &&
+      data.destLat is number && data.destLng is number &&
+      (!('originName' in data) || (data.originName is string && data.originName.size() <= 120)) &&
+      (!('originAddress' in data) || (data.originAddress is string && data.originAddress.size() <= 240)) &&
+      data.originLat is number && data.originLng is number &&
+      data.encodedPolyline is string && data.encodedPolyline.size() <= 16384 &&
+      (!('routePreference' in data) || data.routePreference in ['fastest', 'shortest', 'no_toll']) &&
+      (!('routeInstructions' in data) || (data.routeInstructions is list && data.routeInstructions.size() <= 60)) &&
+      data.totalRouteMeters is number &&
+      (!('estimatedDurationMillis' in data) || (data.estimatedDurationMillis is number && data.estimatedDurationMillis >= 0 && data.estimatedDurationMillis <= 604800000)) &&
+      data.offRouteToleranceMeters is number &&
+      data.maxStragglerDistanceMeters is number &&
+      data.soundAlertEnabled is bool &&
+      data.status in ['ACTIVE', 'FINISHED'] &&
+      data.sosActive is bool &&
+      data.sosSenderUid is string && data.sosSenderUid.size() <= 128 &&
+      data.sosSenderName is string && data.sosSenderName.size() <= 80 &&
+      data.sosSenderVehicle is string && data.sosSenderVehicle.size() <= 80 &&
+      data.sosLat is number && data.sosLng is number &&
+      data.sosLocationText is string && data.sosLocationText.size() <= 160 &&
+      data.sosTriggeredAtLabel is string && data.sosTriggeredAtLabel.size() <= 32 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidRoomMember(data, roomId, memberId) {
+      return data.keys().hasAll([
+        'uid',
+        'roomId',
+        'fullName',
+        'vehicleType',
+        'vehicleDetail',
+        'licensePlate',
+        'role',
+        'isSweeper',
+        'avatarPreset',
+        'conditionStatus',
+        'connectionStatus',
+        'lastLocationText',
+        'latitude',
+        'longitude',
+        'speedKmh',
+        'heading',
+        'accuracyMeters',
+        'routeProgress',
+        'xFraction',
+        'yFraction',
+        'joinedAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'uid',
+        'roomId',
+        'fullName',
+        'vehicleType',
+        'vehicleDetail',
+        'licensePlate',
+        'role',
+        'isSweeper',
+        'avatarPreset',
+        'conditionStatus',
+        'connectionStatus',
+        'lastLocationText',
+        'latitude',
+        'longitude',
+        'speedKmh',
+        'heading',
+        'accuracyMeters',
+        'routeProgress',
+        'xFraction',
+        'yFraction',
+        'joinedAt',
+        'updatedAt'
+      ]) &&
+      data.uid is string && data.uid == memberId && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+      isValidRoomId(data.roomId) && data.roomId == roomId &&
+      data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 80 &&
+      data.vehicleType in ['MOBIL', 'MOTOR'] &&
+      data.vehicleDetail is string && data.vehicleDetail.size() <= 80 &&
+      data.licensePlate is string && data.licensePlate.size() <= 24 &&
+      data.role in ['TOUR_LEADER', 'MEMBER'] &&
+      data.isSweeper is bool &&
+      data.avatarPreset is string && data.avatarPreset.size() <= 40 &&
+      data.conditionStatus in ['AMAN', 'ISTIRAHAT', 'MOGOK', 'SOS'] &&
+      data.connectionStatus in ['CONNECTED', 'WEAK_SIGNAL', 'OFFLINE'] &&
+      data.lastLocationText is string && data.lastLocationText.size() <= 160 &&
+      data.latitude is number && data.longitude is number &&
+      data.speedKmh is number && data.heading is number &&
+      data.accuracyMeters is number && data.routeProgress is number &&
+      data.xFraction is number && data.yFraction is number &&
+      data.joinedAt is timestamp && data.updatedAt is timestamp;
+    }
+
+    function isValidRoomCheckpoint(data, roomId) {
+      return data.keys().hasAll([
+        'id',
+        'roomId',
+        'createdByUid',
+        'name',
+        'latitude',
+        'longitude',
+        'xFraction',
+        'yFraction',
+        'createdAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id',
+        'roomId',
+        'createdByUid',
+        'name',
+        'latitude',
+        'longitude',
+        'xFraction',
+        'yFraction',
+        'createdAt'
+      ]) &&
+      data.id is string && data.id.size() >= 1 && data.id.size() <= 64 &&
+      isValidRoomId(data.roomId) && data.roomId == roomId &&
+      data.createdByUid is string && data.createdByUid == request.auth.uid && data.createdByUid.size() <= 128 &&
+      data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+      data.latitude is number && data.longitude is number &&
+      data.xFraction is number && data.yFraction is number &&
+      data.createdAt is timestamp;
+    }
+
+    function isValidRoomActivity(data, roomId, activityId) {
+      return data.keys().hasAll([
+        'id',
+        'roomId',
+        'createdByUid',
+        'title',
+        'timeLabel',
+        'locationNote',
+        'orderIndex',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id',
+        'roomId',
+        'createdByUid',
+        'title',
+        'timeLabel',
+        'locationNote',
+        'orderIndex',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.id is string && isValidId(data.id) && data.id.size() <= 64 && data.id == activityId &&
+      isValidRoomId(data.roomId) && data.roomId == roomId &&
+      data.createdByUid is string && data.createdByUid.size() >= 1 && data.createdByUid.size() <= 128 &&
+      data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+      data.timeLabel is string && data.timeLabel.size() <= 32 &&
+      data.locationNote is string && data.locationNote.size() <= 120 &&
+      data.orderIndex is number && data.orderIndex >= 0 && data.orderIndex <= 200 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidRoomActivityProgress(data, roomId, memberId) {
+      return data.keys().hasAll([
+        'uid',
+        'roomId',
+        'memberName',
+        'completedActivityIds',
+        'completedRecords',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'uid',
+        'roomId',
+        'memberName',
+        'completedActivityIds',
+        'completedRecords',
+        'updatedAt'
+      ]) &&
+      data.uid is string && data.uid == memberId && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+      isValidRoomId(data.roomId) && data.roomId == roomId &&
+      data.memberName is string && data.memberName.size() >= 1 && data.memberName.size() <= 80 &&
+      data.completedActivityIds is list &&
+      data.completedActivityIds.size() <= 40 &&
+      (data.completedActivityIds.size() == 0 || (
+        data.completedActivityIds[0] is string &&
+        data.completedActivityIds[0].size() >= 1 &&
+        data.completedActivityIds[0].size() <= 64
+      )) &&
+      data.completedRecords is list &&
+      data.completedRecords.size() <= 40 &&
+      (data.completedRecords.size() == 0 || (
+        data.completedRecords[0] is string &&
+        data.completedRecords[0].size() >= 1 &&
+        data.completedRecords[0].size() <= 96
+      )) &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidRoomMessage(data, roomId) {
+      return data.keys().hasAll([
+        'id',
+        'roomId',
+        'senderUid',
+        'senderName',
+        'senderVehicle',
+        'senderAvatarPreset',
+        'type',
+        'textContent',
+        'voiceDurationSec',
+        'timestampLabel',
+        'createdAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id',
+        'roomId',
+        'senderUid',
+        'senderName',
+        'senderVehicle',
+        'senderAvatarPreset',
+        'type',
+        'textContent',
+        'voiceDurationSec',
+        'voiceAudioDataUrl',
+        'timestampLabel',
+        'createdAt'
+      ]) &&
+      data.id is string && data.id.size() >= 1 && data.id.size() <= 64 &&
+      isValidRoomId(data.roomId) && data.roomId == roomId &&
+      data.senderUid is string && data.senderUid == request.auth.uid && data.senderUid.size() <= 128 &&
+      data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 80 &&
+      data.senderVehicle is string && data.senderVehicle.size() <= 80 &&
+      data.senderAvatarPreset is string && data.senderAvatarPreset.size() <= 40 &&
+      data.type in ['TEXT', 'VOICE', 'SOS_ALERT', 'SYSTEM'] &&
+      data.textContent is string && data.textContent.size() >= 1 && data.textContent.size() <= 500 &&
+      data.voiceDurationSec is number &&
+      (!('voiceAudioDataUrl' in data) || (data.voiceAudioDataUrl is string && data.voiceAudioDataUrl.size() <= 350000)) &&
+      data.timestampLabel is string && data.timestampLabel.size() >= 1 && data.timestampLabel.size() <= 16 &&
+      data.createdAt is timestamp;
+    }
+
+    function isValidGlobalAppConfig(data, configId) {
+      return data.keys().hasAll([
+        'configId',
+        'defaultOffRouteToleranceMeters',
+        'defaultMaxStragglerDistanceMeters',
+        'defaultSoundAlertEnabled',
+        'maintenanceMode',
+        'maintenanceMessage',
+        'announcementActive',
+        'announcementTitle',
+        'announcementMessage',
+        'allowGuestMode',
+        'allowNewRooms',
+        'updatedByUid',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'configId',
+        'defaultOffRouteToleranceMeters',
+        'defaultMaxStragglerDistanceMeters',
+        'defaultSoundAlertEnabled',
+        'maintenanceMode',
+        'maintenanceMessage',
+        'announcementActive',
+        'announcementTitle',
+        'announcementMessage',
+        'allowGuestMode',
+        'allowNewRooms',
+        'updatedByUid',
+        'updatedAt'
+      ]) &&
+      data.configId is string && data.configId == configId && data.configId == 'global' &&
+      data.defaultOffRouteToleranceMeters is number &&
+      data.defaultOffRouteToleranceMeters >= 10 &&
+      data.defaultOffRouteToleranceMeters <= 5000 &&
+      data.defaultMaxStragglerDistanceMeters is number &&
+      data.defaultMaxStragglerDistanceMeters >= 100 &&
+      data.defaultMaxStragglerDistanceMeters <= 50000 &&
+      data.defaultSoundAlertEnabled is bool &&
+      data.maintenanceMode is bool &&
+      data.maintenanceMessage is string && data.maintenanceMessage.size() <= 240 &&
+      data.announcementActive is bool &&
+      data.announcementTitle is string && data.announcementTitle.size() <= 80 &&
+      data.announcementMessage is string && data.announcementMessage.size() <= 240 &&
+      data.allowGuestMode is bool &&
+      data.allowNewRooms is bool &&
+      data.updatedByUid is string && data.updatedByUid == request.auth.uid && data.updatedByUid.size() <= 128 &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidUserPresence(data, userId) {
+      return data.keys().hasAll([
+        'uid',
+        'fullName',
+        'email',
+        'platform',
+        'isTraveling',
+        'activeRoomId',
+        'speedKmh',
+        'lastSeenAt'
+      ]) &&
+      data.keys().hasOnly([
+        'uid',
+        'fullName',
+        'email',
+        'platform',
+        'isTraveling',
+        'activeRoomId',
+        'speedKmh',
+        'lastSeenAt'
+      ]) &&
+      data.uid is string && data.uid == userId && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+      data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 80 &&
+      data.email is string && data.email.size() <= 160 &&
+      data.platform in ['web', 'android'] &&
+      data.isTraveling is bool &&
+      data.activeRoomId is string && data.activeRoomId.size() <= 32 &&
+      data.speedKmh is number && data.speedKmh >= 0 && data.speedKmh <= 350 &&
+      data.lastSeenAt is timestamp;
+    }
+
+    function isValidAdminEntry(data, adminId) {
+      return data.keys().hasAll(['uid', 'email', 'grantedAt']) &&
+      data.keys().hasOnly(['uid', 'email', 'grantedAt']) &&
+      data.uid is string && data.uid == adminId && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+      data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+      data.grantedAt is timestamp;
+    }
+
+    function isValidManasikProgress(data, userId, guideId) {
+      return data.keys().hasAll(['guideId', 'ownerUid', 'completedStepIds', 'updatedAt']) &&
+      data.keys().hasOnly(['guideId', 'ownerUid', 'completedStepIds', 'checkInRecords', 'updatedAt']) &&
+      guideId in ['umrah', 'haji'] &&
+      data.guideId is string &&
+      data.guideId == guideId &&
+      data.ownerUid is string &&
+      data.ownerUid == userId &&
+      data.ownerUid.size() >= 1 &&
+      data.ownerUid.size() <= 128 &&
+      data.completedStepIds is list &&
+      data.completedStepIds.size() <= 24 &&
+      (data.completedStepIds.size() == 0 || (
+        data.completedStepIds[0] is string &&
+        data.completedStepIds[0].size() >= 1 &&
+        data.completedStepIds[0].size() <= 64
+      )) &&
+      (!('checkInRecords' in data) || (
+        data.checkInRecords is list &&
+        data.checkInRecords.size() <= 24 &&
+        (data.checkInRecords.size() == 0 || (
+          data.checkInRecords[0] is string &&
+          data.checkInRecords[0].size() >= 1 &&
+          data.checkInRecords[0].size() <= 240
+        ))
+      )) &&
+      data.updatedAt is timestamp;
+    }
+
+    // Owner-Only Private User Profile (PII isolated, plus Admin Backend read)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdminEmail();
+      allow create: if isValidId(userId) && isOwner(userId) &&
+        isValidUserPrivateProfile(incoming(), userId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(userId) && isOwner(userId) &&
+        isValidUserPrivateProfile(incoming(), userId) &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'email',
+          'authProvider',
+          'fullName',
+          'clubName',
+          'homeCity',
+          'bio',
+          'instagramHandle',
+          'avatarPhotoUrl',
+          'vehicleType',
+          'vehicleDetail',
+          'licensePlate',
+          'emergencyContact',
+          'avatarPreset',
+          'updatedAt'
+        ]);
+      allow delete: if isValidId(userId) && (isOwner(userId) || isAdmin());
+
+      match /trips/{tripId} {
+        allow get: if isValidId(userId) && isValidId(tripId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && (
+          (isOwner(userId) && resource.data.ownerUid == request.auth.uid) ||
+          isAdminEmail()
+        );
+        allow create: if isValidId(userId) && isValidId(tripId) && isOwner(userId) &&
+          isValidTripRecord(incoming(), userId) &&
+          incoming().createdAt == request.time;
+        allow delete: if isValidId(userId) && isValidId(tripId) && (isOwner(userId) || isAdmin());
+      }
+
+      match /manasik/{guideId} {
+        allow get: if isValidId(userId) && guideId in ['umrah', 'haji'] && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && (
+          (isOwner(userId) && resource.data.ownerUid == request.auth.uid) ||
+          isAdminEmail()
+        );
+        allow create: if isValidId(userId) && guideId in ['umrah', 'haji'] && isOwner(userId) &&
+          isValidManasikProgress(incoming(), userId, guideId) &&
+          incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && guideId in ['umrah', 'haji'] && isOwner(userId) &&
+          isValidManasikProgress(incoming(), userId, guideId) &&
+          incoming().guideId == existing().guideId &&
+          incoming().ownerUid == existing().ownerUid &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['completedStepIds', 'checkInRecords', 'updatedAt']);
+        allow delete: if isValidId(userId) && guideId in ['umrah', 'haji'] && (isOwner(userId) || isAdmin());
+      }
+    }
+
+    // Global App Settings managed by Admin Backend
+    match /app_config/{configId} {
+      allow get: if isValidId(configId) && configId == 'global';
+      allow create: if isValidId(configId) && isAdmin() &&
+        isValidGlobalAppConfig(incoming(), configId) &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(configId) && isAdmin() &&
+        isValidGlobalAppConfig(incoming(), configId) &&
+        incoming().configId == existing().configId &&
+        incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    // Real-time User Online & Traveling Presence Heartbeat
+    match /presence/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdminEmail();
+      allow create, update: if isValidId(userId) && isOwner(userId) &&
+        isValidUserPresence(incoming(), userId) &&
+        incoming().lastSeenAt == request.time;
+      allow delete: if isValidId(userId) && (isOwner(userId) || isAdmin());
+    }
+
+    // Explicit Admin Operators Allowlist
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow list: if isAdminEmail();
+      allow create, update: if isValidId(adminId) && isAdmin() &&
+        isValidAdminEntry(incoming(), adminId) &&
+        incoming().grantedAt == request.time;
+      allow delete: if isValidId(adminId) && isAdmin();
+    }
+
+    // Shared Convoy Rooms
+    match /rooms/{roomId} {
+      allow get: if isSignedIn() && isValidRoomId(roomId);
+      allow list: if isAdminEmail();
+      allow create: if isSignedIn() && isValidRoomId(roomId) &&
+        isValidConvoyRoom(incoming(), roomId) &&
+        incoming().leaderUid == request.auth.uid &&
+        (!('actingLeaderUid' in incoming()) || incoming().actingLeaderUid == '' || incoming().actingLeaderUid == request.auth.uid) &&
+        incoming().status == 'ACTIVE' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && isValidRoomId(roomId) &&
+        isValidConvoyRoom(incoming(), roomId) &&
+        incoming().roomId == existing().roomId &&
+        incoming().leaderUid == existing().leaderUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            existing().status == 'ACTIVE' &&
+            (
+              (
+                (
+                  existing().leaderUid == request.auth.uid ||
+                  (
+                    ('actingLeaderUid' in existing()) &&
+                    existing().actingLeaderUid is string &&
+                    existing().actingLeaderUid.size() >= 1 &&
+                    existing().actingLeaderUid == request.auth.uid
+                  )
+                ) &&
+                incoming().diff(existing()).affectedKeys().hasOnly([
+                  'coLeaderUid',
+                  'actingLeaderUid',
+                  'leaderTroubleActive',
+                  'leaderTroubleReason',
+                  'destinationName',
+                  'destinationAddress',
+                  'destinationStops',
+                  'destLat',
+                  'destLng',
+                  'originName',
+                  'originAddress',
+                  'originLat',
+                  'originLng',
+                  'encodedPolyline',
+                  'routePreference',
+                  'routeInstructions',
+                  'totalRouteMeters',
+                  'estimatedDurationMillis',
+                  'offRouteToleranceMeters',
+                  'maxStragglerDistanceMeters',
+                  'soundAlertEnabled',
+                  'status',
+                  'sosActive',
+                  'sosSenderUid',
+                  'sosSenderName',
+                  'sosSenderVehicle',
+                  'sosLat',
+                  'sosLng',
+                  'sosLocationText',
+                  'sosTriggeredAtLabel',
+                  'updatedAt'
+                ])
+              ) ||
+              (
+                isRoomMember(roomId) &&
+                (!('leaderTroubleActive' in existing()) || existing().leaderTroubleActive == false) &&
+                ('coLeaderUid' in existing()) &&
+                existing().coLeaderUid is string &&
+                existing().coLeaderUid.size() >= 1 &&
+                incoming().actingLeaderUid == existing().coLeaderUid &&
+                incoming().leaderTroubleActive == true &&
+                incoming().diff(existing()).affectedKeys().hasOnly([
+                  'actingLeaderUid',
+                  'leaderTroubleActive',
+                  'leaderTroubleReason',
+                  'updatedAt'
+                ])
+              ) ||
+              (
+                incoming().diff(existing()).affectedKeys().hasOnly([
+                  'sosActive',
+                  'sosSenderUid',
+                  'sosSenderName',
+                  'sosSenderVehicle',
+                  'sosLat',
+                  'sosLng',
+                  'sosLocationText',
+                  'sosTriggeredAtLabel',
+                  'updatedAt'
+                ]) &&
+                (
+                  (incoming().sosActive == true && incoming().sosSenderUid == request.auth.uid) ||
+                  (incoming().sosActive == false)
+                )
+              )
+            )
+          )
+        );
+      allow delete: if isValidRoomId(roomId) && isAdmin();
+
+      match /members/{memberId} {
+        allow get: if isSignedIn() && isValidRoomId(roomId) && isValidId(memberId) && (roomExists(roomId) || isAdmin());
+        allow list: if isSignedIn() && isValidRoomId(roomId) && (resource.data.roomId == roomId || isAdminEmail());
+        allow create: if isSignedIn() && isValidRoomId(roomId) && isValidId(memberId) &&
+          isRoomActive(roomId) &&
+          request.auth.uid == memberId &&
+          isValidRoomMember(incoming(), roomId, memberId) &&
+          incoming().joinedAt == request.time &&
+          incoming().updatedAt == request.time &&
+          (
+            (isRoomLeader(roomId) && incoming().role == 'TOUR_LEADER') ||
+            (!isRoomLeader(roomId) && incoming().role == 'MEMBER' && incoming().isSweeper == false)
+          );
+        allow update: if isSignedIn() && isValidRoomId(roomId) && isValidId(memberId) &&
+          isRoomActive(roomId) &&
+          isValidRoomMember(incoming(), roomId, memberId) &&
+          incoming().uid == existing().uid &&
+          incoming().roomId == existing().roomId &&
+          incoming().role == existing().role &&
+          incoming().joinedAt == existing().joinedAt &&
+          incoming().updatedAt == request.time &&
+          (
+            isAdmin() ||
+            (
+              request.auth.uid == memberId &&
+              incoming().isSweeper == existing().isSweeper &&
+              incoming().diff(existing()).affectedKeys().hasOnly([
+                'fullName',
+                'vehicleType',
+                'vehicleDetail',
+                'licensePlate',
+                'avatarPreset',
+                'conditionStatus',
+                'connectionStatus',
+                'lastLocationText',
+                'latitude',
+                'longitude',
+                'speedKmh',
+                'heading',
+                'accuracyMeters',
+                'routeProgress',
+                'xFraction',
+                'yFraction',
+                'updatedAt'
+              ])
+            ) ||
+            (
+              isEffectiveRoomLeader(roomId) &&
+              incoming().diff(existing()).affectedKeys().hasOnly(['isSweeper', 'updatedAt'])
+            )
+          );
+        allow delete: if isSignedIn() && isValidRoomId(roomId) && isValidId(memberId) &&
+          (request.auth.uid == memberId || isEffectiveRoomLeader(roomId) || isAdmin());
+      }
+
+      match /checkpoints/{checkpointId} {
+        allow get: if isSignedIn() && isValidRoomId(roomId) && isValidId(checkpointId) && (roomExists(roomId) || isAdmin());
+        allow list: if isSignedIn() && isValidRoomId(roomId) && (resource.data.roomId == roomId || isAdminEmail());
+        allow create: if isSignedIn() && isValidRoomId(roomId) && isValidId(checkpointId) &&
+          isRoomActive(roomId) &&
+          (isEffectiveRoomLeader(roomId) || isAdmin()) &&
+          isValidRoomCheckpoint(incoming(), roomId) &&
+          incoming().createdAt == request.time;
+        allow delete: if isSignedIn() && isValidRoomId(roomId) && isValidId(checkpointId) &&
+          (isEffectiveRoomLeader(roomId) || isAdmin());
+      }
+
+      match /activities/{activityId} {
+        allow get: if isSignedIn() && isValidRoomId(roomId) && isValidId(activityId) && (roomExists(roomId) || isAdmin());
+        allow list: if isSignedIn() && isValidRoomId(roomId) && (resource.data.roomId == roomId || isAdminEmail());
+        allow create: if isSignedIn() && isValidRoomId(roomId) && isValidId(activityId) &&
+          isRoomActive(roomId) &&
+          (isEffectiveRoomLeader(roomId) || isAdmin()) &&
+          isValidRoomActivity(incoming(), roomId, activityId) &&
+          incoming().createdByUid == request.auth.uid &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time;
+        allow update: if isSignedIn() && isValidRoomId(roomId) && isValidId(activityId) &&
+          isRoomActive(roomId) &&
+          isValidRoomActivity(incoming(), roomId, activityId) &&
+          (isEffectiveRoomLeader(roomId) || isAdmin()) &&
+          incoming().id == existing().id &&
+          incoming().roomId == existing().roomId &&
+          incoming().createdByUid == existing().createdByUid &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'title',
+            'timeLabel',
+            'locationNote',
+            'orderIndex',
+            'updatedAt'
+          ]);
+        allow delete: if isSignedIn() && isValidRoomId(roomId) && isValidId(activityId) &&
+          isRoomActive(roomId) &&
+          (isEffectiveRoomLeader(roomId) || isAdmin());
+      }
+
+      match /activityProgress/{memberId} {
+        allow get: if isSignedIn() && isValidRoomId(roomId) && isValidId(memberId) && (roomExists(roomId) || isAdmin());
+        allow list: if isSignedIn() && isValidRoomId(roomId) && (resource.data.roomId == roomId || isAdminEmail());
+        allow create: if isSignedIn() && isValidRoomId(roomId) && isValidId(memberId) &&
+          isRoomActive(roomId) &&
+          request.auth.uid == memberId &&
+          (isRoomMember(roomId) || isEffectiveRoomLeader(roomId) || isAdmin()) &&
+          isValidRoomActivityProgress(incoming(), roomId, memberId) &&
+          incoming().updatedAt == request.time;
+        allow update: if isSignedIn() && isValidRoomId(roomId) && isValidId(memberId) &&
+          isRoomActive(roomId) &&
+          isValidRoomActivityProgress(incoming(), roomId, memberId) &&
+          (request.auth.uid == memberId || isAdmin()) &&
+          (isRoomMember(roomId) || isEffectiveRoomLeader(roomId) || isAdmin()) &&
+          incoming().uid == existing().uid &&
+          incoming().roomId == existing().roomId &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'memberName',
+            'completedActivityIds',
+            'completedRecords',
+            'updatedAt'
+          ]);
+        allow delete: if isSignedIn() && isValidRoomId(roomId) && isValidId(memberId) &&
+          (request.auth.uid == memberId || isEffectiveRoomLeader(roomId) || isAdmin());
+      }
+
+      match /messages/{messageId} {
+        allow get: if isSignedIn() && isValidRoomId(roomId) && isValidId(messageId) && (roomExists(roomId) || isAdmin());
+        allow list: if isSignedIn() && isValidRoomId(roomId) && (resource.data.roomId == roomId || isAdminEmail());
+        allow create: if isSignedIn() && isValidRoomId(roomId) && isValidId(messageId) &&
+          isRoomActive(roomId) &&
+          isValidRoomMessage(incoming(), roomId) &&
+          incoming().createdAt == request.time;
+      }
+    }
+  }
+}

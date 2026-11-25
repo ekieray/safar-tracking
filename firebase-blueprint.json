@@ -1,0 +1,501 @@
+{
+  "entities": {
+    "UserPrivateProfile": {
+      "title": "UserPrivateProfile",
+      "description": "Private vehicle and emergency contact profile owned strictly by the authenticated user.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "email": { "type": "string", "minLength": 0, "maxLength": 160 },
+        "authProvider": { "type": "string", "enum": ["google", "facebook", "instagram", "email", "local"] },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "clubName": { "type": "string", "minLength": 0, "maxLength": 80 },
+        "homeCity": { "type": "string", "minLength": 0, "maxLength": 80 },
+        "bio": { "type": "string", "minLength": 0, "maxLength": 240 },
+        "instagramHandle": { "type": "string", "minLength": 0, "maxLength": 60 },
+        "avatarPhotoUrl": { "type": "string", "minLength": 0, "maxLength": 120000 },
+        "vehicleType": { "type": "string", "enum": ["MOBIL", "MOTOR"] },
+        "vehicleDetail": { "type": "string", "minLength": 0, "maxLength": 80 },
+        "licensePlate": { "type": "string", "minLength": 0, "maxLength": 24 },
+        "emergencyContact": { "type": "string", "minLength": 0, "maxLength": 40 },
+        "avatarPreset": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid",
+        "fullName",
+        "vehicleType",
+        "vehicleDetail",
+        "licensePlate",
+        "emergencyContact",
+        "avatarPreset",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ConvoyRoom": {
+      "title": "ConvoyRoom",
+      "description": "Shared real-time convoy room configuration, official route geometry, safety thresholds, and SOS alert state.",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$", "minLength": 4, "maxLength": 32 },
+        "roomTitle": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "leaderUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "coLeaderUid": { "type": "string", "minLength": 0, "maxLength": 128 },
+        "actingLeaderUid": { "type": "string", "minLength": 0, "maxLength": 128 },
+        "leaderTroubleActive": { "type": "boolean" },
+        "leaderTroubleReason": { "type": "string", "minLength": 0, "maxLength": 80 },
+        "destinationName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "destinationAddress": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "destinationStops": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+              "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+              "address": { "type": "string", "maxLength": 240 },
+              "latitude": { "type": "number" },
+              "longitude": { "type": "number" }
+            }
+          }
+        },
+        "destLat": { "type": "number" },
+        "destLng": { "type": "number" },
+        "originName": { "type": "string", "minLength": 0, "maxLength": 120 },
+        "originAddress": { "type": "string", "minLength": 0, "maxLength": 240 },
+        "originLat": { "type": "number" },
+        "originLng": { "type": "number" },
+        "encodedPolyline": { "type": "string", "maxLength": 16384 },
+        "routePreference": { "type": "string", "enum": ["fastest", "shortest", "no_toll"] },
+        "routeInstructions": {
+          "type": "array",
+          "maxItems": 60,
+          "items": {
+            "type": "object",
+            "properties": {
+              "latitude": { "type": "number" },
+              "longitude": { "type": "number" },
+              "routeOffsetInMeters": { "type": "number" },
+              "maneuver": { "type": "string", "maxLength": 64 },
+              "message": { "type": "string", "maxLength": 240 },
+              "street": { "type": "string", "maxLength": 120 }
+            }
+          }
+        },
+        "totalRouteMeters": { "type": "number" },
+        "estimatedDurationMillis": { "type": "number" },
+        "offRouteToleranceMeters": { "type": "number" },
+        "maxStragglerDistanceMeters": { "type": "number" },
+        "soundAlertEnabled": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["ACTIVE", "FINISHED"] },
+        "sosActive": { "type": "boolean" },
+        "sosSenderUid": { "type": "string", "maxLength": 128 },
+        "sosSenderName": { "type": "string", "maxLength": 80 },
+        "sosSenderVehicle": { "type": "string", "maxLength": 80 },
+        "sosLat": { "type": "number" },
+        "sosLng": { "type": "number" },
+        "sosLocationText": { "type": "string", "maxLength": 160 },
+        "sosTriggeredAtLabel": { "type": "string", "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "roomId",
+        "roomTitle",
+        "leaderUid",
+        "destinationName",
+        "destinationAddress",
+        "destLat",
+        "destLng",
+        "originLat",
+        "originLng",
+        "encodedPolyline",
+        "totalRouteMeters",
+        "offRouteToleranceMeters",
+        "maxStragglerDistanceMeters",
+        "soundAlertEnabled",
+        "status",
+        "sosActive",
+        "sosSenderUid",
+        "sosSenderName",
+        "sosSenderVehicle",
+        "sosLat",
+        "sosLng",
+        "sosLocationText",
+        "sosTriggeredAtLabel",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "RoomMember": {
+      "title": "RoomMember",
+      "description": "Live GPS telemetry, vehicle identity, convoy rank status, and Sweeper assignment for a participant inside a room.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "roomId": { "type": "string", "minLength": 4, "maxLength": 32 },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "vehicleType": { "type": "string", "enum": ["MOBIL", "MOTOR"] },
+        "vehicleDetail": { "type": "string", "maxLength": 80 },
+        "licensePlate": { "type": "string", "maxLength": 24 },
+        "role": { "type": "string", "enum": ["TOUR_LEADER", "MEMBER"] },
+        "isSweeper": { "type": "boolean" },
+        "avatarPreset": { "type": "string", "maxLength": 40 },
+        "conditionStatus": { "type": "string", "enum": ["AMAN", "ISTIRAHAT", "MOGOK", "SOS"] },
+        "connectionStatus": { "type": "string", "enum": ["CONNECTED", "WEAK_SIGNAL", "OFFLINE"] },
+        "lastLocationText": { "type": "string", "maxLength": 160 },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "speedKmh": { "type": "number" },
+        "heading": { "type": "number" },
+        "accuracyMeters": { "type": "number" },
+        "routeProgress": { "type": "number" },
+        "xFraction": { "type": "number" },
+        "yFraction": { "type": "number" },
+        "joinedAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid",
+        "roomId",
+        "fullName",
+        "vehicleType",
+        "vehicleDetail",
+        "licensePlate",
+        "role",
+        "isSweeper",
+        "avatarPreset",
+        "conditionStatus",
+        "connectionStatus",
+        "lastLocationText",
+        "latitude",
+        "longitude",
+        "speedKmh",
+        "heading",
+        "accuracyMeters",
+        "routeProgress",
+        "xFraction",
+        "yFraction",
+        "joinedAt",
+        "updatedAt"
+      ]
+    },
+    "RoomCheckpoint": {
+      "title": "RoomCheckpoint",
+      "description": "Shared Rest Area or stop checkpoint added by the Tour Leader along the convoy route.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "roomId": { "type": "string", "minLength": 4, "maxLength": 32 },
+        "createdByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "xFraction": { "type": "number" },
+        "yFraction": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "roomId",
+        "createdByUid",
+        "name",
+        "latitude",
+        "longitude",
+        "xFraction",
+        "yFraction",
+        "createdAt"
+      ]
+    },
+    "RoomMessage": {
+      "title": "RoomMessage",
+      "description": "Real-time convoy room chat message, system event, voice metadata, or SOS alert.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "roomId": { "type": "string", "minLength": 4, "maxLength": 32 },
+        "senderUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "senderName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "senderVehicle": { "type": "string", "maxLength": 80 },
+        "senderAvatarPreset": { "type": "string", "maxLength": 40 },
+        "type": { "type": "string", "enum": ["TEXT", "VOICE", "SOS_ALERT", "SYSTEM"] },
+        "textContent": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "voiceDurationSec": { "type": "number" },
+        "voiceAudioDataUrl": { "type": "string", "minLength": 0, "maxLength": 350000 },
+        "timestampLabel": { "type": "string", "minLength": 1, "maxLength": 16 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "roomId",
+        "senderUid",
+        "senderName",
+        "senderVehicle",
+        "senderAvatarPreset",
+        "type",
+        "textContent",
+        "voiceDurationSec",
+        "timestampLabel",
+        "createdAt"
+      ]
+    },
+    "TripHistoryRecord": {
+      "title": "TripHistoryRecord",
+      "description": "Completed convoy trip summary saved by an authenticated user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "roomId": { "type": "string", "minLength": 4, "maxLength": 32 },
+        "tourTitle": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "dateLabel": { "type": "string", "maxLength": 32 },
+        "timeRangeLabel": { "type": "string", "maxLength": 32 },
+        "durationLabel": { "type": "string", "maxLength": 32 },
+        "durationMinutes": { "type": "number" },
+        "distanceKm": { "type": "number" },
+        "avgSpeedKmh": { "type": "number" },
+        "maxSpeedKmh": { "type": "number" },
+        "userRole": { "type": "string", "enum": ["TOUR_LEADER", "MEMBER"] },
+        "destinationName": { "type": "string", "maxLength": 120 },
+        "destinationAddress": { "type": "string", "maxLength": 240 },
+        "encodedPolyline": { "type": "string", "maxLength": 16384 },
+        "participants": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "maxLength": 128 },
+              "fullName": { "type": "string", "maxLength": 80 },
+              "vehicleType": { "type": "string", "enum": ["MOBIL", "MOTOR"] },
+              "vehicleDetail": { "type": "string", "maxLength": 80 },
+              "licensePlate": { "type": "string", "maxLength": 24 },
+              "role": { "type": "string", "enum": ["TOUR_LEADER", "MEMBER"] },
+              "isSweeper": { "type": "boolean" },
+              "avatarPreset": { "type": "string", "maxLength": 40 }
+            }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "ownerUid",
+        "roomId",
+        "tourTitle",
+        "dateLabel",
+        "timeRangeLabel",
+        "durationLabel",
+        "durationMinutes",
+        "distanceKm",
+        "avgSpeedKmh",
+        "maxSpeedKmh",
+        "userRole",
+        "destinationName",
+        "destinationAddress",
+        "createdAt"
+      ]
+    },
+    "GlobalAppConfig": {
+      "title": "GlobalAppConfig",
+      "description": "Global application settings and operational controls managed from the Admin Backend.",
+      "type": "object",
+      "properties": {
+        "configId": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "defaultOffRouteToleranceMeters": { "type": "number" },
+        "defaultMaxStragglerDistanceMeters": { "type": "number" },
+        "defaultSoundAlertEnabled": { "type": "boolean" },
+        "maintenanceMode": { "type": "boolean" },
+        "maintenanceMessage": { "type": "string", "minLength": 0, "maxLength": 240 },
+        "announcementActive": { "type": "boolean" },
+        "announcementTitle": { "type": "string", "minLength": 0, "maxLength": 80 },
+        "announcementMessage": { "type": "string", "minLength": 0, "maxLength": 240 },
+        "allowGuestMode": { "type": "boolean" },
+        "allowNewRooms": { "type": "boolean" },
+        "updatedByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "configId",
+        "defaultOffRouteToleranceMeters",
+        "defaultMaxStragglerDistanceMeters",
+        "defaultSoundAlertEnabled",
+        "maintenanceMode",
+        "maintenanceMessage",
+        "announcementActive",
+        "announcementTitle",
+        "announcementMessage",
+        "allowGuestMode",
+        "allowNewRooms",
+        "updatedByUid",
+        "updatedAt"
+      ]
+    },
+    "UserPresence": {
+      "title": "UserPresence",
+      "description": "Real-time user online heartbeat and active convoy journey state for Admin Backend monitoring.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "email": { "type": "string", "minLength": 0, "maxLength": 160 },
+        "platform": { "type": "string", "enum": ["web", "android"] },
+        "isTraveling": { "type": "boolean" },
+        "activeRoomId": { "type": "string", "minLength": 0, "maxLength": 32 },
+        "speedKmh": { "type": "number" },
+        "lastSeenAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid",
+        "fullName",
+        "email",
+        "platform",
+        "isTraveling",
+        "activeRoomId",
+        "speedKmh",
+        "lastSeenAt"
+      ]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Explicitly authorized admin operator record.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "email": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "grantedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "grantedAt"]
+    },
+    "ManasikProgressRecord": {
+      "title": "ManasikProgressRecord",
+      "description": "Owner-only interactive Umrah and Hajj checklist and GPS check-in progress saved per guide type.",
+      "type": "object",
+      "properties": {
+        "guideId": { "type": "string", "enum": ["umrah", "haji"] },
+        "ownerUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "completedStepIds": {
+          "type": "array",
+          "maxItems": 24,
+          "items": { "type": "string", "maxLength": 64 }
+        },
+        "checkInRecords": {
+          "type": "array",
+          "maxItems": 24,
+          "items": { "type": "string", "maxLength": 240 }
+        },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["guideId", "ownerUid", "completedStepIds", "updatedAt"]
+    },
+    "RoomActivity": {
+      "title": "RoomActivity",
+      "description": "Shared Umrah activity checklist item created and managed by the room creator inside a convoy room.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_-]+$" },
+        "roomId": { "type": "string", "minLength": 4, "maxLength": 32, "pattern": "^[A-Za-z0-9_-]+$" },
+        "createdByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "timeLabel": { "type": "string", "minLength": 0, "maxLength": 32 },
+        "locationNote": { "type": "string", "minLength": 0, "maxLength": 120 },
+        "orderIndex": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "roomId",
+        "createdByUid",
+        "title",
+        "timeLabel",
+        "locationNote",
+        "orderIndex",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "RoomActivityProgress": {
+      "title": "RoomActivityProgress",
+      "description": "Per-member checklist completion state for activities created in a room.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "roomId": { "type": "string", "minLength": 4, "maxLength": 32, "pattern": "^[A-Za-z0-9_-]+$" },
+        "memberName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "completedActivityIds": {
+          "type": "array",
+          "maxItems": 40,
+          "items": { "type": "string", "minLength": 1, "maxLength": 64 }
+        },
+        "completedRecords": {
+          "type": "array",
+          "maxItems": 40,
+          "items": { "type": "string", "minLength": 1, "maxLength": 96 }
+        },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid",
+        "roomId",
+        "memberName",
+        "completedActivityIds",
+        "completedRecords",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserPrivateProfile" },
+      "description": "Owner-only private user profile with emergency contact details (plus Admin read access)."
+    },
+    "/users/{userId}/trips/{tripId}": {
+      "schema": { "$ref": "#/entities/TripHistoryRecord" },
+      "description": "Owner-only saved trip history logs."
+    },
+    "/users/{userId}/manasik/{guideId}": {
+      "schema": { "$ref": "#/entities/ManasikProgressRecord" },
+      "description": "Owner-only Umrah and Hajj manasik interactive checklist progress."
+    },
+    "/rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/ConvoyRoom" },
+      "description": "Shared convoy room root document containing destination, route, tolerances, and SOS state."
+    },
+    "/rooms/{roomId}/members/{memberId}": {
+      "schema": { "$ref": "#/entities/RoomMember" },
+      "description": "Live GPS position and status of each convoy participant."
+    },
+    "/rooms/{roomId}/checkpoints/{checkpointId}": {
+      "schema": { "$ref": "#/entities/RoomCheckpoint" },
+      "description": "Shared Rest Area checkpoints along the convoy route."
+    },
+    "/rooms/{roomId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/RoomMessage" },
+      "description": "Real-time convoy room chat, voice metadata, and system/SOS notifications."
+    },
+    "/rooms/{roomId}/activities/{activityId}": {
+      "schema": { "$ref": "#/entities/RoomActivity" },
+      "description": "Shared Umrah activity checklist items authored by the room creator."
+    },
+    "/rooms/{roomId}/activityProgress/{memberId}": {
+      "schema": { "$ref": "#/entities/RoomActivityProgress" },
+      "description": "Individual group member checklist completion status for room activities."
+    },
+    "/app_config/{configId}": {
+      "schema": { "$ref": "#/entities/GlobalAppConfig" },
+      "description": "Global application configuration controlled by Admin Backend."
+    },
+    "/presence/{userId}": {
+      "schema": { "$ref": "#/entities/UserPresence" },
+      "description": "Real-time active user presence and traveling telemetry heartbeat."
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Authorized admin role allowlist."
+    }
+  }
+}
