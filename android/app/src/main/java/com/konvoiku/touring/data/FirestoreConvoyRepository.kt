@@ -219,7 +219,7 @@ class FirestoreConvoyRepository {
                 ) {
                     return@runCatching WebEndpointStatus.DEV_PROXY_AUTH
                 }
-                if (body.contains("KonvoiKu", ignoreCase = true)) {
+                if (body.contains("Safar Tracking", ignoreCase = true) || body.contains("KonvoiKu", ignoreCase = true)) {
                     return@runCatching WebEndpointStatus.OUTDATED_BUILD
                 }
             }
@@ -248,7 +248,7 @@ class FirestoreConvoyRepository {
                     baseUrl = "",
                     isPublishedLive = false,
                     isDevProxy = false,
-                    errorMessage = "URL kustom ($customClean) mengembalikan 404 Page Not Found. Pastikan URL Web KonvoiKu sudah aktif/dipublikasikan."
+                    errorMessage = "URL kustom ($customClean) mengembalikan 404 Page Not Found. Pastikan URL Web Safar Tracking sudah aktif/dipublikasikan."
                 )
                 WebEndpointStatus.DEV_PROXY_AUTH -> if (allowDevProxyFallback) {
                     WebBridgeResolution(
@@ -541,7 +541,7 @@ class FirestoreConvoyRepository {
                     "uid" to uid,
                     "email" to profile.email.trim().lowercase().take(160),
                     "authProvider" to profile.authProvider.id,
-                    "fullName" to profile.fullName.trim().ifBlank { "Rider KonvoiKu" }.take(80),
+                    "fullName" to profile.fullName.trim().ifBlank { "Jamaah Safar Tracking" }.take(80),
                     "clubName" to profile.clubName.trim().take(80),
                     "homeCity" to profile.homeCity.trim().take(80),
                     "bio" to profile.bio.trim().take(240),
@@ -560,7 +560,7 @@ class FirestoreConvoyRepository {
                 val updateData = hashMapOf<String, Any>(
                     "email" to profile.email.trim().lowercase().take(160),
                     "authProvider" to profile.authProvider.id,
-                    "fullName" to profile.fullName.trim().ifBlank { "Rider KonvoiKu" }.take(80),
+                    "fullName" to profile.fullName.trim().ifBlank { "Jamaah Safar Tracking" }.take(80),
                     "clubName" to profile.clubName.trim().take(80),
                     "homeCity" to profile.homeCity.trim().take(80),
                     "bio" to profile.bio.trim().take(240),
@@ -1387,7 +1387,7 @@ class FirestoreConvoyRepository {
                         maintenanceMessage = snap.getString("maintenanceMessage")
                             ?: "Aplikasi sedang dalam pemeliharaan berkala. Mohon tunggu beberapa saat.",
                         announcementActive = snap.getBoolean("announcementActive") ?: false,
-                        announcementTitle = snap.getString("announcementTitle") ?: "Info KonvoiKu",
+                        announcementTitle = snap.getString("announcementTitle") ?: "Info Safar Tracking",
                         announcementMessage = snap.getString("announcementMessage") ?: "",
                         allowGuestMode = snap.getBoolean("allowGuestMode") ?: true,
                         allowNewRooms = snap.getBoolean("allowNewRooms") ?: true,
@@ -1434,7 +1434,7 @@ class FirestoreConvoyRepository {
         db.collection("presence").document(uid).set(
             mapOf(
                 "uid" to uid,
-                "fullName" to fullName.trim().ifBlank { "Rider KonvoiKu" }.take(80),
+                "fullName" to fullName.trim().ifBlank { "Jamaah Safar Tracking" }.take(80),
                 "email" to email.trim().lowercase(Locale.ROOT).take(160),
                 "platform" to "android",
                 "isTraveling" to isTraveling,
@@ -1499,7 +1499,7 @@ class FirestoreConvoyRepository {
             val list = snap.documents.map { doc ->
                 AdminUserSummary(
                     uid = doc.getString("uid") ?: doc.id,
-                    fullName = doc.getString("fullName") ?: "Rider KonvoiKu",
+                    fullName = doc.getString("fullName") ?: "Jamaah Safar Tracking",
                     email = doc.getString("email").orEmpty(),
                     authProvider = AuthProviderType.fromId(doc.getString("authProvider")),
                     clubName = doc.getString("clubName").orEmpty(),

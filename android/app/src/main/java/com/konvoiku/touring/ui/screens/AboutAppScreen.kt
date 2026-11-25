@@ -99,8 +99,8 @@ fun AboutAppScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 TouringHeroAtmosphereHeader(
-                    title = "KonvoiKu Touring",
-                    subtitle = "Aplikasi pendamping konvoi mobil & motor dengan pelacakan langsung, peringatan keselamatan, walkie-talkie, dan kartu rute."
+                    title = "Safar Tracking",
+                    subtitle = "Aplikasi pendamping perjalanan ibadah Umroh & Haji dengan pelacakan langsung, peringatan keselamatan, walkie-talkie, dan kartu rute."
                 )
 
                 // Ringkasan Fitur Utama
@@ -216,7 +216,7 @@ fun AboutAppScreen(
                                 modifier = Modifier.size(14.dp)
                             )
                             Text(
-                                text = "KonvoiKu Touring · Kotlin & Jetpack Compose",
+                                text = "Safar Tracking · Kotlin & Jetpack Compose",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

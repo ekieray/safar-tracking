@@ -22,5 +22,5 @@ dependencyResolutionManagement {
 
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
-rootProject.name = "KonvoiKu"
+rootProject.name = "Safar Tracking"
 include(":app")

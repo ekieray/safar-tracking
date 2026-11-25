@@ -478,7 +478,7 @@ fun VehicleProfileScreen(
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Tentang Aplikasi KonvoiKu",
+                            text = "Tentang Aplikasi Safar Tracking",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurface

@@ -233,7 +233,7 @@ fun AdminBackendScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Kontrol KonvoiKu · Realtime Firestore",
+                            text = "Kontrol Safar Tracking · Realtime Firestore",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -545,7 +545,7 @@ fun AdminBackendScreen(
                             OutlinedTextField(
                                 value = customBridgeUrl,
                                 onValueChange = { customBridgeUrl = it },
-                                label = { Text("URL Web KonvoiKu (opsional)") },
+                                label = { Text("URL Web Safar Tracking (opsional)") },
                                 placeholder = { Text("https://...run.app") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),

@@ -2545,7 +2545,7 @@ fun LiveTrackingMapScreen(
                             Icon(Icons.Rounded.Share, contentDescription = null, tint = Color(0xFFEA580C), modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Link APK KonvoiKu", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("Link APK Safar Tracking", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text(activeRoom.inviteLink, fontSize = 11.sp, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                             IconButton(
@@ -2572,7 +2572,7 @@ fun LiveTrackingMapScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val shareBody = "Gabung konvoi \"${activeRoom.roomTitle}\" di KonvoiKu!\nKode Room: ${activeRoom.roomId}\nLink Web: $webShareLink\nLink Aplikasi: ${activeRoom.inviteLink}"
+                        val shareBody = "Gabung rombongan \"${activeRoom.roomTitle}\" di Safar Tracking!\nKode Room: ${activeRoom.roomId}\nLink Web: $webShareLink\nLink Aplikasi: ${activeRoom.inviteLink}"
                         val sendIntent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(Intent.EXTRA_SUBJECT, "Undangan Konvoi ${activeRoom.roomId}")

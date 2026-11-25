@@ -396,7 +396,7 @@ enum class TripCardTheme(val label: String, val subtitle: String) {
 fun buildTripGpxXml(trip: TripHistoryRecord): String {
     val sb = StringBuilder()
     sb.appendLine("""<?xml version="1.0" encoding="UTF-8"?>""")
-    sb.appendLine("""<gpx version="1.1" creator="KonvoiKu Touring App" xmlns="http://www.topografix.com/GPX/1/1">""")
+    sb.appendLine("""<gpx version="1.1" creator="Safar Tracking App" xmlns="http://www.topografix.com/GPX/1/1">""")
     sb.appendLine("  <metadata>")
     sb.appendLine("    <name>${escapeXml(trip.tourTitle)} (${trip.roomId})</name>")
     sb.appendLine("    <desc>Konvoi Touring menuju ${escapeXml(trip.destinationName)} · ${trip.distanceKm} km · Rata-rata ${trip.avgSpeedKmh} km/j</desc>")
@@ -449,7 +449,7 @@ fun buildTripJsonLog(trip: TripHistoryRecord): String {
     }
     return """
 {
-  "app": "KonvoiKu",
+  "app": "Safar Tracking",
   "roomId": "${escapeJson(trip.roomId)}",
   "tourTitle": "${escapeJson(trip.tourTitle)}",
   "date": "${escapeJson(trip.dateLabel)}",
@@ -481,7 +481,7 @@ fun buildTripShareSummaryText(trip: TripHistoryRecord): String {
     }
     val memberList = trip.participants.joinToString(", ") { it.fullName }
     return buildString {
-        appendLine("🏁 REKAP TOUR KONVOIKU")
+        appendLine("🕌 REKAP SAFAR TRACKING")
         appendLine("Tour: ${trip.tourTitle} (${trip.roomId})")
         appendLine("Tanggal: ${trip.dateLabel} (${trip.timeRangeLabel})")
         appendLine("Tujuan: ${trip.destinationName}")
@@ -510,7 +510,7 @@ data class GlobalAppConfig(
     val maintenanceMode: Boolean = false,
     val maintenanceMessage: String = "Aplikasi sedang dalam pemeliharaan berkala. Mohon tunggu beberapa saat.",
     val announcementActive: Boolean = false,
-    val announcementTitle: String = "Info KonvoiKu",
+    val announcementTitle: String = "Info Safar Tracking",
     val announcementMessage: String = "",
     val allowGuestMode: Boolean = true,
     val allowNewRooms: Boolean = true,

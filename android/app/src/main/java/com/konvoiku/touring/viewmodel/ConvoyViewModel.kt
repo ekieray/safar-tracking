@@ -532,7 +532,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         }
         val resolvedName = baseProfile.fullName.ifBlank { displayName }
             .ifBlank { cleanEmail.substringBefore("@") }
-            .ifBlank { "Rider KonvoiKu" }
+            .ifBlank { "Jamaah Safar Tracking" }
         val resolvedEmail = baseProfile.email.ifBlank { cleanEmail }
         val resolvedProvider = if (
             baseProfile.authProvider != AuthProviderType.LOCAL &&
@@ -609,7 +609,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
             runCatching {
                 val json = JSONObject(sessionRaw)
                 val email = normalizeEmail(json.optString("email")).ifBlank { firebaseEmail }
-                val name = json.optString("fullName").ifBlank { "Pengendara KonvoiKu" }
+                val name = json.optString("fullName").ifBlank { "Jamaah Safar Tracking" }
                 val provider = AuthProviderType.fromId(json.optString("authProvider"))
                 val isGuest = json.optBoolean("isGuest", false)
                 val savedProfile = loadProfileByEmail(email)
@@ -887,13 +887,13 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                         showOwnerDevPreviewFallback = false,
                         authInfoMessage = when {
                             isLocalLoopback ->
-                                "Browser dibuka ke halaman login Google ($resolvedBase). Ketuk 'Pilih Akun Google' di browser, lalu tunggu otomatis kembali ke KonvoiKu."
+                                "Browser dibuka ke halaman login Google ($resolvedBase). Ketuk 'Pilih Akun Google' di browser, lalu tunggu otomatis kembali ke Safar Tracking."
                             isDevProxy && isSharedUnpublished ->
                                 "Dev Preview ($resolvedBase) dibuka khusus pemilik. Pastikan Chrome memakai akun Google pemilik (${FirestoreConvoyRepository.ADMIN_EMAIL}), lalu salin link/tokennya setelah login."
                             isDevProxy ->
-                                "Browser dibuka ke Dev Preview ($resolvedBase). Pastikan Chrome memakai akun Google pemilik AI Studio, lalu selesaikan login & ketuk 'Buka Aplikasi KonvoiKu' atau salin link/tokennya."
+                                "Browser dibuka ke Dev Preview ($resolvedBase). Pastikan Chrome memakai akun Google pemilik AI Studio, lalu selesaikan login & ketuk 'Buka Aplikasi Safar Tracking' atau salin link/tokennya."
                             else ->
-                                "Browser dibuka ($resolvedBase). Setelah login Google selesai, ketuk 'Buka Aplikasi KonvoiKu' atau salin link/tokennya ke kolom di bawah."
+                                "Browser dibuka ($resolvedBase). Setelah login Google selesai, ketuk 'Buka Aplikasi Safar Tracking' atau salin link/tokennya ke kolom di bawah."
                         }
                     )
                 }
@@ -1229,7 +1229,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         val cleanEmail = normalizeEmail(profile.email).ifBlank {
             normalizeEmail(_uiState.value.authUserEmail)
         }
-        val cleanName = profile.fullName.trim().ifBlank { "Pengendara KonvoiKu" }
+        val cleanName = profile.fullName.trim().ifBlank { "Jamaah Safar Tracking" }
         val resolvedProvider = if (profile.authProvider == AuthProviderType.LOCAL) {
             _uiState.value.authProvider
         } else {
@@ -1316,7 +1316,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun loginUser(fullName: String, email: String, isGuest: Boolean = false) {
-        val cleanName = fullName.trim().ifBlank { "Pengendara KonvoiKu" }
+        val cleanName = fullName.trim().ifBlank { "Jamaah Safar Tracking" }
         val cleanEmail = normalizeEmail(email)
         val savedProfile = loadProfileByEmail(cleanEmail)
         val merged = (savedProfile ?: _uiState.value.vehicleProfile).copy(
@@ -3611,7 +3611,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         if (!state.isLoggedIn && state.activeRoom == null) return
         val selfMember = state.activeRoom?.members?.firstOrNull { it.isCurrentUser }
         val speed = selfMember?.mapPosition?.speedKmh ?: 0
-        val name = state.vehicleProfile.fullName.ifBlank { state.authUserName }.ifBlank { "Rider KonvoiKu" }
+        val name = state.vehicleProfile.fullName.ifBlank { state.authUserName }.ifBlank { "Jamaah Safar Tracking" }
         val email = state.vehicleProfile.email.ifBlank { state.authUserEmail }
         syncRepo.publishUserPresence(
             uid = uid,

@@ -3,7 +3,6 @@ import {
   AlertCircle,
   ArrowRight,
   CheckCircle2,
-  Compass,
   Eye,
   EyeOff,
   Info,
@@ -16,6 +15,7 @@ import {
   UserPlus,
   Wrench,
 } from 'lucide-react';
+import safarTrackingIcon from '../../assets/images/safar_tracking_icon_1795599322033.jpg';
 import { AuthProviderId, GlobalAppConfig } from '../../types/convoy';
 import {
   TouringCanvasBackdrop,
@@ -153,9 +153,12 @@ export function LoginView({
       {/* Top Bar */}
       <div className="sticky top-0 z-20 flex items-center justify-between gap-2 px-4 py-3 bg-white/90 dark:bg-[#0C1E17]/90 backdrop-blur-md border-b border-[#D8E6DD] dark:border-[#1B3B2E]">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-[10px] bg-[#047857] flex items-center justify-center text-white shrink-0">
-            <Compass className="w-4 h-4" />
-          </div>
+          <img
+            src={safarTrackingIcon}
+            alt="Safar Tracking"
+            referrerPolicy="no-referrer"
+            className="w-8 h-8 rounded-[10px] object-cover border border-[#047857]/30 shrink-0"
+          />
           <span className="text-base font-bold tracking-tight">Safar Tracking</span>
         </div>
 

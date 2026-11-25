@@ -2,12 +2,12 @@ import {
   ArrowLeft,
   BadgeCheck,
   Code2,
-  Compass,
   MapPinned,
   Radio,
   Route,
   ShieldAlert,
 } from 'lucide-react';
+import safarTrackingIcon from '../../assets/images/safar_tracking_icon_1795599322033.jpg';
 import {
   TouringCanvasBackdrop,
   TouringHeroBanner,
@@ -121,8 +121,13 @@ export function AboutAppView({ onBack }: AboutAppViewProps) {
               Dirancang dengan prinsip keteraturan dan ketenangan untuk mendampingi keselamatan jamaah Umroh di Tanah Suci.
             </p>
 
-            <div className="pt-1 flex items-center justify-center gap-1.5 text-[11px] text-[#4D6659] dark:text-[#9CC2AE]">
-              <Compass className="w-3.5 h-3.5 text-[#B45309] dark:text-[#FCD34D]" />
+            <div className="pt-1 flex items-center justify-center gap-2 text-[11px] text-[#4D6659] dark:text-[#9CC2AE]">
+              <img
+                src={safarTrackingIcon}
+                alt="Safar Tracking"
+                referrerPolicy="no-referrer"
+                className="w-5 h-5 rounded-md object-cover border border-[#047857]/30 shrink-0"
+              />
               <span>Safar Tracking · Pendamping Perjalanan Umroh</span>
             </div>
           </div>

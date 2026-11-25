@@ -14,27 +14,28 @@
                 android:startY="0"
                 android:type="linear">
                 <item
-                    android:color="#FF0F172A"
+                    android:color="#FF032217"
                     android:offset="0.0" />
                 <item
-                    android:color="#FF1E293B"
-                    android:offset="0.65" />
+                    android:color="#FF064E3B"
+                    android:offset="0.55" />
                 <item
-                    android:color="#FF7C2D12"
+                    android:color="#FF047857"
                     android:offset="1.0" />
             </gradient>
         </aapt:attr>
     </path>
+    <!-- Subtle Gold Tracking Radar Rings -->
     <path
         android:fillColor="#00000000"
-        android:pathData="M0,74 C28,58 76,84 108,64"
+        android:pathData="M54,14 A38,38 0 1,1 53.9,14 Z"
         android:strokeAlpha="0.22"
-        android:strokeColor="#FDBA74"
-        android:strokeWidth="2" />
+        android:strokeColor="#FCD34D"
+        android:strokeWidth="1.4" />
     <path
         android:fillColor="#00000000"
-        android:pathData="M0,88 C32,74 72,96 108,78"
-        android:strokeAlpha="0.16"
-        android:strokeColor="#60A5FA"
-        android:strokeWidth="1.5" />
+        android:pathData="M10,78 C32,64 76,86 100,68"
+        android:strokeAlpha="0.28"
+        android:strokeColor="#6EE7B7"
+        android:strokeWidth="1.8" />
 </vector>

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="konvoiku_blue">#1D4ED8</color>
-    <color name="konvoiku_orange">#EA580C</color>
-    <color name="konvoiku_asphalt">#0F172A</color>
-    <color name="konvoiku_surface_light">#F4F6FA</color>
-    <color name="konvoiku_surface_dark">#0A0F16</color>
-    <color name="ic_launcher_background">#0F172A</color>
+    <color name="konvoiku_blue">#047857</color>
+    <color name="konvoiku_orange">#B45309</color>
+    <color name="konvoiku_asphalt">#064E3B</color>
+    <color name="konvoiku_surface_light">#F4F8F5</color>
+    <color name="konvoiku_surface_dark">#06130E</color>
+    <color name="ic_launcher_background">#064E3B</color>
 </resources>

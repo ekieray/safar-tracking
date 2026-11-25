@@ -163,14 +163,14 @@ fun LoginScreen(
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = Icons.Rounded.Navigation,
-                                    contentDescription = "KonvoiKu",
+                                    contentDescription = "Safar Tracking",
                                     tint = Color.White,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
                         Text(
-                            text = "KonvoiKu",
+                            text = "Safar Tracking",
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -208,8 +208,8 @@ fun LoginScreen(
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 TouringHeroAtmosphereHeader(
-                    title = if (isSignUpMode) "Daftar Akun KonvoiKu" else "Masuk ke KonvoiKu",
-                    subtitle = "Masuk atau daftar dengan email, Google, Facebook, atau Instagram untuk menyinkronkan profil pengendara Anda."
+                    title = if (isSignUpMode) "Daftar Akun Safar Tracking" else "Masuk ke Safar Tracking",
+                    subtitle = "Masuk atau daftar dengan email, Google, Facebook, atau Instagram untuk menyinkronkan profil jamaah Anda."
                 )
 
                 if (globalConfig.maintenanceMode) {
@@ -267,7 +267,7 @@ fun LoginScreen(
                             )
                             Column {
                                 Text(
-                                    text = globalConfig.announcementTitle.ifBlank { "Info KonvoiKu" },
+                                    text = globalConfig.announcementTitle.ifBlank { "Info Safar Tracking" },
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
                                     color = Color(0xFF1E3A8A)
@@ -450,7 +450,7 @@ fun LoginScreen(
                                 OutlinedTextField(
                                     value = customBridgeUrl,
                                     onValueChange = { customBridgeUrl = it },
-                                    label = { Text("URL Web KonvoiKu (opsional)") },
+                                    label = { Text("URL Web Safar Tracking (opsional)") },
                                     placeholder = { Text("https://...run.app") },
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth(),
@@ -902,7 +902,7 @@ fun LoginScreen(
                         text = if (provider == AuthProviderType.INSTAGRAM) {
                             "Masukkan username Instagram dan email agar profil touring Anda tersinkronisasi."
                         } else {
-                            "Konfirmasi nama dan email akun ${provider.label} Anda untuk menyinkronkan profil KonvoiKu."
+                            "Konfirmasi nama dan email akun ${provider.label} Anda untuk menyinkronkan profil Safar Tracking."
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

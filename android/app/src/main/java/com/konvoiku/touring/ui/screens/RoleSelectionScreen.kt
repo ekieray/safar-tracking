@@ -122,14 +122,14 @@ fun RoleSelectionScreen(
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = Icons.Rounded.Navigation,
-                                    contentDescription = "KonvoiKu",
+                                    contentDescription = "Safar Tracking",
                                     tint = Color.White,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
                         Text(
-                            text = "KonvoiKu",
+                            text = "Safar Tracking",
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -232,7 +232,7 @@ fun RoleSelectionScreen(
                             )
                             Column {
                                 Text(
-                                    text = globalConfig.announcementTitle.ifBlank { "Info KonvoiKu" },
+                                    text = globalConfig.announcementTitle.ifBlank { "Info Safar Tracking" },
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
                                     color = Color(0xFF1E3A8A)
@@ -282,7 +282,7 @@ fun RoleSelectionScreen(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     Text(
-                                        text = authUserName.ifBlank { userProfile.fullName }.ifBlank { "Pengendara KonvoiKu" },
+                                        text = authUserName.ifBlank { userProfile.fullName }.ifBlank { "Jamaah Safar Tracking" },
                                         style = MaterialTheme.typography.titleMedium,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,

@@ -15,6 +15,7 @@ import {
   Sun,
 } from 'lucide-react';
 import makkahBackdropImg from './assets/images/makkah_haram_backdrop_1795511632163.jpg';
+import safarTrackingIcon from './assets/images/safar_tracking_icon_1795599322033.jpg';
 import { MANASIK_GUIDE_MAP } from './data/manasikGuideData';
 import { createStarterRoomUmrahActivities } from './data/umrahActivityTemplates';
 import { KotlinSourceExplorer } from './components/KotlinSourceExplorer';
@@ -4285,9 +4286,14 @@ export default function App() {
               e.preventDefault();
               handleResetDemo();
             }}
-            className="text-lg font-bold tracking-tight text-[#064E3B] dark:text-[#ECFDF5] whitespace-nowrap shrink-0 flex items-center gap-2"
+            className="text-lg font-bold tracking-tight text-[#064E3B] dark:text-[#ECFDF5] whitespace-nowrap shrink-0 flex items-center gap-2.5"
           >
-            <span className="w-2.5 h-2.5 rounded-full bg-[#B45309] dark:bg-[#FCD34D] shrink-0" />
+            <img
+              src={safarTrackingIcon}
+              alt="Safar Tracking"
+              referrerPolicy="no-referrer"
+              className="w-7 h-7 rounded-lg object-cover border border-[#047857]/30 shadow-xs shrink-0"
+            />
             <span>Safar Tracking</span>
           </a>
 

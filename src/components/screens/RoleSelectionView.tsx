@@ -6,7 +6,6 @@ import {
   Bus,
   CheckCircle2,
   ClipboardCheck,
-  Compass,
   Footprints,
   History,
   Info,
@@ -21,6 +20,7 @@ import {
   Wrench,
   X,
 } from 'lucide-react';
+import safarTrackingIcon from '../../assets/images/safar_tracking_icon_1795599322033.jpg';
 import { MANASIK_GUIDE_MAP } from '../../data/manasikGuideData';
 import { AuthProviderId, GlobalAppConfig, ManasikProgressState, RoomActivityItem, RoomActivityMemberProgress, TourRoom, TripHistoryRecord, UserRole, VehicleProfile } from '../../types/convoy';
 import { ConvoyAvatar } from '../ConvoyAvatar';
@@ -141,9 +141,12 @@ export function RoleSelectionView({
       {/* Clean Material 3 Top App Bar */}
       <div className="sticky top-0 z-20 flex items-center justify-between gap-2 px-4 py-3 bg-white/90 dark:bg-[#0C1E17]/90 backdrop-blur-md border-b border-[#D8E6DD] dark:border-[#1B3B2E]">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-[10px] bg-[#047857] flex items-center justify-center text-white shrink-0">
-            <Compass className="w-4 h-4" />
-          </div>
+          <img
+            src={safarTrackingIcon}
+            alt="Safar Tracking"
+            referrerPolicy="no-referrer"
+            className="w-8 h-8 rounded-[10px] object-cover border border-[#047857]/30 shrink-0"
+          />
           <span className="text-base font-bold tracking-tight">Safar Tracking</span>
         </div>
 

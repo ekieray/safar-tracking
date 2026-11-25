@@ -1318,7 +1318,7 @@ fun TourLeaderScreen(
 
                             Button(
                                 onClick = {
-                                    val shareBody = "Gabung konvoi \"${activeRoom.roomTitle}\" di KonvoiKu!\nKode Room: ${activeRoom.roomId}\nLink Web: $webShareLink\nLink Aplikasi: ${activeRoom.inviteLink}"
+                                    val shareBody = "Gabung rombongan \"${activeRoom.roomTitle}\" di Safar Tracking!\nKode Room: ${activeRoom.roomId}\nLink Web: $webShareLink\nLink Aplikasi: ${activeRoom.inviteLink}"
                                     val sendIntent = Intent(Intent.ACTION_SEND).apply {
                                         type = "text/plain"
                                         putExtra(Intent.EXTRA_SUBJECT, "Undangan Konvoi ${activeRoom.roomId}")

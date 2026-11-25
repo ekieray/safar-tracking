@@ -126,7 +126,7 @@ fun StravaStyleTripShareCard(
             it.fullName.trim().equals(trimmedLoginName, ignoreCase = true)
         }
     } else null
-    val headerDisplayName = trimmedLoginName.ifBlank { leader?.fullName ?: "Rider KonvoiKu" }
+    val headerDisplayName = trimmedLoginName.ifBlank { leader?.fullName ?: "Jamaah Safar Tracking" }
     val headerAvatarPreset = currentUserAvatarPreset
         ?: matchedSelf?.avatarPreset
         ?: leader?.avatarPreset
@@ -314,7 +314,7 @@ fun StravaStyleTripShareCard(
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = Icons.Rounded.Navigation,
-                                    contentDescription = "KonvoiKu",
+                                    contentDescription = "Safar Tracking",
                                     tint = Color.White,
                                     modifier = Modifier.size(16.dp)
                                 )
@@ -322,7 +322,7 @@ fun StravaStyleTripShareCard(
                         }
                         Column {
                             Text(
-                                text = "KonvoiKu",
+                                text = "Safar Tracking",
                                 color = primaryText,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 14.sp
@@ -773,7 +773,7 @@ suspend fun renderTripCardBitmapToFile(
         textSize = 40f
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
-    canvas.drawText("KonvoiKu", pad + 92f, pad + 36f, titlePaint)
+    canvas.drawText("Safar Tracking", pad + 92f, pad + 36f, titlePaint)
 
     val monoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = secondaryColor
@@ -791,7 +791,7 @@ suspend fun renderTripCardBitmapToFile(
             it.fullName.trim().equals(trimmedLoginName, ignoreCase = true)
         }
     } else null
-    val headerName = trimmedLoginName.ifBlank { leader?.fullName ?: "Rider KonvoiKu" }
+    val headerName = trimmedLoginName.ifBlank { leader?.fullName ?: "Jamaah Safar Tracking" }
     val headerPreset = currentUserAvatarPreset
         ?: matchedSelf?.avatarPreset
         ?: leader?.avatarPreset
@@ -1101,7 +1101,7 @@ fun shareTripCardImage(
         )
         val caption = "🏁 ${trip.tourTitle} (${trip.roomId})\n" +
             "Jarak: ${String.format(Locale.US, "%.1f", trip.distanceKm)} km · Durasi: ${trip.durationLabel} · Kec. Rata-rata: ${trip.avgSpeedKmh} km/j\n" +
-            "Direkam dengan KonvoiKu"
+            "Direkam dengan Safar Tracking"
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "image/png"
             putExtra(Intent.EXTRA_STREAM, uri)

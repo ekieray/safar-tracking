@@ -179,7 +179,7 @@ class LocalBrowserGoogleAuthServer {
             <head>
               <meta charset="utf-8" />
               <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-              <title>KonvoiKu — Login Google</title>
+              <title>Safar Tracking — Login Google</title>
               <style>
                 body {
                   margin: 0;
@@ -272,9 +272,9 @@ class LocalBrowserGoogleAuthServer {
             </head>
             <body>
               <div class="card">
-                <div class="badge">KonvoiKu · Sinkronisasi Akun Google</div>
+                <div class="badge">Safar Tracking · Sinkronisasi Akun Google</div>
                 <h1>Masuk dengan Google</h1>
-                <p>Ketuk tombol di bawah untuk memilih akun Google Anda. Setelah selesai, aplikasi KonvoiKu akan otomatis menerima sesi Anda.</p>
+                <p>Ketuk tombol di bawah untuk memilih akun Google Anda. Setelah selesai, aplikasi Safar Tracking akan otomatis menerima sesi Anda.</p>
 
                 <button id="loginPopupBtn" class="btn btn-primary" onclick="startGooglePopup()">
                   Pilih Akun Google
@@ -285,7 +285,7 @@ class LocalBrowserGoogleAuthServer {
 
                 <div id="statusBox" class="status"></div>
                 <a id="openAppLink" class="btn btn-success" style="display:none;" href="#">
-                  Buka Aplikasi KonvoiKu
+                  Buka Aplikasi Safar Tracking
                 </a>
                 <textarea id="tokenOutput" class="token-box" rows="3" readonly onclick="this.select()"></textarea>
               </div>
@@ -325,7 +325,7 @@ class LocalBrowserGoogleAuthServer {
                   openAppLink.style.display = 'block';
                   tokenOutput.value = deepLink;
                   tokenOutput.style.display = 'block';
-                  setStatus('ok', 'Berhasil masuk sebagai ' + (email || 'pengguna Google') + '! Menyinkronkan ke aplikasi KonvoiKu...');
+                  setStatus('ok', 'Berhasil masuk sebagai ' + (email || 'pengguna Google') + '! Menyinkronkan ke aplikasi Safar Tracking...');
 
                   try {
                     await fetch('http://localhost:$port/callback?id_token=' + encodeURIComponent(idToken) + '&email=' + encodeURIComponent(email));
