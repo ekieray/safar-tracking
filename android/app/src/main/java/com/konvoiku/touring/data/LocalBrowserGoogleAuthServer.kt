@@ -320,7 +320,7 @@ class LocalBrowserGoogleAuthServer {
                     setStatus('err', 'Token Google tidak tersedia dari hasil login. Coba pilih ulang akun.');
                     return;
                   }
-                  const deepLink = 'konvoiku://auth?id_token=' + encodeURIComponent(idToken);
+                  const deepLink = 'safartracking://auth?id_token=' + encodeURIComponent(idToken);
                   openAppLink.href = deepLink;
                   openAppLink.style.display = 'block';
                   tokenOutput.value = deepLink;

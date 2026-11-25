@@ -42,7 +42,7 @@ jobs:
             \{*) printf '%s' "$GOOGLE_SERVICES_JSON" > /tmp/gs_secret.json ;;
             *) printf '%s' "$GOOGLE_SERVICES_JSON" | base64 --decode > /tmp/gs_secret.json ;;
           esac
-          if [ ! -f app/google-services.json ] || grep -q 'com.kangekie.konvoitouring' /tmp/gs_secret.json; then
+          if [ ! -f app/google-services.json ] || grep -q 'com.kangekie.safartracking' /tmp/gs_secret.json; then
             mv /tmp/gs_secret.json app/google-services.json
           else
             echo "Keeping repository app/google-services.json because GOOGLE_SERVICES_JSON secret targets a different package."

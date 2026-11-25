@@ -6,7 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-val targetAppId = "com.kangekie.konvoitouring"
+val targetAppId = "com.kangekie.safartracking"
 val googleServicesFile = file("google-services.json")
 if (googleServicesFile.exists()) {
     val content = runCatching { googleServicesFile.readText() }.getOrDefault("")
@@ -19,7 +19,7 @@ if (googleServicesFile.exists()) {
     } else {
         val foundDesc = if (packageMatches.isEmpty()) "none" else packageMatches.joinToString(", ")
         logger.warn(
-            "[KonvoiKu] Skipping com.google.gms.google-services because google-services.json " +
+            "[SafarTracking] Skipping com.google.gms.google-services because google-services.json " +
                 "has no client matching '$targetAppId' (found package_name: $foundDesc). " +
                 "Using programmatic FirebaseOptions fallback."
         )
@@ -44,7 +44,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.kangekie.konvoitouring"
+        applicationId = "com.kangekie.safartracking"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

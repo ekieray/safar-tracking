@@ -557,7 +557,7 @@ fun AdminBackendScreen(
                             OutlinedTextField(
                                 value = manualSyncToken,
                                 onValueChange = { manualSyncToken = it },
-                                label = { Text("Tempel link konvoiku://auth atau token") },
+                                label = { Text("Tempel link safartracking://auth atau token") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp)

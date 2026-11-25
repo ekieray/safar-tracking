@@ -915,12 +915,16 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         val trimmed = rawInput.trim()
         if (trimmed.isBlank()) {
             _uiState.update {
-                it.copy(authError = "Tempel link konvoiku://auth atau kode id_token dari browser terlebih dahulu.")
+                it.copy(authError = "Tempel link safartracking://auth atau kode id_token dari browser terlebih dahulu.")
             }
             return
         }
-        val extractedToken = if (trimmed.startsWith("konvoiku://", ignoreCase = true) || trimmed.contains("id_token=")) {
-            val uriString = if (trimmed.contains("://")) trimmed else "konvoiku://auth?$trimmed"
+        val extractedToken = if (
+            trimmed.startsWith("safartracking://", ignoreCase = true) ||
+            trimmed.startsWith("konvoiku://", ignoreCase = true) ||
+            trimmed.contains("id_token=")
+        ) {
+            val uriString = if (trimmed.contains("://")) trimmed else "safartracking://auth?$trimmed"
             Uri.parse(uriString).getQueryParameter("id_token")?.trim().orEmpty()
         } else {
             trimmed
@@ -936,7 +940,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
 
     fun handleIncomingIntent(intent: Intent?) {
         val dataUri = intent?.data ?: return
-        if (dataUri.scheme == "konvoiku" && dataUri.host == "auth") {
+        if ((dataUri.scheme == "safartracking" || dataUri.scheme == "konvoiku") && dataUri.host == "auth") {
             val idToken = dataUri.getQueryParameter("id_token")?.trim().orEmpty()
             val errorMsg = dataUri.getQueryParameter("error")?.trim()
             if (idToken.isNotBlank()) {
@@ -952,9 +956,10 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         } else {
             val roomCode = extractRoomId(dataUri.toString())
             val isRoomInvite = roomCode.length >= 4 && (
-                (dataUri.scheme == "konvoiku" && dataUri.host == "join") ||
+                ((dataUri.scheme == "safartracking" || dataUri.scheme == "konvoiku") && dataUri.host == "join") ||
                     (dataUri.scheme == "https" && (
-                        dataUri.host == "konvoiku.id" ||
+                        dataUri.host == "safartracking.id" ||
+                            dataUri.host == "konvoiku.id" ||
                             dataUri.host?.endsWith(".run.app") == true ||
                             !dataUri.getQueryParameter("room").isNullOrBlank()
                         ))

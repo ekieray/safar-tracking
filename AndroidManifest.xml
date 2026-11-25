@@ -61,13 +61,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Deep Link Tautan Undangan Room Konvoi (https://konvoiku.id/join/KNV-XXXX) -->
+            <!-- Deep Link Tautan Undangan Room Safar Tracking (https://safartracking.id/join/) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:host="konvoiku.id"
+                    android:host="safartracking.id"
                     android:pathPrefix="/join/"
                     android:scheme="https" />
             </intent-filter>

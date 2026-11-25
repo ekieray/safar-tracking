@@ -1151,7 +1151,7 @@ export default function App() {
         if (cancelled || !res) return;
         if (res.mode === 'mobile_bridge' && res.user) {
           if (res.idToken) {
-            const deepLink = `konvoiku://auth?id_token=${encodeURIComponent(res.idToken)}`;
+            const deepLink = `safartracking://auth?id_token=${encodeURIComponent(res.idToken)}`;
             setMobileBridgeEmail(res.user.email || '');
             setMobileBridgeDeepLink(deepLink);
             setMobileBridgeError(null);
@@ -4138,7 +4138,7 @@ export default function App() {
         );
         return;
       }
-      const deepLink = `konvoiku://auth?id_token=${encodeURIComponent(idToken)}`;
+      const deepLink = `safartracking://auth?id_token=${encodeURIComponent(idToken)}`;
       setMobileBridgeEmail(user.email || '');
       setMobileBridgeDeepLink(deepLink);
     } catch (err) {
@@ -4202,7 +4202,7 @@ export default function App() {
                 Buka Aplikasi Safar Tracking
               </a>
               <a
-                href={`intent://auth${mobileBridgeDeepLink.slice('konvoiku://auth'.length)}#Intent;scheme=konvoiku;package=com.kangekie.konvoitouring;S.browser_fallback_url=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')};end`}
+                href={`intent://auth${mobileBridgeDeepLink.slice('safartracking://auth'.length)}#Intent;scheme=safartracking;package=com.kangekie.safartracking;S.browser_fallback_url=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')};end`}
                 className="w-full min-h-[42px] px-4 py-2 rounded-xl bg-[#ECFDF5] dark:bg-[#064E3B]/40 border border-[#A7F3D0] dark:border-[#065F46] text-[#047857] dark:text-[#6EE7B7] font-semibold text-xs flex items-center justify-center transition-colors"
               >
                 Jika Tidak Terbuka, Coba Alternatif Chrome Intent

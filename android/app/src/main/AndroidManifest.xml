@@ -75,13 +75,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Deep Link Tautan Undangan Room Konvoi (https://konvoiku.id/join/KNV-XXXX & Web ?room=) -->
+            <!-- Deep Link Tautan Undangan Room Safar Tracking (https://safartracking.id/join/ & Web ?room=) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:host="konvoiku.id"
+                    android:host="safartracking.id"
                     android:pathPrefix="/join/"
                     android:scheme="https" />
             </intent-filter>
@@ -95,14 +95,14 @@
                     android:scheme="https" />
             </intent-filter>
 
-            <!-- Deep Link Callback Autentikasi Google untuk APK (konvoiku://auth) -->
+            <!-- Deep Link Callback Autentikasi Google untuk APK (safartracking://auth) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:host="auth"
-                    android:scheme="konvoiku" />
+                    android:scheme="safartracking" />
             </intent-filter>
         </activity>
 
