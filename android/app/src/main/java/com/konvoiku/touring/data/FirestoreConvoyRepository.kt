@@ -30,6 +30,7 @@ import com.konvoiku.touring.model.ManasikGuideType
 import com.konvoiku.touring.model.ManasikProgressState
 import com.konvoiku.touring.model.MapPosition
 import com.konvoiku.touring.model.MemberConditionStatus
+import com.konvoiku.touring.model.RegisteredTourLeader
 import com.konvoiku.touring.model.RestCheckpoint
 import com.konvoiku.touring.model.RoomActivityItem
 import com.konvoiku.touring.model.RoomActivityMemberProgress
@@ -50,6 +51,8 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -1968,6 +1971,135 @@ class FirestoreConvoyRepository {
             ?: return Result.failure(IllegalStateException("Firestore tidak tersedia."))
         return runCatching {
             db.collection("rooms").document(roomId).delete().await()
+            Unit
+        }
+    }
+
+    fun isValidTourLeaderEmail(rawEmail: String): Boolean {
+        val clean = rawEmail.trim().lowercase(Locale.ROOT)
+        return clean.length in 3..160 &&
+            Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$").matches(clean)
+    }
+
+    fun computeEmailSha256Hex(rawEmail: String): String {
+        val clean = rawEmail.trim().lowercase(Locale.ROOT)
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(clean.toByteArray(StandardCharsets.UTF_8))
+        return digest.joinToString("") { b -> "%02x".format(b) }
+    }
+
+    fun subscribeToTourLeaderEligibility(
+        rawEmail: String?,
+        onUpdate: (Boolean) -> Unit
+    ): () -> Unit {
+        val clean = rawEmail?.trim()?.lowercase(Locale.ROOT).orEmpty()
+        if (clean.isBlank()) {
+            onUpdate(false)
+            return {}
+        }
+        if (isAdminEmail(clean)) {
+            onUpdate(true)
+            return {}
+        }
+        val db = getFirestore() ?: run {
+            onUpdate(false)
+            return {}
+        }
+        val hash = computeEmailSha256Hex(clean)
+        val reg = db.collection("tour_leader_hashes").document(hash)
+            .addSnapshotListener { snap, err ->
+                if (err != null) {
+                    onUpdate(false)
+                    return@addSnapshotListener
+                }
+                val eligible = snap != null && snap.exists() && (snap.getBoolean("active") != false)
+                onUpdate(eligible)
+            }
+        return { reg.remove() }
+    }
+
+    fun subscribeToRegisteredTourLeaders(
+        onUpdate: (List<RegisteredTourLeader>) -> Unit,
+        onError: (String) -> Unit
+    ): () -> Unit {
+        val db = getFirestore() ?: return {}
+        val reg = db.collection("tour_leaders")
+            .addSnapshotListener { snap, err ->
+                if (err != null) {
+                    onError("Gagal memuat daftar Ketua Rombongan: ${err.message}")
+                    return@addSnapshotListener
+                }
+                if (snap == null) return@addSnapshotListener
+                val items = snap.documents.map { doc ->
+                    val ts = doc.getTimestamp("createdAt")
+                    RegisteredTourLeader(
+                        id = doc.getString("id") ?: doc.id,
+                        email = (doc.getString("email") ?: "").trim().lowercase(Locale.ROOT),
+                        label = doc.getString("label").orEmpty(),
+                        addedByUid = doc.getString("addedByUid").orEmpty(),
+                        createdAtLabel = formatTimestamp(ts, "Baru saja"),
+                        createdAtMs = ts?.toDate()?.time ?: 0L
+                    )
+                }.sortedByDescending { it.createdAtMs }
+                onUpdate(items)
+            }
+        return { reg.remove() }
+    }
+
+    suspend fun addRegisteredTourLeader(
+        adminUid: String,
+        rawEmail: String,
+        rawLabel: String
+    ): Result<Unit> {
+        val db = getFirestore()
+            ?: return Result.failure(IllegalStateException("Firestore tidak tersedia."))
+        val cleanEmail = rawEmail.trim().lowercase(Locale.ROOT)
+        if (!isValidTourLeaderEmail(cleanEmail)) {
+            return Result.failure(IllegalArgumentException("Format email Ketua Rombongan tidak valid."))
+        }
+        val cleanLabel = rawLabel.trim().take(80)
+        val hash = computeEmailSha256Hex(cleanEmail)
+        return runCatching {
+            val batch = db.batch()
+            val leaderRef = db.collection("tour_leaders").document(hash)
+            val hashRef = db.collection("tour_leader_hashes").document(hash)
+            batch.set(
+                leaderRef,
+                mapOf(
+                    "id" to hash,
+                    "email" to cleanEmail,
+                    "label" to cleanLabel,
+                    "addedByUid" to adminUid.take(128),
+                    "createdAt" to FieldValue.serverTimestamp(),
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            )
+            batch.set(
+                hashRef,
+                mapOf(
+                    "emailHash" to hash,
+                    "active" to true,
+                    "updatedByUid" to adminUid.take(128),
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            )
+            batch.commit().await()
+            Unit
+        }
+    }
+
+    suspend fun removeRegisteredTourLeader(leaderId: String): Result<Unit> {
+        val db = getFirestore()
+            ?: return Result.failure(IllegalStateException("Firestore tidak tersedia."))
+        val cleanId = leaderId.trim().lowercase(Locale.ROOT)
+        if (!Regex("^[a-f0-9]{64}$").matches(cleanId)) {
+            return Result.failure(IllegalArgumentException("ID Ketua Rombongan tidak valid."))
+        }
+        return runCatching {
+            val batch = db.batch()
+            batch.delete(db.collection("tour_leaders").document(cleanId))
+            batch.delete(db.collection("tour_leader_hashes").document(cleanId))
+            batch.commit().await()
             Unit
         }
     }

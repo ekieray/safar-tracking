@@ -43,6 +43,8 @@ interface RoleSelectionViewProps {
   isSigningIn?: boolean;
   globalConfig?: GlobalAppConfig;
   isAdminUser?: boolean;
+  canCreateRoom?: boolean;
+  isRegisteredLeaderUnverified?: boolean;
   onGoogleSignIn: () => void;
   onGoogleSignOut: () => void;
   onOpenCustomizeProfile: () => void;
@@ -83,6 +85,8 @@ export function RoleSelectionView({
   isSigningIn,
   globalConfig,
   isAdminUser = false,
+  canCreateRoom = false,
+  isRegisteredLeaderUnverified = false,
   onGoogleSignIn,
   onGoogleSignOut,
   onOpenCustomizeProfile,
@@ -296,41 +300,49 @@ export function RoleSelectionView({
             </button>
           )}
 
-          {/* Card Header 1: Buat Rombongan Baru */}
-          <div className="rounded-[22px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] p-4 shadow-xs space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-[14px] bg-[#ECFDF5] dark:bg-[#064E3B] flex items-center justify-center gap-1 shrink-0">
-                <Bus className="w-4 h-4 text-[#047857] dark:text-[#34D399]" />
-                <Footprints className="w-4 h-4 text-[#B45309] dark:text-[#FCD34D]" />
+          {/* Card Header 1: Buat Rombongan Baru (Hanya Ketua Rombongan Terdaftar / Admin) */}
+          {canCreateRoom && (
+            <div className="rounded-[22px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] p-4 shadow-xs space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-[14px] bg-[#ECFDF5] dark:bg-[#064E3B] flex items-center justify-center gap-1 shrink-0">
+                  <Bus className="w-4 h-4 text-[#047857] dark:text-[#34D399]" />
+                  <Footprints className="w-4 h-4 text-[#B45309] dark:text-[#FCD34D]" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-base font-bold leading-tight">
+                    Buat Rombongan Baru
+                  </h2>
+                  <p className="text-xs font-medium text-[#047857] dark:text-[#34D399]">
+                    Mutawwif / Ketua Terdaftar · Rute &amp; Grup Baru
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <h2 className="text-base font-bold leading-tight">
-                  Buat Rombongan Baru
-                </h2>
-                <p className="text-xs font-medium text-[#047857] dark:text-[#34D399]">
-                  Mutawwif / Pembimbing · Rute &amp; Grup Baru
-                </p>
-              </div>
+
+              <p className="text-xs text-[#2D4A3D] dark:text-[#D1FAE5] leading-relaxed">
+                {roomCreationPaused
+                  ? 'Pembuatan grup rombongan baru sedang dijeda sementara oleh Admin Backend.'
+                  : 'Tentukan hotel/miqat awal, tujuan Masjidil Haram atau ziarah, pos kumpul maktab, dan batas jarak jamaah tertinggal.'}
+              </p>
+
+              {isRegisteredLeaderUnverified && (
+                <div className="rounded-xl bg-[#FFFBEB] dark:bg-[#451A03]/60 border border-[#F59E0B] px-3 py-2 text-[11px] text-[#92400E] dark:text-[#FCD34D]">
+                  Email Ketua Rombongan terdaftar, namun akun email belum terverifikasi. Masuk dengan Google atau verifikasi email Anda agar bisa membuat room cloud.
+                </div>
+              )}
+
+              <button
+                type="button"
+                disabled={roomCreationPaused}
+                onClick={() => onSelectRole('TOUR_LEADER')}
+                className="w-full min-h-[48px] px-4 py-3 rounded-[14px] bg-[#047857] hover:bg-[#065F46] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] text-white text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <span className="whitespace-nowrap">
+                  {roomCreationPaused ? 'Pembuatan Grup Dijeda Admin' : 'Buat Rombongan Baru'}
+                </span>
+                <ArrowRight className="w-4 h-4 shrink-0" />
+              </button>
             </div>
-
-            <p className="text-xs text-[#2D4A3D] dark:text-[#D1FAE5] leading-relaxed">
-              {roomCreationPaused
-                ? 'Pembuatan grup rombongan baru sedang dijeda sementara oleh Admin Backend.'
-                : 'Tentukan hotel/miqat awal, tujuan Masjidil Haram atau ziarah, pos kumpul maktab, dan batas jarak jamaah tertinggal.'}
-            </p>
-
-            <button
-              type="button"
-              disabled={roomCreationPaused}
-              onClick={() => onSelectRole('TOUR_LEADER')}
-              className="w-full min-h-[48px] px-4 py-3 rounded-[14px] bg-[#047857] hover:bg-[#065F46] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] text-white text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
-            >
-              <span className="whitespace-nowrap">
-                {roomCreationPaused ? 'Pembuatan Grup Dijeda Admin' : 'Buat Rombongan Baru'}
-              </span>
-              <ArrowRight className="w-4 h-4 shrink-0" />
-            </button>
-          </div>
+          )}
 
           {/* Card Header 2: Gabung Rombongan */}
           <div className="rounded-[22px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] p-4 shadow-xs space-y-3">
@@ -349,6 +361,12 @@ export function RoleSelectionView({
             <p className="text-xs text-[#2D4A3D] dark:text-[#D1FAE5] leading-relaxed">
               Masukkan Kode Grup Rombongan atau tempel tautan undangan dari Mutawwif untuk langsung terpantau di peta.
             </p>
+
+            {!canCreateRoom && (
+              <p className="text-[11px] text-[#4D6659] dark:text-[#9CC2AE] bg-[#F4F8F5] dark:bg-[#091812] rounded-xl px-3 py-2 border border-[#D8E6DD] dark:border-[#1B3B2E]">
+                Pembuatan rombongan baru khusus untuk Ketua Rombongan yang emailnya terdaftar oleh Admin. Anda tetap dapat bergabung ke rombongan menggunakan Kode Grup.
+              </p>
+            )}
 
             <button
               type="button"
@@ -373,7 +391,7 @@ export function RoleSelectionView({
                 } else if (lastCompletedTrip) {
                   setShowCompletedModal(true);
                 } else {
-                  onSelectRole('TOUR_LEADER');
+                  onSelectRole(canCreateRoom ? 'TOUR_LEADER' : 'MEMBER');
                 }
               }}
               role="button"
@@ -386,7 +404,7 @@ export function RoleSelectionView({
                   } else if (lastCompletedTrip) {
                     setShowCompletedModal(true);
                   } else {
-                    onSelectRole('TOUR_LEADER');
+                    onSelectRole(canCreateRoom ? 'TOUR_LEADER' : 'MEMBER');
                   }
                 }
               }}
@@ -430,7 +448,9 @@ export function RoleSelectionView({
                     ? `Tujuan: ${destinationName}`
                     : lastCompletedTrip
                       ? `Tujuan: ${lastCompletedTrip.destinationName} · ${lastCompletedTrip.distanceKm.toFixed(1)} km`
-                      : 'Pilih Buat Rombongan Baru atau Gabung Rombongan'}
+                      : canCreateRoom
+                        ? 'Pilih Buat Rombongan Baru atau Gabung Rombongan'
+                        : 'Ketuk untuk Gabung Rombongan dengan Kode Grup'}
                 </p>
               </div>
 
@@ -441,7 +461,7 @@ export function RoleSelectionView({
                     : 'bg-[#ECFDF5] dark:bg-[#064E3B] text-[#047857] dark:text-[#A7F3D0]'
                 }`}
               >
-                {activeRoom ? 'Buka' : isConvoyFinished ? 'Selesai' : 'Mulai'}
+                {activeRoom ? 'Buka' : isConvoyFinished ? 'Selesai' : canCreateRoom ? 'Mulai' : 'Gabung'}
               </span>
             </div>
 
@@ -517,20 +537,22 @@ export function RoleSelectionView({
                 </div>
 
                 <div className="space-y-2">
-                  <button
-                    type="button"
-                    disabled={roomCreationPaused}
-                    onClick={() => {
-                      setShowCompletedModal(false);
-                      onRepeatTour?.(lastCompletedTrip);
-                    }}
-                    className="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-[#047857] hover:bg-[#065F46] disabled:opacity-50 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                  >
-                    <RotateCcw className="w-4 h-4 shrink-0" />
-                    <span>
-                      {roomCreationPaused ? 'Pembuatan Grup Dijeda Admin' : 'Ulangi Rute Ziarah'}
-                    </span>
-                  </button>
+                  {canCreateRoom && (
+                    <button
+                      type="button"
+                      disabled={roomCreationPaused}
+                      onClick={() => {
+                        setShowCompletedModal(false);
+                        onRepeatTour?.(lastCompletedTrip);
+                      }}
+                      className="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-[#047857] hover:bg-[#065F46] disabled:opacity-50 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <RotateCcw className="w-4 h-4 shrink-0" />
+                      <span>
+                        {roomCreationPaused ? 'Pembuatan Grup Dijeda Admin' : 'Ulangi Rute Ziarah'}
+                      </span>
+                    </button>
+                  )}
 
                   <button
                     type="button"

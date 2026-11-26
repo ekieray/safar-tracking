@@ -34,12 +34,14 @@ import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DirectionsBus
+import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Group
 import androidx.compose.material.icons.rounded.Navigation
 import androidx.compose.material.icons.rounded.OpenInBrowser
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Save
@@ -92,6 +94,7 @@ import com.konvoiku.touring.data.FirestoreConvoyRepository
 import com.konvoiku.touring.model.AdminRoomOverview
 import com.konvoiku.touring.model.AdminUserSummary
 import com.konvoiku.touring.model.GlobalAppConfig
+import com.konvoiku.touring.model.RegisteredTourLeader
 import com.konvoiku.touring.model.UserPresenceInfo
 import com.konvoiku.touring.ui.components.ConvoyAvatar
 
@@ -116,9 +119,12 @@ fun AdminBackendScreen(
     presenceList: List<UserPresenceInfo>,
     rooms: List<AdminRoomOverview>,
     users: List<AdminUserSummary>,
+    tourLeaders: List<RegisteredTourLeader> = emptyList(),
     monitorError: String?,
     isSavingConfig: Boolean,
     configFeedback: String?,
+    isSavingTourLeader: Boolean = false,
+    tourLeaderFeedback: String? = null,
     onGoogleSignIn: (Activity?) -> Unit = {},
     onOpenGoogleBrowserSync: () -> Unit = {},
     onOpenCustomGoogleBrowserSync: (String) -> Unit = {},
@@ -127,6 +133,8 @@ fun AdminBackendScreen(
     onStartMonitoring: () -> Unit,
     onStopMonitoring: () -> Unit,
     onSaveGlobalConfig: (GlobalAppConfig) -> Unit,
+    onAddTourLeader: (email: String, label: String) -> Unit = { _, _ -> },
+    onRemoveTourLeader: (leaderId: String, email: String) -> Unit = { _, _ -> },
     onToggleRoomStatus: (roomId: String, currentStatus: String) -> Unit,
     onResolveRoomSos: (roomId: String) -> Unit,
     onRemoveRoomMember: (roomId: String, memberUid: String) -> Unit,
@@ -151,6 +159,8 @@ fun AdminBackendScreen(
     var activeTab by remember { mutableStateOf(0) } // 0 = Pantau Aktif, 1 = Pengaturan Backend
     var expandedRoomId by remember { mutableStateOf<String?>(null) }
     var userQuery by remember { mutableStateOf("") }
+    var leaderEmailInput by remember { mutableStateOf("") }
+    var leaderLabelInput by remember { mutableStateOf("") }
 
     var draftOffRoute by remember(globalConfig) {
         mutableStateOf(globalConfig.defaultOffRouteToleranceMeters.toString())
@@ -741,6 +751,55 @@ fun AdminBackendScreen(
                     )
                 }
 
+                // Quick Shortcut to Tour Leader Allowlist
+                Card(
+                    onClick = { activeTab = 1 },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFECFDF5)),
+                    border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            color = Color(0xFF047857),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Rounded.PersonAdd,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Email Ketua Rombongan (${tourLeaders.size} terdaftar)",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF064E3B)
+                            )
+                            Text(
+                                text = "Kelola email yang berhak membuat rombongan baru",
+                                fontSize = 11.sp,
+                                color = Color(0xFF047857)
+                            )
+                        }
+                        Text(
+                            text = "Kelola",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF047857)
+                        )
+                    }
+                }
+
                 // Online Presence Feed
                 AdminSectionCard(
                     title = "Pengguna Aktif Realtime (${onlineUsers.size})",
@@ -1078,7 +1137,7 @@ fun AdminBackendScreen(
                     }
                 }
             } else {
-                // Tab 1: Global Backend Settings
+                // Tab 1: Global Backend Settings & Tour Leader Email Allowlist
                 if (configFeedback != null) {
                     Surface(
                         color = Color(0xFFECFDF5),
@@ -1102,6 +1161,156 @@ fun AdminBackendScreen(
                                 fontSize = 12.sp,
                                 color = Color(0xFF065F46)
                             )
+                        }
+                    }
+                }
+
+                AdminSectionCard(
+                    title = "Email Ketua Rombongan (${tourLeaders.size})",
+                    icon = Icons.Rounded.PersonAdd
+                ) {
+                    Text(
+                        text = "Menu 'Buat Rombongan Baru' hanya muncul untuk email Ketua Rombongan di daftar ini (+ Admin ${FirestoreConvoyRepository.ADMIN_EMAIL}). Pengguna lain hanya bisa Gabung Rombongan.",
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = leaderEmailInput,
+                        onValueChange = { leaderEmailInput = it },
+                        label = { Text("Email Google Ketua Rombongan") },
+                        placeholder = { Text("mutawwif@gmail.com") },
+                        leadingIcon = {
+                            Icon(Icons.Rounded.Email, contentDescription = null, modifier = Modifier.size(18.dp))
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = leaderLabelInput,
+                        onValueChange = { leaderLabelInput = it.take(80) },
+                        label = { Text("Nama / Kloter / Travel (opsional)") },
+                        placeholder = { Text("Ust. Fauzi · Kloter 01") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Button(
+                        onClick = {
+                            val email = leaderEmailInput.trim()
+                            val label = leaderLabelInput.trim()
+                            if (email.isNotEmpty()) {
+                                onAddTourLeader(email, label)
+                                leaderEmailInput = ""
+                                leaderLabelInput = ""
+                            }
+                        },
+                        enabled = !isSavingTourLeader && leaderEmailInput.isNotBlank(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF047857),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        if (isSavingTourLeader) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Mendaftarkan...", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        } else {
+                            Icon(
+                                imageVector = Icons.Rounded.PersonAdd,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Daftarkan Email Ketua Rombongan", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+
+                    if (tourLeaderFeedback != null) {
+                        val isErr = tourLeaderFeedback.startsWith("Gagal") ||
+                            tourLeaderFeedback.startsWith("Akses") ||
+                            tourLeaderFeedback.startsWith("Masukkan")
+                        Surface(
+                            color = if (isErr) Color(0xFFFEF2F2) else Color(0xFFECFDF5),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, if (isErr) Color(0xFFFECACA) else Color(0xFFA7F3D0)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = tourLeaderFeedback,
+                                fontSize = 11.sp,
+                                color = if (isErr) Color(0xFFB91C1C) else Color(0xFF065F46),
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                    }
+
+                    if (tourLeaders.isEmpty()) {
+                        Text(
+                            text = "Belum ada email Ketua Rombongan tambahan yang didaftarkan.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        tourLeaders.forEach { leader ->
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.background,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = leader.email,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = buildString {
+                                                if (leader.label.isNotBlank()) {
+                                                    append(leader.label)
+                                                    append(" · ")
+                                                }
+                                                append("Terdaftar ${leader.createdAtLabel}")
+                                            },
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { onRemoveTourLeader(leader.id, leader.email) },
+                                        enabled = !isSavingTourLeader
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Delete,
+                                            contentDescription = "Hapus ${leader.email}",
+                                            tint = Color(0xFFDC2626),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }

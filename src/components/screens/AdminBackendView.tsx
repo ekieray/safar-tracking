@@ -9,6 +9,7 @@ import {
   Compass,
   Database,
   Globe,
+  Mail,
   Megaphone,
   Power,
   RefreshCw,
@@ -19,6 +20,7 @@ import {
   ShieldCheck,
   Smartphone,
   Trash2,
+  UserPlus,
   Users,
   Wrench,
 } from 'lucide-react';
@@ -27,18 +29,23 @@ import {
   AdminRoomOverview,
   AdminUserSummary,
   GlobalAppConfig,
+  RegisteredTourLeader,
   UserPresenceRecord,
 } from '../../types/convoy';
 import {
+  addRegisteredTourLeader,
   ADMIN_EMAIL,
   adminDeleteRoom,
   adminResolveRoomSos,
   adminSetRoomStatus,
   DEFAULT_GLOBAL_APP_CONFIG,
+  isValidTourLeaderEmail,
   isVerifiedAdminSession,
+  removeRegisteredTourLeader,
   removeSyncedMember,
   saveGlobalAppConfig,
   subscribeToAdminMonitoring,
+  subscribeToRegisteredTourLeaders,
 } from '../../services/convoySyncService';
 import { ConvoyAvatar } from '../ConvoyAvatar';
 
@@ -83,6 +90,12 @@ export function AdminBackendView({
   );
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [configFeedback, setConfigFeedback] = useState<string | null>(null);
+  const [tourLeaders, setTourLeaders] = useState<RegisteredTourLeader[]>([]);
+  const [leaderEmailInput, setLeaderEmailInput] = useState('');
+  const [leaderLabelInput, setLeaderLabelInput] = useState('');
+  const [isSavingLeader, setIsSavingLeader] = useState(false);
+  const [leaderFeedback, setLeaderFeedback] = useState<string | null>(null);
+  const [leaderError, setLeaderError] = useState<string | null>(null);
   const [, setClockTick] = useState(0);
 
   useEffect(() => {
@@ -98,13 +111,20 @@ export function AdminBackendView({
   useEffect(() => {
     if (!isVerifiedAdmin) return;
     setMonitorError(null);
-    const unsub = subscribeToAdminMonitoring({
+    const unsubMonitor = subscribeToAdminMonitoring({
       onPresence: setPresenceList,
       onRooms: setRooms,
       onUsers: setUsers,
       onError: (msg) => setMonitorError(msg),
     });
-    return () => unsub();
+    const unsubLeaders = subscribeToRegisteredTourLeaders(
+      (list) => setTourLeaders(list),
+      (msg) => setLeaderError(msg)
+    );
+    return () => {
+      unsubMonitor();
+      unsubLeaders();
+    };
   }, [isVerifiedAdmin]);
 
   const metrics = useMemo(() => {
@@ -210,6 +230,53 @@ export function AdminBackendView({
     } catch (err) {
       setMonitorError(
         err instanceof Error ? err.message : 'Gagal menghapus grup rombongan.'
+      );
+    } finally {
+      setActionBusyKey(null);
+    }
+  };
+
+  const handleAddTourLeader = async () => {
+    if (!authUser || !isVerifiedAdmin) return;
+    const cleanEmail = leaderEmailInput.trim().toLowerCase();
+    setLeaderFeedback(null);
+    setLeaderError(null);
+    if (!isValidTourLeaderEmail(cleanEmail)) {
+      setLeaderError('Masukkan alamat email Ketua Rombongan yang valid (contoh: mutawwif@travel.com).');
+      return;
+    }
+    setIsSavingLeader(true);
+    try {
+      await addRegisteredTourLeader(authUser.uid, cleanEmail, leaderLabelInput);
+      setLeaderEmailInput('');
+      setLeaderLabelInput('');
+      setLeaderFeedback(
+        `Email ${cleanEmail} terdaftar sebagai Ketua Rombongan & langsung dapat membuat rombongan baru.`
+      );
+    } catch (err) {
+      setLeaderError(
+        err instanceof Error
+          ? `Gagal menambahkan Ketua Rombongan: ${err.message}`
+          : 'Gagal menambahkan email Ketua Rombongan.'
+      );
+    } finally {
+      setIsSavingLeader(false);
+    }
+  };
+
+  const handleRemoveTourLeader = async (leader: RegisteredTourLeader) => {
+    if (!isVerifiedAdmin) return;
+    setActionBusyKey(`tl-del-${leader.id}`);
+    setLeaderFeedback(null);
+    setLeaderError(null);
+    try {
+      await removeRegisteredTourLeader(leader.id);
+      setLeaderFeedback(`Akses Ketua Rombongan untuk ${leader.email} telah dicabut.`);
+    } catch (err) {
+      setLeaderError(
+        err instanceof Error
+          ? `Gagal menghapus Ketua Rombongan: ${err.message}`
+          : 'Gagal mencabut akses Ketua Rombongan.'
       );
     } finally {
       setActionBusyKey(null);
@@ -407,6 +474,30 @@ export function AdminBackendView({
 
             {activeTab === 'monitoring' ? (
               <div className="space-y-4 pb-6">
+                {/* Quick Shortcut to Tour Leader Email Allowlist */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('settings')}
+                  className="w-full text-left rounded-[18px] bg-[#ECFDF5] dark:bg-[#064E3B]/45 border border-[#A7F3D0] dark:border-[#059669] px-3.5 py-3 flex items-center justify-between gap-3 hover:bg-[#D1FAE5] dark:hover:bg-[#065F46]/60 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-[#047857] text-white flex items-center justify-center shrink-0">
+                      <UserPlus className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[#064E3B] dark:text-[#ECFDF5] truncate">
+                        Email Ketua Rombongan ({tourLeaders.length} terdaftar)
+                      </p>
+                      <p className="text-[11px] text-[#047857] dark:text-[#6EE7B7] truncate">
+                        Kelola siapa saja yang boleh membuat rombongan baru
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#0C1E17] text-[#047857] dark:text-[#6EE7B7] text-[10px] font-bold shrink-0">
+                    Kelola
+                  </span>
+                </button>
+
                 {/* Section 1: Grup Rombongan Berjalan & Kontrol */}
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
@@ -711,6 +802,121 @@ export function AdminBackendView({
             ) : (
               /* TAB 2: PENGATURAN BACKEND GLOBAL */
               <div className="space-y-4">
+                {/* Kelola Email Ketua Rombongan Terdaftar */}
+                <div className="rounded-[20px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] p-4 space-y-3.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <UserPlus className="w-4 h-4 text-[#047857] dark:text-[#34D399] shrink-0" />
+                      <div>
+                        <h2 className="text-sm font-bold">
+                          Email Ketua Rombongan (Mutawwif)
+                        </h2>
+                        <p className="text-[11px] text-[#4D6659] dark:text-[#9CC2AE]">
+                          Menu &quot;Buat Rombongan Baru&quot; hanya tampil bagi email di daftar ini (+ Admin). Pengguna lain hanya dapat Gabung Rombongan.
+                        </p>
+                      </div>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-[#ECFDF5] dark:bg-[#064E3B] text-[#047857] dark:text-[#6EE7B7] text-[10px] font-bold shrink-0 tabular-nums">
+                      {tourLeaders.length}
+                    </span>
+                  </div>
+
+                  <div className="rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#D8E6DD] dark:border-[#1B3B2E] px-3 py-2 text-[11px] text-[#2D4A3D] dark:text-[#D1FAE5] flex items-center gap-2">
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#047857] dark:text-[#34D399] shrink-0" />
+                    <span className="truncate">
+                      Admin ({ADMIN_EMAIL}) selalu aktif sebagai Ketua Rombongan.
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-[#4D6659] absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="email"
+                        value={leaderEmailInput}
+                        onChange={(e) => setLeaderEmailInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddTourLeader();
+                          }
+                        }}
+                        placeholder="Email Google Ketua Rombongan (misal: mutawwif@gmail.com)"
+                        className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#D8E6DD] dark:border-[#1B3B2E] text-xs outline-none focus:border-[#047857]"
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      maxLength={80}
+                      value={leaderLabelInput}
+                      onChange={(e) => setLeaderLabelInput(e.target.value)}
+                      placeholder="Nama / Kloter / Travel (opsional, misal: Ust. Fauzi · Kloter 01)"
+                      className="w-full px-3 py-2 rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#D8E6DD] dark:border-[#1B3B2E] text-xs outline-none focus:border-[#047857]"
+                    />
+                    <button
+                      type="button"
+                      disabled={isSavingLeader || !leaderEmailInput.trim()}
+                      onClick={handleAddTourLeader}
+                      className="w-full min-h-[42px] px-3.5 py-2 rounded-xl bg-[#047857] hover:bg-[#065F46] disabled:opacity-50 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                    >
+                      {isSavingLeader ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <UserPlus className="w-3.5 h-3.5" />
+                      )}
+                      <span>
+                        {isSavingLeader ? 'Mendaftarkan...' : 'Daftarkan Email Ketua Rombongan'}
+                      </span>
+                    </button>
+                  </div>
+
+                  {leaderError && (
+                    <div className="rounded-xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 px-3 py-2 text-xs text-red-700 dark:text-red-300 flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{leaderError}</span>
+                    </div>
+                  )}
+
+                  {leaderFeedback && (
+                    <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300 flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{leaderFeedback}</span>
+                    </div>
+                  )}
+
+                  {tourLeaders.length === 0 ? (
+                    <p className="text-[11px] text-[#4D6659] dark:text-[#9CC2AE] text-center py-2">
+                      Belum ada email Ketua Rombongan tambahan yang didaftarkan.
+                    </p>
+                  ) : (
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-0.5">
+                      {tourLeaders.map((leader) => (
+                        <div
+                          key={leader.id}
+                          className="rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#D8E6DD] dark:border-[#1B3B2E] px-3 py-2 flex items-center justify-between gap-2.5"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold truncate">{leader.email}</p>
+                            <p className="text-[10px] text-[#4D6659] dark:text-[#9CC2AE] truncate">
+                              {leader.label ? `${leader.label} · ` : ''}
+                              Terdaftar {leader.createdAtLabel}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={actionBusyKey === `tl-del-${leader.id}`}
+                            onClick={() => handleRemoveTourLeader(leader)}
+                            aria-label={`Hapus ${leader.email}`}
+                            className="p-2 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50 cursor-pointer shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {/* Default Rombongan Tolerances */}
                 <div className="rounded-[20px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] p-4 space-y-3.5">
                   <div className="flex items-center gap-2">

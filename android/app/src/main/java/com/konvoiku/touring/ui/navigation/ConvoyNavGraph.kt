@@ -235,12 +235,18 @@ fun ConvoyNavGraph(
                 globalConfig = uiState.globalConfig,
                 isAdminUser = uiState.isVerifiedAdmin || viewModel.isAdminEmailSession(),
                 isVerifiedAdmin = uiState.isVerifiedAdmin,
+                canCreateRoom = viewModel.canCreateRoom(),
                 isCloudSyncConnected = uiState.isCloudSyncConnected,
                 manasikProgress = uiState.manasikProgress,
                 roomActivitiesCount = uiState.roomActivities.size,
                 roomActivitiesDoneCount = doneActCount,
                 onRoleSelected = { role ->
-                    viewModel.selectRole(role)
+                    val effectiveRole = if (role == UserRole.TOUR_LEADER && !viewModel.canCreateRoom()) {
+                        UserRole.MEMBER
+                    } else {
+                        role
+                    }
+                    viewModel.selectRole(effectiveRole)
                     navController.navigate(ConvoyRoute.VehicleProfile.route)
                 },
                 onResumeCurrentConvoy = {
@@ -293,9 +299,12 @@ fun ConvoyNavGraph(
                 presenceList = uiState.adminPresenceList,
                 rooms = uiState.adminRooms,
                 users = uiState.adminUsers,
+                tourLeaders = uiState.adminTourLeaders,
                 monitorError = uiState.adminMonitorError,
                 isSavingConfig = uiState.isSavingGlobalConfig,
                 configFeedback = uiState.globalConfigFeedback,
+                isSavingTourLeader = uiState.isSavingTourLeader,
+                tourLeaderFeedback = uiState.tourLeaderFeedback,
                 onGoogleSignIn = { activity -> viewModel.signInWithGoogle(activity) },
                 onOpenGoogleBrowserSync = { viewModel.openGoogleBrowserSync(appContext) },
                 onOpenCustomGoogleBrowserSync = { customUrl ->
@@ -308,6 +317,8 @@ fun ConvoyNavGraph(
                 onStartMonitoring = viewModel::startAdminMonitoring,
                 onStopMonitoring = viewModel::stopAdminMonitoring,
                 onSaveGlobalConfig = viewModel::saveGlobalConfig,
+                onAddTourLeader = viewModel::addRegisteredTourLeader,
+                onRemoveTourLeader = viewModel::removeRegisteredTourLeader,
                 onToggleRoomStatus = viewModel::adminToggleRoomStatus,
                 onResolveRoomSos = viewModel::adminResolveSos,
                 onRemoveRoomMember = viewModel::adminRemoveRoomMember,
@@ -346,9 +357,12 @@ fun ConvoyNavGraph(
                 },
                 onBack = { navController.popBackStack() },
                 onContinue = {
-                    val destination = if (activeRole == UserRole.TOUR_LEADER) {
+                    val destination = if (activeRole == UserRole.TOUR_LEADER && viewModel.canCreateRoom()) {
                         ConvoyRoute.TourLeader.route
                     } else {
+                        if (activeRole == UserRole.TOUR_LEADER) {
+                            viewModel.selectRole(UserRole.MEMBER)
+                        }
                         ConvoyRoute.JoinTour.route
                     }
                     navController.navigate(destination)

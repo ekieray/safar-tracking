@@ -82,6 +82,7 @@ import {
   sendRoomMessage,
   subscribeToGlobalAppConfig,
   subscribeToSyncedRoom,
+  subscribeToTourLeaderEligibility,
   syncCoLeaderAssignment,
   triggerCoLeaderFailover,
   triggerSyncedSos,
@@ -845,6 +846,7 @@ export default function App() {
   const [globalConfig, setGlobalConfig] = useState<GlobalAppConfig>(
     DEFAULT_GLOBAL_APP_CONFIG
   );
+  const [isRegisteredTourLeader, setIsRegisteredTourLeader] = useState(false);
 
   const [activeRoom, setActiveRoom] = useState<TourRoom | null>(null);
   const [joinInput, setJoinInput] = useState(() => pendingInviteRoomId || '');
@@ -1223,6 +1225,22 @@ export default function App() {
     });
     return () => unsubConfig();
   }, []);
+
+  // Subscribe to Registered Tour Leader Eligibility (/tour_leader_hashes/{sha256(email)})
+  useEffect(() => {
+    const cloudEmail =
+      authUser && !isDeviceCloudGuestEmail(authUser.email)
+        ? authUser.email
+        : null;
+    if (!cloudEmail) {
+      setIsRegisteredTourLeader(false);
+      return;
+    }
+    const unsub = subscribeToTourLeaderEligibility(cloudEmail, (eligible) => {
+      setIsRegisteredTourLeader(eligible);
+    });
+    return () => unsub();
+  }, [authUser]);
 
   useEffect(() => {
     if (!isRecordingVoice) return;
@@ -1644,12 +1662,30 @@ export default function App() {
   ]);
 
   const isSessionAuthenticated = Boolean(authUser || localUserName);
+  const hasAuthenticatedCloudEmailSession = Boolean(
+    authUser && !isDeviceCloudGuestEmail(authUser.email)
+  );
   const isAdminUser = isAdminEmailAddress(
     authUser?.email || vehicleProfile.email || localUserEmail
   );
+  const canCreateRoom =
+    isVerifiedAdminSession(authUser) ||
+    (hasAuthenticatedCloudEmailSession &&
+      (isAdminEmailAddress(authUser?.email) || isRegisteredTourLeader));
+  const isRegisteredLeaderUnverified = Boolean(
+    hasAuthenticatedCloudEmailSession &&
+      authUser &&
+      !authUser.emailVerified &&
+      isRegisteredTourLeader &&
+      !isVerifiedAdminSession(authUser)
+  );
+
+  const visibleRouteSteps = canCreateRoom
+    ? ROUTE_STEPS
+    : ROUTE_STEPS.filter((step) => step.route !== 'tour_leader');
   const navSteps = isAdminUser
-    ? [...ROUTE_STEPS, { route: 'admin_backend' as ScreenRoute, label: '6. Admin Backend' }]
-    : ROUTE_STEPS;
+    ? [...visibleRouteSteps, { route: 'admin_backend' as ScreenRoute, label: '6. Admin Backend' }]
+    : visibleRouteSteps;
 
   const navigateTo = (next: ScreenRoute, direction: 1 | -1 = 1) => {
     if (
@@ -1660,6 +1696,14 @@ export default function App() {
       setAuthError('Silakan masuk terlebih dahulu sebelum menggunakan aplikasi.');
       setNavDirection(-1);
       setCurrentRoute('login');
+      return;
+    }
+    if (next === 'tour_leader' && !canCreateRoom) {
+      setAuthError(
+        'Menu Buat Rombongan Baru hanya tersedia untuk Ketua Rombongan yang emailnya terdaftar oleh Admin.'
+      );
+      setNavDirection(-1);
+      setCurrentRoute('role_selection');
       return;
     }
     setNavDirection(direction);
@@ -2138,6 +2182,12 @@ export default function App() {
   };
 
   const handleSelectRole = (role: UserRole) => {
+    if (role === 'TOUR_LEADER' && !canCreateRoom) {
+      setAuthError(
+        'Menu Buat Rombongan Baru hanya tersedia untuk Ketua Rombongan yang emailnya terdaftar oleh Admin.'
+      );
+      return;
+    }
     if (
       role === 'TOUR_LEADER' &&
       globalConfig.allowNewRooms === false &&
@@ -2368,6 +2418,12 @@ export default function App() {
     customTitle = 'Rombongan Ziarah Makkah',
     routeOverride?: ConvoyRouteConfig
   ) => {
+    if (!canCreateRoom) {
+      setCreateRoomError(
+        'Hanya Ketua Rombongan yang emailnya terdaftar oleh Admin yang dapat membuat rombongan baru.'
+      );
+      return;
+    }
     if (
       globalConfig.allowNewRooms === false &&
       !isVerifiedAdminSession(authUser)
@@ -2484,6 +2540,12 @@ export default function App() {
     customTitle = 'Rombongan Ziarah Makkah',
     routeOverride?: ConvoyRouteConfig
   ) => {
+    if (!canCreateRoom) {
+      setCreateRoomError(
+        'Hanya Ketua Rombongan yang emailnya terdaftar oleh Admin yang dapat membuat rombongan baru.'
+      );
+      return;
+    }
     const effectiveConfig = routeOverride ?? routeConfig;
     const roomId = generateUniqueRoomId();
     const title = customTitle.trim() || 'Rombongan Ziarah Makkah';
@@ -4041,6 +4103,12 @@ export default function App() {
   handleFinishAndSaveTripRef.current = handleFinishAndSaveTrip;
 
   const handleRepeatTour = async (trip: TripHistoryRecord) => {
+    if (!canCreateRoom) {
+      setAuthError(
+        'Hanya Ketua Rombongan yang emailnya terdaftar oleh Admin yang dapat membuat rombongan baru.'
+      );
+      return;
+    }
     const restoredWaypoints =
       trip.waypoints.length >= 2 ? trip.waypoints : routeConfig.waypoints;
     const restoredCheckpoints: RestCheckpoint[] = trip.visitedCheckpoints.map(
@@ -4312,7 +4380,9 @@ export default function App() {
                   onClick={() => {
                     if (step.route === 'tour_leader') setSelectedRole('TOUR_LEADER');
                     if (step.route === 'join_tour') setSelectedRole('MEMBER');
-                    if (step.route === 'live_map') ensureDemoRoom(selectedRole);
+                    if (step.route === 'live_map') {
+                      ensureDemoRoom(canCreateRoom ? selectedRole : 'MEMBER');
+                    }
                     navigateTo(step.route, 1);
                   }}
                   className={`py-1 transition-colors whitespace-nowrap shrink-0 cursor-pointer border-b-2 flex items-center gap-1.5 ${
@@ -4433,7 +4503,9 @@ export default function App() {
                     onClick={() => {
                       if (step.route === 'tour_leader') setSelectedRole('TOUR_LEADER');
                       if (step.route === 'join_tour') setSelectedRole('MEMBER');
-                      if (step.route === 'live_map') ensureDemoRoom(selectedRole);
+                      if (step.route === 'live_map') {
+                        ensureDemoRoom(canCreateRoom ? selectedRole : 'MEMBER');
+                      }
                       navigateTo(step.route, 1);
                     }}
                     className={`px-2.5 py-1.5 rounded-lg text-xs font-medium cursor-pointer whitespace-nowrap ${
@@ -4531,6 +4603,8 @@ export default function App() {
                         isSigningIn={isSigningIn}
                         globalConfig={globalConfig}
                         isAdminUser={isAdminUser}
+                        canCreateRoom={canCreateRoom}
+                        isRegisteredLeaderUnverified={isRegisteredLeaderUnverified}
                         onGoogleSignIn={handleGoogleSignIn}
                         onGoogleSignOut={handleGoogleSignOut}
                         onOpenCustomizeProfile={() => {

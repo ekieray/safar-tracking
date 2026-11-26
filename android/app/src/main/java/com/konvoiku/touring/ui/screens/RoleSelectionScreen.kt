@@ -100,6 +100,7 @@ fun RoleSelectionScreen(
     globalConfig: GlobalAppConfig = GlobalAppConfig(),
     isAdminUser: Boolean = false,
     isVerifiedAdmin: Boolean = false,
+    canCreateRoom: Boolean = false,
     isCloudSyncConnected: Boolean = false,
     manasikProgress: ManasikProgressState = ManasikProgressState(),
     roomActivitiesCount: Int = 0,
@@ -497,84 +498,86 @@ fun RoleSelectionScreen(
                     }
                 }
 
-            // Card Header 1: Buat Rombongan Baru (Mutawwif / Ketua)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.size(52.dp)
+            // Card Header 1: Buat Rombongan Baru (Hanya untuk Admin / Ketua Rombongan terdaftar)
+            if (canCreateRoom) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Mosque,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(26.dp)
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.size(52.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Mosque,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Buat Rombongan Baru",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Mutawwif / Ketua · Rute Multi-Tujuan",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Buat Rombongan Baru",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.onSurface
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text(
+                            text = if (roomCreationPaused) {
+                                "Pembuatan room rombongan baru sedang dijeda sementara oleh Admin Backend."
+                            } else {
+                                "Tentukan multi titik tujuan safar, susun checklist kegiatan rombongan, dan pantau posisi jamaah."
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Button(
+                            onClick = { onRoleSelected(UserRole.TOUR_LEADER) },
+                            enabled = !roomCreationPaused,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = Color.White
                             )
+                        ) {
                             Text(
-                                text = "Mutawwif / Ketua · Rute Multi-Tujuan",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary
+                                text = if (roomCreationPaused) "Pembuatan Room Dijeda Admin" else "Buat Rombongan Baru",
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text(
-                        text = if (roomCreationPaused) {
-                            "Pembuatan room rombongan baru sedang dijeda sementara oleh Admin Backend."
-                        } else {
-                            "Tentukan multi titik tujuan safar, susun checklist kegiatan rombongan, dan pantau posisi jamaah."
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(
-                        onClick = { onRoleSelected(UserRole.TOUR_LEADER) },
-                        enabled = !roomCreationPaused,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Text(
-                            text = if (roomCreationPaused) "Pembuatan Room Dijeda Admin" else "Buat Rombongan Baru",
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
                     }
                 }
             }
@@ -628,6 +631,24 @@ fun RoleSelectionScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    if (!canCreateRoom) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Surface(
+                            color = Color(0xFFF8FAFC),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "Menu Buat Rombongan Baru hanya muncul untuk Ketua Rombongan yang emailnya didaftarkan oleh Admin.",
+                                fontSize = 11.5.sp,
+                                lineHeight = 16.sp,
+                                color = Color(0xFF475569),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp)
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -791,7 +812,7 @@ fun RoleSelectionScreen(
                             when {
                                 activeRoom != null -> onResumeCurrentConvoy()
                                 lastCompletedTrip != null -> showCompletedOptionsDialog = true
-                                else -> onRoleSelected(UserRole.TOUR_LEADER)
+                                else -> onRoleSelected(if (canCreateRoom) UserRole.TOUR_LEADER else UserRole.MEMBER)
                             }
                         },
                     shape = RoundedCornerShape(18.dp),
@@ -857,7 +878,11 @@ fun RoleSelectionScreen(
                                 text = when {
                                     activeRoom != null -> "Tujuan: $destinationName"
                                     lastCompletedTrip != null -> "Tujuan: ${lastCompletedTrip.destinationName} · ${String.format(Locale.US, "%.1f", lastCompletedTrip.distanceKm)} km"
-                                    else -> "Pilih Buat Rombongan Baru atau Gabung Rombongan"
+                                    else -> if (canCreateRoom) {
+                                        "Pilih Buat Rombongan Baru atau Gabung Rombongan"
+                                    } else {
+                                        "Ketuk untuk Gabung Rombongan dengan Kode Room"
+                                    }
                                 },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -878,7 +903,7 @@ fun RoleSelectionScreen(
                                 text = when {
                                     activeRoom != null -> "Buka"
                                     isConvoyFinished -> "Selesai"
-                                    else -> "Mulai"
+                                    else -> if (canCreateRoom) "Mulai" else "Gabung"
                                 },
                                 style = MaterialTheme.typography.labelLarge,
                                 color = if (isConvoyFinished) Color(0xFF334155) else MaterialTheme.colorScheme.primary
@@ -932,29 +957,31 @@ fun RoleSelectionScreen(
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Button(
-                                onClick = {
-                                    showCompletedOptionsDialog = false
-                                    onRepeatTour(lastCompletedTrip)
-                                },
-                                enabled = !roomCreationPaused,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.secondary,
-                                    contentColor = Color.White
-                                )
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Replay,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = if (roomCreationPaused) "Pembuatan Room Dijeda Admin" else "Ulangi Tour",
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                            if (canCreateRoom) {
+                                Button(
+                                    onClick = {
+                                        showCompletedOptionsDialog = false
+                                        onRepeatTour(lastCompletedTrip)
+                                    },
+                                    enabled = !roomCreationPaused,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.secondary,
+                                        contentColor = Color.White
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Replay,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (roomCreationPaused) "Pembuatan Room Dijeda Admin" else "Ulangi Tour",
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
                             }
                             OutlinedButton(
                                 onClick = {

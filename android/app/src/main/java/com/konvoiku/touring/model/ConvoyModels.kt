@@ -579,6 +579,15 @@ data class AdminRoomOverview(
     val members: List<ConvoyMember> = emptyList()
 )
 
+data class RegisteredTourLeader(
+    val id: String = "",
+    val email: String = "",
+    val label: String = "",
+    val addedByUid: String = "",
+    val createdAtLabel: String = "-",
+    val createdAtMs: Long = 0L
+)
+
 enum class ManasikGuideType(val id: String, val label: String) {
     UMRAH("umrah", "Manasik Umroh"),
     HAJI("haji", "Manasik Haji")
@@ -725,6 +734,10 @@ data class ConvoyUiState(
     val adminMonitorError: String? = null,
     val isSavingGlobalConfig: Boolean = false,
     val globalConfigFeedback: String? = null,
+    val isRegisteredTourLeader: Boolean = false,
+    val adminTourLeaders: List<RegisteredTourLeader> = emptyList(),
+    val isSavingTourLeader: Boolean = false,
+    val tourLeaderFeedback: String? = null,
     val pendingInviteRoomId: String? = null,
     val roomSetupError: String? = null,
     val isCreatingRoom: Boolean = false,

@@ -11,6 +11,7 @@ import {
   Timestamp,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import {
   auth,
@@ -30,6 +31,7 @@ import {
   DestinationStop,
   GlobalAppConfig,
   MemberConditionStatus,
+  RegisteredTourLeader,
   RestCheckpoint,
   RoomActivityItem,
   RoomActivityMemberProgress,
@@ -1673,6 +1675,140 @@ export async function adminDeleteRoom(roomId: string): Promise<void> {
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
   }
+}
+
+export function isValidTourLeaderEmail(rawEmail: string): boolean {
+  const clean = normalizeProfileEmail(rawEmail);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(clean) && clean.length <= 160;
+}
+
+export async function computeEmailSha256Hex(rawEmail: string): Promise<string> {
+  const normalized = normalizeProfileEmail(rawEmail);
+  const bytes = new TextEncoder().encode(normalized);
+  if (typeof globalThis !== 'undefined' && globalThis.crypto?.subtle) {
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+  throw new Error('Web Crypto SHA-256 tidak tersedia pada browser ini.');
+}
+
+export function subscribeToRegisteredTourLeaders(
+  onUpdate: (leaders: RegisteredTourLeader[]) => void,
+  onError: (msg: string) => void
+): () => void {
+  return onSnapshot(
+    collection(db, 'tour_leaders'),
+    (snap) => {
+      const items = snap.docs
+        .map((docSnap) => {
+          const d = docSnap.data();
+          const createdMs = toMillis(d.createdAt);
+          return {
+            id: String(d.id || docSnap.id),
+            email: normalizeProfileEmail(String(d.email || '')),
+            label: String(d.label || ''),
+            addedByUid: String(d.addedByUid || ''),
+            createdAtLabel: toClockLabel(d.createdAt, 'Baru saja'),
+            createdAtMs: createdMs,
+          } satisfies RegisteredTourLeader;
+        })
+        .sort((a, b) => b.createdAtMs - a.createdAtMs);
+      onUpdate(items);
+    },
+    (err) => {
+      onError(`Gagal memuat daftar Ketua Rombongan: ${err.message}`);
+    }
+  );
+}
+
+export async function addRegisteredTourLeader(
+  adminUid: string,
+  rawEmail: string,
+  rawLabel = ''
+): Promise<void> {
+  const email = normalizeProfileEmail(rawEmail);
+  if (!isValidTourLeaderEmail(email)) {
+    throw new Error('Format email Ketua Rombongan tidak valid.');
+  }
+  const label = rawLabel.trim().slice(0, 80);
+  const hash = await computeEmailSha256Hex(email);
+  const path = `tour_leaders/${hash}`;
+  try {
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'tour_leaders', hash), {
+      id: hash,
+      email,
+      label,
+      addedByUid: adminUid.slice(0, 128),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    batch.set(doc(db, 'tour_leader_hashes', hash), {
+      emailHash: hash,
+      active: true,
+      updatedByUid: adminUid.slice(0, 128),
+      updatedAt: serverTimestamp(),
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function removeRegisteredTourLeader(leaderId: string): Promise<void> {
+  const cleanId = leaderId.trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(cleanId)) {
+    throw new Error('ID Ketua Rombongan tidak valid.');
+  }
+  const path = `tour_leaders/${cleanId}`;
+  try {
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'tour_leaders', cleanId));
+    batch.delete(doc(db, 'tour_leader_hashes', cleanId));
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export function subscribeToTourLeaderEligibility(
+  rawEmail: string | null | undefined,
+  callback: (isEligible: boolean) => void
+): () => void {
+  const email = normalizeProfileEmail(rawEmail);
+  if (!email) {
+    callback(false);
+    return () => {};
+  }
+  if (isAdminEmailAddress(email)) {
+    callback(true);
+    return () => {};
+  }
+  let cancelled = false;
+  let unsubSnap: (() => void) | null = null;
+  computeEmailSha256Hex(email)
+    .then((hash) => {
+      if (cancelled) return;
+      unsubSnap = onSnapshot(
+        doc(db, 'tour_leader_hashes', hash),
+        (snap) => {
+          if (cancelled) return;
+          callback(snap.exists() && snap.data()?.active !== false);
+        },
+        () => {
+          if (!cancelled) callback(false);
+        }
+      );
+    })
+    .catch(() => {
+      if (!cancelled) callback(false);
+    });
+  return () => {
+    cancelled = true;
+    unsubSnap?.();
+  };
 }
 
 const MANASIK_PROGRESS_PREFIX = 'safar_manasik_progress_v1:';

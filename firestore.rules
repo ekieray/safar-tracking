@@ -38,6 +38,17 @@ service cloud.firestore {
         (isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
     }
 
+    function isValidSha256Hex(id) {
+      return id is string && id.size() == 64 && id.matches('^[a-f0-9]{64}$');
+    }
+
+    function isRegisteredTourLeader() {
+      return isSignedIn() &&
+        request.auth.token.email is string &&
+        request.auth.token.email_verified == true &&
+        exists(/databases/$(database)/documents/tour_leader_hashes/$(hashing.sha256(request.auth.token.email.lower()).toHexString().lower()));
+    }
+
     function isValidRoomId(roomId) {
       return roomId is string && roomId.size() >= 4 && roomId.size() <= 32 && roomId.matches('^[A-Za-z0-9_\\-]+$');
     }
@@ -593,6 +604,28 @@ service cloud.firestore {
       data.grantedAt is timestamp;
     }
 
+    function isValidTourLeader(data, leaderId) {
+      return data.keys().hasAll(['id', 'email', 'label', 'addedByUid', 'createdAt', 'updatedAt']) &&
+      data.keys().hasOnly(['id', 'email', 'label', 'addedByUid', 'createdAt', 'updatedAt']) &&
+      isValidSha256Hex(leaderId) &&
+      data.id is string && data.id == leaderId &&
+      data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+      data.label is string && data.label.size() <= 80 &&
+      data.addedByUid is string && data.addedByUid == request.auth.uid && data.addedByUid.size() >= 1 && data.addedByUid.size() <= 128 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidTourLeaderHash(data, emailHash) {
+      return data.keys().hasAll(['emailHash', 'active', 'updatedByUid', 'updatedAt']) &&
+      data.keys().hasOnly(['emailHash', 'active', 'updatedByUid', 'updatedAt']) &&
+      isValidSha256Hex(emailHash) &&
+      data.emailHash is string && data.emailHash == emailHash &&
+      data.active is bool &&
+      data.updatedByUid is string && data.updatedByUid == request.auth.uid && data.updatedByUid.size() >= 1 && data.updatedByUid.size() <= 128 &&
+      data.updatedAt is timestamp;
+    }
+
     function isValidManasikProgress(data, userId, guideId) {
       return data.keys().hasAll(['guideId', 'ownerUid', 'completedStepIds', 'updatedAt']) &&
       data.keys().hasOnly(['guideId', 'ownerUid', 'completedStepIds', 'checkInRecords', 'updatedAt']) &&
@@ -716,11 +749,38 @@ service cloud.firestore {
       allow delete: if isValidId(adminId) && isAdmin();
     }
 
+    // Admin-only Registered Tour Leaders Directory (PII-isolated)
+    match /tour_leaders/{leaderId} {
+      allow get: if isValidSha256Hex(leaderId) && isAdmin();
+      allow list: if isAdminEmail();
+      allow create: if isValidSha256Hex(leaderId) && isAdmin() &&
+        isValidTourLeader(incoming(), leaderId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidSha256Hex(leaderId) && isAdmin() &&
+        isValidTourLeader(incoming(), leaderId) &&
+        incoming().id == existing().id &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time;
+      allow delete: if isValidSha256Hex(leaderId) && isAdmin();
+    }
+
+    // PII-free SHA-256 Email Hash Allowlist for Tour Leader Eligibility Checks
+    match /tour_leader_hashes/{emailHash} {
+      allow get: if isSignedIn() && isValidSha256Hex(emailHash);
+      allow list: if isAdminEmail();
+      allow create, update: if isValidSha256Hex(emailHash) && isAdmin() &&
+        isValidTourLeaderHash(incoming(), emailHash) &&
+        incoming().updatedAt == request.time;
+      allow delete: if isValidSha256Hex(emailHash) && isAdmin();
+    }
+
     // Shared Convoy Rooms
     match /rooms/{roomId} {
       allow get: if isSignedIn() && isValidRoomId(roomId);
       allow list: if isAdminEmail();
       allow create: if isSignedIn() && isValidRoomId(roomId) &&
+        (isAdmin() || isRegisteredTourLeader()) &&
         isValidConvoyRoom(incoming(), roomId) &&
         incoming().leaderUid == request.auth.uid &&
         (!('actingLeaderUid' in incoming()) || incoming().actingLeaderUid == '' || incoming().actingLeaderUid == request.auth.uid) &&

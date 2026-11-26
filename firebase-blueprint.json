@@ -446,6 +446,32 @@
         "completedRecords",
         "updatedAt"
       ]
+    },
+    "TourLeader": {
+      "title": "TourLeader",
+      "description": "Admin-managed directory of registered Tour Leader (Ketua Rombongan) email accounts authorized to create convoy rooms.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$" },
+        "email": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "label": { "type": "string", "minLength": 0, "maxLength": 80 },
+        "addedByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "label", "addedByUid", "createdAt", "updatedAt"]
+    },
+    "TourLeaderHash": {
+      "title": "TourLeaderHash",
+      "description": "PII-free SHA-256 email hash allowlist entry used by signed-in users and security rules to verify Tour Leader room-creation eligibility.",
+      "type": "object",
+      "properties": {
+        "emailHash": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$" },
+        "active": { "type": "boolean" },
+        "updatedByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["emailHash", "active", "updatedByUid", "updatedAt"]
     }
   },
   "firestore": {
@@ -496,6 +522,14 @@
     "/admins/{adminId}": {
       "schema": { "$ref": "#/entities/AdminUser" },
       "description": "Authorized admin role allowlist."
+    },
+    "/tour_leaders/{leaderId}": {
+      "schema": { "$ref": "#/entities/TourLeader" },
+      "description": "Admin-only directory of registered Tour Leader emails."
+    },
+    "/tour_leader_hashes/{emailHash}": {
+      "schema": { "$ref": "#/entities/TourLeaderHash" },
+      "description": "PII-free SHA-256 allowlist hashes checked when verifying Tour Leader eligibility."
     }
   }
 }

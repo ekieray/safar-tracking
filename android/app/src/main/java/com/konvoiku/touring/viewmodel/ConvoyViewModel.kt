@@ -101,6 +101,8 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
     private var roomUnsubscribe: (() -> Unit)? = null
     private var configUnsubscribe: (() -> Unit)? = null
     private var adminMonitorUnsubscribe: (() -> Unit)? = null
+    private var adminTourLeadersUnsubscribe: (() -> Unit)? = null
+    private var tourLeaderEligibilityUnsubscribe: (() -> Unit)? = null
     private var authUnsubscribe: (() -> Unit)? = null
     private var lastTelemetrySentMs = 0L
     private val recordedTrackPoints = mutableListOf<LatLngGeo>()
@@ -591,6 +593,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
             )
         }
         pushPresenceSnapshotNow()
+        refreshTourLeaderEligibility(resolvedEmail)
         val cloudTrips = syncRepo.loadUserTrips(uid)
         mergeCloudTrips(cloudTrips)
     }
@@ -626,6 +629,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                     manasikProgress = savedManasik
                 )
             }
+            refreshTourLeaderEligibility(firebaseEmail)
         } else if (sessionRaw != null) {
             runCatching {
                 val json = JSONObject(sessionRaw)
@@ -1405,6 +1409,9 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                 adminPresenceList = emptyList(),
                 adminRooms = emptyList(),
                 adminUsers = emptyList(),
+                adminTourLeaders = emptyList(),
+                isRegisteredTourLeader = false,
+                tourLeaderFeedback = null,
                 isAdminMonitoringLoading = false,
                 adminMonitorError = null,
                 activeRoom = null,
@@ -1417,9 +1424,49 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                 manasikProgress = loadLocalManasikProgress("")
             )
         }
+        tourLeaderEligibilityUnsubscribe?.invoke()
+        tourLeaderEligibilityUnsubscribe = null
+    }
+
+    fun canCreateRoom(): Boolean {
+        val state = _uiState.value
+        if (syncRepo.isVerifiedAdminSession()) return true
+        val firebaseUser = syncRepo.currentUser()
+        val hasCloudAccount = firebaseUser != null &&
+            !firebaseUser.isAnonymous &&
+            !syncRepo.isDeviceCloudGuestUser(firebaseUser) &&
+            !state.isGuestMode
+        if (!hasCloudAccount) return false
+        return syncRepo.isAdminEmail(state.authUserEmail) || state.isRegisteredTourLeader
+    }
+
+    private fun refreshTourLeaderEligibility(email: String?) {
+        tourLeaderEligibilityUnsubscribe?.invoke()
+        tourLeaderEligibilityUnsubscribe = null
+        val firebaseUser = syncRepo.currentUser()
+        val hasCloudAccount = firebaseUser != null &&
+            !firebaseUser.isAnonymous &&
+            !syncRepo.isDeviceCloudGuestUser(firebaseUser)
+        val clean = normalizeEmail(email.orEmpty())
+        if (!hasCloudAccount || clean.isBlank()) {
+            _uiState.update { it.copy(isRegisteredTourLeader = false) }
+            return
+        }
+        tourLeaderEligibilityUnsubscribe = syncRepo.subscribeToTourLeaderEligibility(clean) { eligible ->
+            _uiState.update { it.copy(isRegisteredTourLeader = eligible) }
+        }
     }
 
     fun selectRole(role: UserRole) {
+        if (role == UserRole.TOUR_LEADER && !canCreateRoom()) {
+            _uiState.update {
+                it.copy(
+                    selectedRole = UserRole.MEMBER,
+                    authError = "Menu Buat Rombongan Baru hanya tersedia untuk Ketua Rombongan yang emailnya terdaftar oleh Admin."
+                )
+            }
+            return
+        }
         _uiState.update { it.copy(selectedRole = role) }
     }
 
@@ -1454,6 +1501,13 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         onSuccess: () -> Unit = {}
     ) {
         val state = _uiState.value
+        if (!canCreateRoom()) {
+            val msg = "Hanya Ketua Rombongan yang emailnya terdaftar oleh Admin yang dapat membuat rombongan baru."
+            _uiState.update {
+                it.copy(authError = msg, roomSetupError = msg)
+            }
+            return
+        }
         if (!state.globalConfig.allowNewRooms && !syncRepo.isVerifiedAdminSession()) {
             val msg = "Pembuatan room baru sedang dijeda sementara oleh Admin Backend."
             _uiState.update {
@@ -1575,6 +1629,13 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         onSuccess: () -> Unit = {}
     ) {
         val state = _uiState.value
+        if (!canCreateRoom()) {
+            val msg = "Hanya Ketua Rombongan yang emailnya terdaftar oleh Admin yang dapat membuat rombongan baru."
+            _uiState.update {
+                it.copy(authError = msg, roomSetupError = msg)
+            }
+            return
+        }
         val routeConfig = state.routeConfig
         val roomCode = generateUniqueRoomId()
         val inviteUrl = "https://safartracking.id/join/$roomCode"
@@ -3651,6 +3712,12 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
 
     fun repeatCompletedTrip(trip: TripHistoryRecord, onReady: () -> Unit = {}) {
         val state = _uiState.value
+        if (!canCreateRoom()) {
+            _uiState.update {
+                it.copy(authError = "Hanya Ketua Rombongan yang emailnya terdaftar oleh Admin yang dapat membuat rombongan baru.")
+            }
+            return
+        }
         if (!state.globalConfig.allowNewRooms && !syncRepo.isVerifiedAdminSession()) {
             _uiState.update {
                 it.copy(authError = "Pembuatan room baru sedang dijeda sementara oleh Admin Backend.")
@@ -3903,16 +3970,76 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
         )
+        adminTourLeadersUnsubscribe?.invoke()
+        adminTourLeadersUnsubscribe = syncRepo.subscribeToRegisteredTourLeaders(
+            onUpdate = { list ->
+                _uiState.update { it.copy(adminTourLeaders = list) }
+            },
+            onError = { msg ->
+                _uiState.update { it.copy(tourLeaderFeedback = msg) }
+            }
+        )
     }
 
     fun stopAdminMonitoring() {
         adminMonitorUnsubscribe?.invoke()
         adminMonitorUnsubscribe = null
+        adminTourLeadersUnsubscribe?.invoke()
+        adminTourLeadersUnsubscribe = null
         _uiState.update { it.copy(isAdminMonitoringLoading = false) }
     }
 
     fun clearGlobalConfigFeedback() {
-        _uiState.update { it.copy(globalConfigFeedback = null) }
+        _uiState.update { it.copy(globalConfigFeedback = null, tourLeaderFeedback = null) }
+    }
+
+    fun addRegisteredTourLeader(rawEmail: String, rawLabel: String) {
+        val uid = syncRepo.currentUid()
+        if (uid == null || !syncRepo.isVerifiedAdminSession()) {
+            _uiState.update {
+                it.copy(tourLeaderFeedback = "Akses ditolak: perlu akun admin ekie.ray@gmail.com terverifikasi.")
+            }
+            return
+        }
+        val cleanEmail = normalizeEmail(rawEmail)
+        if (!syncRepo.isValidTourLeaderEmail(cleanEmail)) {
+            _uiState.update {
+                it.copy(tourLeaderFeedback = "Masukkan format email Ketua Rombongan yang valid.")
+            }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSavingTourLeader = true, tourLeaderFeedback = null) }
+            val result = syncRepo.addRegisteredTourLeader(uid, cleanEmail, rawLabel)
+            _uiState.update { state ->
+                state.copy(
+                    isSavingTourLeader = false,
+                    tourLeaderFeedback = if (result.isSuccess) {
+                        "Email $cleanEmail terdaftar sebagai Ketua Rombongan."
+                    } else {
+                        "Gagal mendaftarkan email: ${result.exceptionOrNull()?.message ?: "Coba lagi"}"
+                    }
+                )
+            }
+        }
+    }
+
+    fun removeRegisteredTourLeader(leaderId: String, email: String) {
+        if (!syncRepo.isVerifiedAdminSession()) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSavingTourLeader = true, tourLeaderFeedback = null) }
+            val result = syncRepo.removeRegisteredTourLeader(leaderId)
+            _uiState.update { state ->
+                state.copy(
+                    isSavingTourLeader = false,
+                    tourLeaderFeedback = if (result.isSuccess) {
+                        "Akses Ketua Rombongan untuk $email telah dicabut."
+                    } else {
+                        "Gagal menghapus email: ${result.exceptionOrNull()?.message ?: "Coba lagi"}"
+                    }
+                )
+            }
+        }
     }
 
     fun saveGlobalConfig(config: GlobalAppConfig) {

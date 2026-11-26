@@ -286,6 +286,15 @@ export interface GlobalAppConfig {
   updatedAtLabel?: string;
 }
 
+export interface RegisteredTourLeader {
+  id: string;
+  email: string;
+  label: string;
+  addedByUid: string;
+  createdAtLabel: string;
+  createdAtMs: number;
+}
+
 export interface UserPresenceRecord {
   uid: string;
   fullName: string;
