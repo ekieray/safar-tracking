@@ -350,6 +350,10 @@ class LocalBrowserGoogleAuthServer {
                       return;
                     }
                     const msg = err && err.message ? err.message : String(err);
+                    if (code === 'auth/unauthorized-domain') {
+                      setStatus('err', 'Domain "' + window.location.hostname + '" belum diizinkan di Firebase Console (project ' + '$projectId' + ' → Authentication → Settings → Authorized domains).');
+                      return;
+                    }
                     setStatus('err', 'Login Google gagal (' + code + '): ' + msg + ' — Coba tombol "Mode Redirect Penuh" di bawah.');
                   }
                 }
@@ -361,6 +365,11 @@ class LocalBrowserGoogleAuthServer {
                     provider.setCustomParameters({ prompt: 'select_account' });
                     await auth.signInWithRedirect(provider);
                   } catch (err) {
+                    const code = err && err.code ? err.code : '';
+                    if (code === 'auth/unauthorized-domain') {
+                      setStatus('err', 'Domain "' + window.location.hostname + '" belum diizinkan di Firebase Console (project ' + '$projectId' + ' → Authentication → Settings → Authorized domains).');
+                      return;
+                    }
                     setStatus('err', 'Gagal memulai redirect: ' + (err && err.message ? err.message : err));
                   }
                 }
