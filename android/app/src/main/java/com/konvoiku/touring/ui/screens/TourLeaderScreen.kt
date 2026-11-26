@@ -756,10 +756,16 @@ fun TourLeaderScreen(
                                                         viaPoints = emptyList()
                                                         if (isAddPointSearchMode) {
                                                             onAddDestinationPoint(
-                                                                preset.latitude,
-                                                                preset.longitude,
+                                                                preset.endPoint.latitude,
+                                                                preset.endPoint.longitude,
                                                                 preset.name,
-                                                                preset.address
+                                                                String.format(
+                                                                    Locale.US,
+                                                                    "%s · %.4f, %.4f",
+                                                                    preset.name,
+                                                                    preset.endPoint.latitude,
+                                                                    preset.endPoint.longitude
+                                                                )
                                                             )
                                                             isAddPointSearchMode = false
                                                             coroutineScope.launch {
