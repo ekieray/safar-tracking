@@ -19,7 +19,7 @@ import java.net.Socket
 /**
  * Lightweight local loopback HTTP server (http://localhost:<port>/auth) so Android users can
  * complete Google Sign-In via Chrome without requiring an externally deployed web bridge.
- * Works because Firebase project `konvoi-touring` authorizes `localhost` OAuth callbacks.
+ * Works because Firebase project `excellent-victor-7v0ns` authorizes `localhost` OAuth callbacks.
  */
 class LocalBrowserGoogleAuthServer {
 

@@ -14,36 +14,36 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Professional Blue (Navigation & Main Structure)
-val TouringBlue = Color(0xFF1D4ED8)
-val TouringBlueBright = Color(0xFF2563EB)
-val TouringBlueLight = Color(0xFFEFF6FF)
-val TouringBlueDark = Color(0xFF1E3A8A)
+// Haram Emerald (Navigation & Main Structure)
+val TouringBlue = Color(0xFF047857)
+val TouringBlueBright = Color(0xFF059669)
+val TouringBlueLight = Color(0xFFECFDF5)
+val TouringBlueDark = Color(0xFF064E3B)
 
-// Touring Orange / Amber (Primary Touring CTAs)
-val RoadAmber = Color(0xFFEA580C)
+// Kiswah Gold / Amber (Primary Safar CTAs)
+val RoadAmber = Color(0xFFB45309)
 val RoadAmberBright = Color(0xFFF59E0B)
-val RoadAmberLight = Color(0xFFFFF7ED)
-val RoadAmberDark = Color(0xFF9A3412)
+val RoadAmberLight = Color(0xFFFFFBEB)
+val RoadAmberDark = Color(0xFF78350F)
 
 // SOS Emergency Red
 val SosRed = Color(0xFFDC2626)
 val SosRedDark = Color(0xFF991B1B)
 
-// Asphalt Charcoal & Clean Off-White Neutrals
-val AsphaltCharcoal = Color(0xFF0F172A)
-val SlateInk = Color(0xFF475569)
-val MutedSteel = Color(0xFF64748B)
-val CanvasLight = Color(0xFFF4F6FA)
+// Haram Night Charcoal & Clean Mint-Ivory Neutrals
+val AsphaltCharcoal = Color(0xFF0B1F16)
+val SlateInk = Color(0xFF4D6659)
+val MutedSteel = Color(0xFF6B8A7A)
+val CanvasLight = Color(0xFFF4F8F5)
 val SurfaceWhite = Color(0xFFFFFFFF)
-val SurfaceVariantLight = Color(0xFFEEF2F7)
-val OutlineSubtle = Color(0xFFE2E8F0)
+val SurfaceVariantLight = Color(0xFFE6EFE9)
+val OutlineSubtle = Color(0xFFD8E6DD)
 
-// Deep Asphalt & Midnight Adventure Neutrals
-val CanvasDark = Color(0xFF0A0F16)
-val SurfaceDark = Color(0xFF131B26)
-val SurfaceVariantDark = Color(0xFF1C2636)
-val OutlineDark = Color(0xFF2D3A4F)
+// Deep Haram Night & Sanctuary Emerald Dark Neutrals
+val CanvasDark = Color(0xFF06130E)
+val SurfaceDark = Color(0xFF0C1E17)
+val SurfaceVariantDark = Color(0xFF132E24)
+val OutlineDark = Color(0xFF1B3B2E)
 
 private val LightColorScheme = lightColorScheme(
     primary = TouringBlue,
@@ -68,22 +68,22 @@ private val LightColorScheme = lightColorScheme(
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF60A5FA),
-    onPrimary = Color(0xFF0F172A),
-    primaryContainer = Color(0xFF1E3A8A),
-    onPrimaryContainer = Color(0xFFDBEAFE),
-    secondary = Color(0xFFFB923C),
-    onSecondary = Color(0xFF431407),
-    secondaryContainer = Color(0xFF7C2D12),
-    onSecondaryContainer = Color(0xFFFFEDD5),
+    primary = Color(0xFF34D399),
+    onPrimary = Color(0xFF032217),
+    primaryContainer = Color(0xFF064E3B),
+    onPrimaryContainer = Color(0xFFD1FAE5),
+    secondary = Color(0xFFF59E0B),
+    onSecondary = Color(0xFF451A03),
+    secondaryContainer = Color(0xFF78350F),
+    onSecondaryContainer = Color(0xFFFEF3C7),
     tertiary = Color(0xFF2DD4BF),
     onTertiary = Color(0xFF042F2E),
     background = CanvasDark,
-    onBackground = Color(0xFFF1F5F9),
+    onBackground = Color(0xFFECFDF5),
     surface = SurfaceDark,
-    onSurface = Color(0xFFF1F5F9),
+    onSurface = Color(0xFFECFDF5),
     surfaceVariant = SurfaceVariantDark,
-    onSurfaceVariant = Color(0xFFCBD5E1),
+    onSurfaceVariant = Color(0xFF9CC2AE),
     outline = OutlineDark,
     error = Color(0xFFF87171),
     onError = Color(0xFF450A0A)

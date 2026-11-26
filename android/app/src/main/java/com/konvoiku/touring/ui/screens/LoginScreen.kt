@@ -6,6 +6,7 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -72,8 +73,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -83,6 +87,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.konvoiku.touring.R
 import com.konvoiku.touring.data.FirestoreConvoyRepository
 import com.konvoiku.touring.model.AuthProviderType
 import com.konvoiku.touring.model.GlobalAppConfig
@@ -155,20 +160,14 @@ fun LoginScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primary,
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Navigation,
-                                    contentDescription = "Safar Tracking",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_safar_brand),
+                            contentDescription = "Safar Tracking",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                        )
                         Text(
                             text = "Safar Tracking",
                             style = MaterialTheme.typography.titleLarge,
@@ -249,9 +248,9 @@ fun LoginScreen(
 
                 if (globalConfig.announcementActive && globalConfig.announcementMessage.isNotBlank()) {
                     Surface(
-                        color = Color(0xFFEFF6FF),
+                        color = Color(0xFFECFDF5),
                         shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                        border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -262,7 +261,7 @@ fun LoginScreen(
                             Icon(
                                 imageVector = Icons.Rounded.Campaign,
                                 contentDescription = null,
-                                tint = Color(0xFF1D4ED8),
+                                tint = Color(0xFF047857),
                                 modifier = Modifier.size(18.dp)
                             )
                             Column {
@@ -270,12 +269,12 @@ fun LoginScreen(
                                     text = globalConfig.announcementTitle.ifBlank { "Info Safar Tracking" },
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
-                                    color = Color(0xFF1E3A8A)
+                                    color = Color(0xFF065F46)
                                 )
                                 Text(
                                     text = globalConfig.announcementMessage,
                                     fontSize = 11.sp,
-                                    color = Color(0xFF1E3A8A)
+                                    color = Color(0xFF065F46)
                                 )
                             }
                         }
@@ -318,12 +317,12 @@ fun LoginScreen(
                             }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = if (isSignUpMode) "Daftar Akun Baru" else "Masuk Akun Pengendara",
+                                    text = if (isSignUpMode) "Daftar Akun Baru" else "Masuk Akun Jamaah",
                                     style = MaterialTheme.typography.titleLarge,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "Profil kendaraan & avatar tersinkronisasi otomatis via email.",
+                                    text = "Profil jamaah, rombongan & progres manasik tersinkronisasi otomatis via email.",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -396,19 +395,19 @@ fun LoginScreen(
                                     .fillMaxWidth()
                                     .defaultMinSize(minHeight = 46.dp),
                                 shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.dp, Color(0xFF2563EB))
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.OpenInBrowser,
                                     contentDescription = null,
-                                    tint = Color(0xFF2563EB),
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "Sinkronkan Google via Browser",
                                     fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFF2563EB),
+                                    color = MaterialTheme.colorScheme.primary,
                                     textAlign = TextAlign.Center
                                 )
                             }
@@ -441,7 +440,7 @@ fun LoginScreen(
                                     Text(
                                         text = if (showManualTokenInput) "Tutup tempel token" else "Sudah login di browser?",
                                         fontSize = 11.sp,
-                                        color = Color(0xFF2563EB)
+                                        color = MaterialTheme.colorScheme.primary
                                     )
                                 }
                             }
@@ -534,8 +533,8 @@ fun LoginScreen(
                                     localError = null
                                     onClearAuthError()
                                 },
-                                label = { Text("Nama Lengkap Pengendara") },
-                                placeholder = { Text("Contoh: Kang Ekie") },
+                                label = { Text("Nama Lengkap Jamaah") },
+                                placeholder = { Text("Contoh: Ahmad Fauzi") },
                                 leadingIcon = {
                                     Icon(Icons.Rounded.Person, contentDescription = null)
                                 },
@@ -556,7 +555,7 @@ fun LoginScreen(
                                 localError = null
                                 onClearAuthError()
                             },
-                            label = { Text("Email Pengendara") },
+                            label = { Text("Email Jamaah") },
                             placeholder = { Text("nama@email.com") },
                             leadingIcon = {
                                 Icon(Icons.Rounded.Email, contentDescription = null)
@@ -746,7 +745,7 @@ fun LoginScreen(
                                 }
                                 if (isSignUpMode) {
                                     if (cleanName.length < 2) {
-                                        localError = "Masukkan nama lengkap pengendara (minimal 2 karakter)."
+                                        localError = "Masukkan nama lengkap jamaah (minimal 2 karakter)."
                                         return@Button
                                     }
                                     if (password != confirmPassword) {
@@ -796,8 +795,8 @@ fun LoginScreen(
                         if (globalConfig.allowGuestMode) {
                             OutlinedButton(
                                 onClick = {
-                                    val guestName = fullName.trim().ifBlank { "Rider Tamu" }
-                                    val guestEmail = email.trim().ifBlank { "tamu@konvoiku.id" }
+                                    val guestName = fullName.trim().ifBlank { "Jamaah Tamu" }
+                                    val guestEmail = email.trim().ifBlank { "tamu@safartracking.id" }
                                     onLoginSuccess(guestName, guestEmail, true)
                                 },
                                 modifier = Modifier
@@ -849,7 +848,7 @@ fun LoginScreen(
                                 modifier = Modifier.size(18.dp)
                             )
                             Text(
-                                text = "Pantau posisi seluruh anggota secara live di TomTom Maps.",
+                                text = "Pantau posisi seluruh jamaah & rute multi-tujuan secara live di peta.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -865,7 +864,7 @@ fun LoginScreen(
                                 modifier = Modifier.size(18.dp)
                             )
                             Text(
-                                text = "Sinkronisasi profil pengendara, klub & kendaraan berdasarkan email.",
+                                text = "Sinkronisasi profil jamaah, kloter & checklist manasik berdasarkan email.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -900,7 +899,7 @@ fun LoginScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
                         text = if (provider == AuthProviderType.INSTAGRAM) {
-                            "Masukkan username Instagram dan email agar profil touring Anda tersinkronisasi."
+                            "Masukkan username Instagram dan email agar profil safar Anda tersinkronisasi."
                         } else {
                             "Konfirmasi nama dan email akun ${provider.label} Anda untuk menyinkronkan profil Safar Tracking."
                         },
@@ -915,7 +914,7 @@ fun LoginScreen(
                                 socialDialogError = null
                             },
                             label = { Text("Username Instagram") },
-                            placeholder = { Text("contoh: kangekie.touring") },
+                            placeholder = { Text("contoh: safar.rombongan") },
                             leadingIcon = { Icon(Icons.Rounded.AlternateEmail, contentDescription = null) },
                             singleLine = true,
                             shape = RoundedCornerShape(12.dp),
@@ -928,8 +927,8 @@ fun LoginScreen(
                             socialNameInput = it
                             socialDialogError = null
                         },
-                        label = { Text("Nama Lengkap Pengendara") },
-                        placeholder = { Text("Contoh: Kang Ekie") },
+                        label = { Text("Nama Lengkap Jamaah") },
+                        placeholder = { Text("Contoh: Ahmad Fauzi") },
                         leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = null) },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),

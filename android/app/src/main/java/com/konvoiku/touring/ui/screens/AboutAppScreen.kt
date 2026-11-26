@@ -1,6 +1,7 @@
 package com.konvoiku.touring.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,13 +18,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Map
-import androidx.compose.material.icons.rounded.Navigation
+import androidx.compose.material.icons.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Mosque
 import androidx.compose.material.icons.rounded.RecordVoiceOver
-import androidx.compose.material.icons.rounded.Route
-import androidx.compose.material.icons.rounded.Shield
-import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -39,12 +39,16 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.konvoiku.touring.R
 import com.konvoiku.touring.ui.components.TouringDashboardCanvasBackdrop
 import com.konvoiku.touring.ui.components.TouringHeroAtmosphereHeader
 
@@ -100,7 +104,7 @@ fun AboutAppScreen(
             ) {
                 TouringHeroAtmosphereHeader(
                     title = "Safar Tracking",
-                    subtitle = "Aplikasi pendamping perjalanan ibadah Umroh & Haji dengan pelacakan langsung, peringatan keselamatan, walkie-talkie, dan kartu rute."
+                    subtitle = "Aplikasi pendamping perjalanan ibadah Umroh & Haji dengan pelacakan multi-point, panduan manasik GPS, checklist rombongan, dan walkie-talkie."
                 )
 
                 // Ringkasan Fitur Utama
@@ -115,33 +119,33 @@ fun AboutAppScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = "Fitur Utama Konvoi",
+                            text = "Fitur Utama Safar Tracking",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
 
                         AboutFeatureRow(
                             icon = Icons.Rounded.Map,
-                            title = "Pelacakan Peta Real-Time & ETA",
-                            description = "Pantau posisi seluruh peserta konvoi, avatar rider, jarak, dan estimasi waktu tiba."
+                            title = "Pelacakan Real-Time & Rute Multi-Point",
+                            description = "Pantau posisi seluruh jamaah, tambah banyak destinasi (+ Add Point), jarak, dan estimasi waktu tiba."
                         )
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                         AboutFeatureRow(
-                            icon = Icons.Rounded.Shield,
-                            title = "Deteksi Keluar Jalur, Tertinggal & SOS",
-                            description = "Peringatan cerdas jika peserta menyimpang, tertinggal di belakang Sweeper, atau darurat."
+                            icon = Icons.Rounded.MenuBook,
+                            title = "Panduan Manasik & Check-In GPS",
+                            description = "Bacaan doa Umroh & Haji lengkap dengan teks Arab RTL, transliterasi latin, serta check-in lokasi Haramain."
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                        AboutFeatureRow(
+                            icon = Icons.Rounded.Checklist,
+                            title = "Checklist Kegiatan Umroh Rombongan",
+                            description = "Mutawwif menyusun jadwal kegiatan room dan seluruh jamaah dapat menandai progresnya secara real-time."
                         )
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                         AboutFeatureRow(
                             icon = Icons.Rounded.RecordVoiceOver,
-                            title = "Walkie-Talkie & Chat Grup Room",
-                            description = "Komunikasi cepat suara Push-to-Talk dan pesan teks antar peserta dalam satu room."
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-                        AboutFeatureRow(
-                            icon = Icons.Rounded.Route,
-                            title = "Riwayat Tour, Ekspor GPX & Kartu Rute",
-                            description = "Simpan jejak perjalanan ke GPX/JSON dan bagikan kartu rute visual ke media sosial."
+                            title = "Walkie-Talkie, SOS & Rekap Safar GPX",
+                            description = "Komunikasi suara cepat Push-to-Talk, peringatan keluar jalur/terpisah, ekspor GPX, dan kartu rute PNG."
                         )
                     }
                 }
@@ -164,16 +168,16 @@ fun AboutAppScreen(
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.primaryContainer,
                             border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
-                            modifier = Modifier.size(56.dp)
+                            modifier = Modifier.size(62.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Verified,
-                                    contentDescription = "Kredit Pengembang",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
+                            Image(
+                                painter = painterResource(id = R.drawable.ic_safar_brand),
+                                contentDescription = "Logo Safar Tracking",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape)
+                            )
                         }
 
                         Row(
@@ -196,7 +200,7 @@ fun AboutAppScreen(
                         }
 
                         Text(
-                            text = "Dirancang dengan Material Design 3 untuk kenyamanan dan keselamatan perjalanan konvoi bersama.",
+                            text = "Dirancang dengan Material Design 3 untuk kenyamanan, ketenangan, dan keselamatan perjalanan ibadah bersama.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
@@ -210,9 +214,9 @@ fun AboutAppScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Navigation,
+                                imageVector = Icons.Rounded.Mosque,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(14.dp)
                             )
                             Text(

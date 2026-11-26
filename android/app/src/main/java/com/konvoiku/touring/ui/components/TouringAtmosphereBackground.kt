@@ -17,21 +17,22 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * Subtle touring atmosphere canvas backdrop:
- * - Light mode: Clean slate off-white with low-opacity topographic contours & highway dashed curves.
- * - Dark mode: Deep asphalt charcoal -> midnight adventure blue -> subtle golden hour horizon glow.
- * All foreground Material 3 cards keep solid surface colors for optimal contrast.
+ * Subtle Safar Tracking atmosphere canvas backdrop:
+ * - Light mode: Mint-ivory sanctuary haze with low-opacity emerald contours & gold route trace.
+ * - Dark mode: Deep Haram night emerald with subtle gold horizon glow.
  */
 @Composable
 fun TouringDashboardCanvasBackdrop(
@@ -46,9 +47,9 @@ fun TouringDashboardCanvasBackdrop(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color(0xFF0A0F16).copy(alpha = 0.36f),
-                                Color(0xFF0E1624).copy(alpha = 0.28f),
-                                Color(0xFF0A0F16).copy(alpha = 0.40f)
+                                Color(0xFF06130E).copy(alpha = 0.42f),
+                                Color(0xFF0B231A).copy(alpha = 0.30f),
+                                Color(0xFF06130E).copy(alpha = 0.46f)
                             )
                         )
                     )
@@ -60,9 +61,9 @@ fun TouringDashboardCanvasBackdrop(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color(0xFFFFFDF8).copy(alpha = 0.16f),
-                                Color(0xFFFFFDF8).copy(alpha = 0.08f),
-                                Color(0xFFFDF7F2).copy(alpha = 0.18f)
+                                Color(0xFFF4F8F5).copy(alpha = 0.16f),
+                                Color(0xFFECFDF5).copy(alpha = 0.10f),
+                                Color(0xFFFFFBEB).copy(alpha = 0.18f)
                             )
                         )
                     )
@@ -73,11 +74,10 @@ fun TouringDashboardCanvasBackdrop(
             val w = size.width
             val h = size.height
 
-            // Topographic contour arcs at very low opacity
             val contourColor = if (isDarkTheme) {
-                Color(0xFF93C5FD).copy(alpha = 0.055f)
+                Color(0xFF34D399).copy(alpha = 0.06f)
             } else {
-                Color(0xFF1E3A8A).copy(alpha = 0.045f)
+                Color(0xFF047857).copy(alpha = 0.045f)
             }
 
             for (i in 1..5) {
@@ -97,11 +97,10 @@ fun TouringDashboardCanvasBackdrop(
                 )
             }
 
-            // Subtle winding road centerline near bottom whitespace
-            val roadColor = if (isDarkTheme) {
-                Color(0xFFFB923C).copy(alpha = 0.07f)
+            val routeColor = if (isDarkTheme) {
+                Color(0xFFF59E0B).copy(alpha = 0.08f)
             } else {
-                Color(0xFFEA580C).copy(alpha = 0.055f)
+                Color(0xFFB45309).copy(alpha = 0.06f)
             }
             val roadPath = Path().apply {
                 moveTo(-w * 0.05f, h * 0.88f)
@@ -113,7 +112,7 @@ fun TouringDashboardCanvasBackdrop(
             }
             drawPath(
                 path = roadPath,
-                color = roadColor,
+                color = routeColor,
                 style = Stroke(
                     width = 2.dp.toPx(),
                     cap = StrokeCap.Round,
@@ -125,9 +124,8 @@ fun TouringDashboardCanvasBackdrop(
 }
 
 /**
- * Atmospheric Hero Header for the Dashboard:
- * Combines Asphalt Charcoal, Midnight Blue, and warm Golden Hour Horizon accents
- * with subtle topographic contour lines behind high-contrast white typography.
+ * Haram Emerald & Kiswah Gold Hero Header with subtle Rub el Hizb 8-point star,
+ * crescent moon, and Masjidil Haram silhouette.
  */
 @Composable
 fun TouringHeroAtmosphereHeader(
@@ -138,7 +136,7 @@ fun TouringHeroAtmosphereHeader(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
-        border = BorderStroke(1.dp, Color(0xFF334155).copy(alpha = 0.65f)),
+        border = BorderStroke(1.dp, Color(0xFF047857).copy(alpha = 0.45f)),
         shadowElevation = 2.dp
     ) {
         Box(
@@ -147,69 +145,97 @@ fun TouringHeroAtmosphereHeader(
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
-                            Color(0xFF0B1117), // Asphalt charcoal
-                            Color(0xFF172554), // Midnight adventure blue
-                            Color(0xFF7C2D12)  // Golden hour horizon warmth
+                            Color(0xFF032217),
+                            Color(0xFF064E3B),
+                            Color(0xFF047857)
                         ),
                         start = Offset(0f, 0f),
                         end = Offset(900f, 480f)
                     )
                 )
         ) {
-            // Subtle topographic contour + horizon glow in background layer
             Canvas(modifier = Modifier.matchParentSize()) {
                 val w = size.width
                 val h = size.height
 
-                // Golden hour horizon soft glow at bottom-right
+                // Warm Kiswah Gold glow at top-right
                 drawCircle(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            Color(0xFFF59E0B).copy(alpha = 0.24f),
-                            Color(0xFFEA580C).copy(alpha = 0.08f),
+                            Color(0xFFF59E0B).copy(alpha = 0.28f),
+                            Color(0xFFB45309).copy(alpha = 0.10f),
                             Color.Transparent
                         ),
-                        center = Offset(w * 0.88f, h * 0.82f),
-                        radius = w * 0.55f
+                        center = Offset(w * 0.88f, h * 0.24f),
+                        radius = w * 0.48f
                     ),
-                    radius = w * 0.55f,
-                    center = Offset(w * 0.88f, h * 0.82f)
+                    radius = w * 0.48f,
+                    center = Offset(w * 0.88f, h * 0.24f)
                 )
 
-                // Subtle topographic contour lines
-                for (i in 1..4) {
-                    val shift = i * 16.dp.toPx()
-                    val path = Path().apply {
-                        moveTo(w * 0.35f, -10f + shift)
-                        cubicTo(
-                            w * 0.58f, h * 0.32f + shift,
-                            w * 0.78f, h * 0.12f + shift,
-                            w * 1.05f, h * 0.52f + shift
-                        )
-                    }
-                    drawPath(
-                        path = path,
-                        color = Color.White.copy(alpha = 0.08f),
-                        style = Stroke(width = 1.dp.toPx())
+                // Rub el Hizb 8-point star motif on the right
+                val starCenter = Offset(w * 0.85f, h * 0.36f)
+                val sqSize = 38.dp.toPx()
+                val topLeft = Offset(starCenter.x - sqSize / 2f, starCenter.y - sqSize / 2f)
+                drawRect(
+                    color = Color(0xFFFCD34D).copy(alpha = 0.18f),
+                    topLeft = topLeft,
+                    size = Size(sqSize, sqSize),
+                    style = Stroke(width = 1.4.dp.toPx())
+                )
+                rotate(degrees = 45f, pivot = starCenter) {
+                    drawRect(
+                        color = Color(0xFFFCD34D).copy(alpha = 0.18f),
+                        topLeft = topLeft,
+                        size = Size(sqSize, sqSize),
+                        style = Stroke(width = 1.4.dp.toPx())
                     )
                 }
 
-                // Subtle winding touring highway trace
+                // Crescent moon accent
+                drawCircle(
+                    color = Color(0xFFFDE68A).copy(alpha = 0.42f),
+                    radius = 10.dp.toPx(),
+                    center = Offset(w * 0.85f, h * 0.36f)
+                )
+                drawCircle(
+                    color = Color(0xFF064E3B),
+                    radius = 8.dp.toPx(),
+                    center = Offset(w * 0.865f, h * 0.345f)
+                )
+
+                // Subtle Masjidil Haram & Ka'bah silhouette along bottom right
+                val kabahW = 24.dp.toPx()
+                val kabahH = 26.dp.toPx()
+                val kabahLeft = w * 0.78f
+                val kabahTop = h - kabahH - 6.dp.toPx()
+                drawRect(
+                    color = Color(0xFF02160F).copy(alpha = 0.55f),
+                    topLeft = Offset(kabahLeft, kabahTop),
+                    size = Size(kabahW, kabahH)
+                )
+                drawRect(
+                    color = Color(0xFFF59E0B).copy(alpha = 0.65f),
+                    topLeft = Offset(kabahLeft, kabahTop + 6.dp.toPx()),
+                    size = Size(kabahW, 3.dp.toPx())
+                )
+
+                // Subtle sacred route arc
                 val roadTrace = Path().apply {
-                    moveTo(w * 0.52f, h * 1.05f)
+                    moveTo(w * 0.46f, h * 1.05f)
                     cubicTo(
-                        w * 0.68f, h * 0.65f,
-                        w * 0.84f, h * 0.72f,
-                        w * 1.02f, h * 0.28f
+                        w * 0.62f, h * 0.65f,
+                        w * 0.78f, h * 0.78f,
+                        w * 1.02f, h * 0.46f
                     )
                 }
                 drawPath(
                     path = roadTrace,
-                    color = Color(0xFFFDBA74).copy(alpha = 0.28f),
+                    color = Color(0xFFFCD34D).copy(alpha = 0.25f),
                     style = Stroke(
-                        width = 2.dp.toPx(),
+                        width = 1.8.dp.toPx(),
                         cap = StrokeCap.Round,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 10f))
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))
                     )
                 )
             }
@@ -227,7 +253,7 @@ fun TouringHeroAtmosphereHeader(
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFFE2E8F0),
+                    color = Color(0xFFD1FAE5),
                     lineHeight = 19.sp
                 )
             }

@@ -20,10 +20,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.konvoiku.touring.R
 import com.konvoiku.touring.model.UserRole
 import com.konvoiku.touring.ui.screens.AboutAppScreen
@@ -32,6 +34,7 @@ import com.konvoiku.touring.ui.screens.CustomizeProfileScreen
 import com.konvoiku.touring.ui.screens.JoinTourScreen
 import com.konvoiku.touring.ui.screens.LiveTrackingMapScreen
 import com.konvoiku.touring.ui.screens.LoginScreen
+import com.konvoiku.touring.ui.screens.ManasikGuideScreen
 import com.konvoiku.touring.ui.screens.RoleSelectionScreen
 import com.konvoiku.touring.ui.screens.TourLeaderScreen
 import com.konvoiku.touring.ui.screens.TripDetailScreen
@@ -51,6 +54,9 @@ sealed class ConvoyRoute(val route: String) {
     data object TripHistory : ConvoyRoute("trip_history")
     data object TripDetail : ConvoyRoute("trip_detail")
     data object AboutApp : ConvoyRoute("about_app")
+    data object ManasikGuide : ConvoyRoute("manasik_guide/{initialTab}") {
+        fun createRoute(tab: String = "manasik") = "manasik_guide/$tab"
+    }
 }
 
 @Composable
@@ -94,9 +100,9 @@ fun ConvoyNavGraph(
                 .fillMaxSize()
                 .background(
                     if (isSystemInDarkTheme()) {
-                        Color(0xFF0A0F16).copy(alpha = 0.80f)
+                        Color(0xFF04140E).copy(alpha = 0.72f)
                     } else {
-                        Color(0xFFFFFDF8).copy(alpha = 0.42f)
+                        Color(0xFFF3F8F5).copy(alpha = 0.56f)
                     }
                 )
         )
@@ -212,6 +218,9 @@ fun ConvoyNavGraph(
         }
 
         composable(ConvoyRoute.RoleSelection.route) {
+            val uid = viewModel.currentUserUid()
+            val myDoneIds = uiState.roomActivityProgress[uid]?.completedActivityIds.orEmpty().toSet()
+            val doneActCount = uiState.roomActivities.count { it.id in myDoneIds }
             RoleSelectionScreen(
                 activeRoom = uiState.activeRoom,
                 lastCompletedTrip = uiState.lastCompletedTrip ?: uiState.tripHistory.firstOrNull(),
@@ -227,6 +236,9 @@ fun ConvoyNavGraph(
                 isAdminUser = uiState.isVerifiedAdmin || viewModel.isAdminEmailSession(),
                 isVerifiedAdmin = uiState.isVerifiedAdmin,
                 isCloudSyncConnected = uiState.isCloudSyncConnected,
+                manasikProgress = uiState.manasikProgress,
+                roomActivitiesCount = uiState.roomActivities.size,
+                roomActivitiesDoneCount = doneActCount,
                 onRoleSelected = { role ->
                     viewModel.selectRole(role)
                     navController.navigate(ConvoyRoute.VehicleProfile.route)
@@ -240,6 +252,9 @@ fun ConvoyNavGraph(
                     viewModel.repeatCompletedTrip(trip) {
                         navController.navigate(ConvoyRoute.LiveMap.route)
                     }
+                },
+                onOpenManasik = { tab ->
+                    navController.navigate(ConvoyRoute.ManasikGuide.createRoute(tab))
                 },
                 onOpenCustomizeProfile = {
                     viewModel.clearProfileSyncMessage()
@@ -355,6 +370,7 @@ fun ConvoyNavGraph(
                 isCreatingRoom = uiState.isCreatingRoom,
                 roomSetupError = uiState.roomSetupError,
                 activeWebBaseUrl = uiState.activeWebBaseUrl,
+                draftRoomActivities = uiState.draftRoomActivities,
                 onPickOriginLatLng = { lat, lng, placeName, addressLabel ->
                     viewModel.setCustomOriginLatLng(lat, lng, placeName, addressLabel)
                 },
@@ -363,6 +379,11 @@ fun ConvoyNavGraph(
                 onPickDestinationLatLng = { lat, lng, placeName, addressLabel ->
                     viewModel.setCustomDestinationLatLng(lat, lng, placeName, addressLabel)
                 },
+                onAddDestinationPoint = { lat, lng, placeName, addressLabel ->
+                    viewModel.addDestinationPoint(lat, lng, placeName, addressLabel)
+                },
+                onRemoveDestinationPoint = viewModel::removeDestinationPoint,
+                onMoveDestinationPoint = viewModel::moveDestinationPoint,
                 onSelectRoutePreference = viewModel::selectRoutePreference,
                 onRouteComputed = viewModel::updateComputedTomTomRoute,
                 onUpdateWaypoints = viewModel::updateCustomWaypoints,
@@ -371,6 +392,10 @@ fun ConvoyNavGraph(
                 onRemoveCheckpoint = viewModel::removeRestCheckpoint,
                 onUpdateMaxStragglerDistance = viewModel::updateMaxStragglerDistance,
                 onToggleSoundAlert = viewModel::toggleSoundAlert,
+                onAddDraftActivity = viewModel::addDraftRoomActivity,
+                onRemoveDraftActivity = viewModel::removeDraftRoomActivity,
+                onMoveDraftActivity = viewModel::moveDraftRoomActivity,
+                onApplyStarterDraftActivities = viewModel::applyStarterDraftActivities,
                 onCreateRoom = { title ->
                     viewModel.createNewTourRoom(title) {
                         navController.navigate(ConvoyRoute.LiveMap.route)
@@ -439,6 +464,15 @@ fun ConvoyNavGraph(
                 gpsAccuracyMeters = uiState.gpsAccuracyMeters,
                 activeWebBaseUrl = uiState.activeWebBaseUrl,
                 destinationPresets = viewModel.destinationPresets,
+                roomActivities = uiState.roomActivities,
+                roomActivityProgress = uiState.roomActivityProgress,
+                currentUserUid = viewModel.currentUserUid(),
+                onOpenManasik = { tab ->
+                    navController.navigate(ConvoyRoute.ManasikGuide.createRoute(tab))
+                },
+                onAddDestinationPoint = { lat, lng, name, addr ->
+                    viewModel.addDestinationPoint(lat, lng, name, addr)
+                },
                 onLocationPermissionResult = viewModel::onLocationPermissionResult,
                 onRetryGps = viewModel::startGpsTracking,
                 onSelectMember = viewModel::selectMapMember,
@@ -515,6 +549,47 @@ fun ConvoyNavGraph(
 
         composable(ConvoyRoute.AboutApp.route) {
             AboutAppScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = ConvoyRoute.ManasikGuide.route,
+            arguments = listOf(navArgument("initialTab") {
+                type = NavType.StringType
+                defaultValue = "manasik"
+            })
+        ) { backStackEntry ->
+            val tabArg = backStackEntry.arguments?.getString("initialTab") ?: "manasik"
+            val currentUid = viewModel.currentUserUid()
+            val room = uiState.activeRoom
+            val isRoomCreator = room == null ||
+                (room.isSyncedRoom && room.leaderUid == currentUid) ||
+                (!room.isSyncedRoom && uiState.selectedRole == UserRole.TOUR_LEADER) ||
+                viewModel.isCurrentUserEffectiveLeader()
+            ManasikGuideScreen(
+                initialTab = tabArg,
+                activeRoom = room,
+                isRoomCreator = isRoomCreator,
+                gpsStatus = uiState.gpsStatus,
+                userGpsLat = uiState.userGpsLat,
+                userGpsLng = uiState.userGpsLng,
+                manasikProgress = uiState.manasikProgress,
+                roomActivities = uiState.roomActivities,
+                roomActivityProgress = uiState.roomActivityProgress,
+                currentUserUid = currentUid,
+                onRequestGpsPermission = {
+                    viewModel.onLocationPermissionResult(true)
+                    viewModel.startGpsTracking()
+                },
+                onToggleManasikStep = viewModel::toggleManasikStep,
+                onCheckInManasikStep = viewModel::checkInManasikStep,
+                onResetManasikGuide = viewModel::resetManasikGuide,
+                onAddRoomActivity = viewModel::addRoomActivity,
+                onRemoveRoomActivity = viewModel::removeRoomActivity,
+                onMoveRoomActivity = viewModel::moveRoomActivity,
+                onApplyStarterActivities = viewModel::applyStarterRoomActivities,
+                onToggleRoomActivity = viewModel::toggleRoomActivity,
                 onBack = { navController.popBackStack() }
             )
         }

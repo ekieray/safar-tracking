@@ -31,7 +31,8 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.DeleteOutline
-import androidx.compose.material.icons.rounded.DirectionsCar
+import androidx.compose.material.icons.rounded.DirectionsBus
+import androidx.compose.material.icons.rounded.DirectionsWalk
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Image
@@ -40,7 +41,6 @@ import androidx.compose.material.icons.rounded.Route
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Speed
-import androidx.compose.material.icons.rounded.TwoWheeler
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -212,7 +212,7 @@ fun TripDetailScreen(
                 title = {
                     Column {
                         Text(
-                            text = trip?.tourTitle ?: "Rekapitulasi Tour",
+                            text = trip?.tourTitle ?: "Rekapitulasi Safar",
                             style = MaterialTheme.typography.titleMedium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -428,7 +428,7 @@ fun TripDetailScreen(
                             Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (isRenderingCard) "Merender Kartu PNG..." else "Bagikan Kartu Tour (Share Image)",
+                                text = if (isRenderingCard) "Merender Kartu PNG..." else "Bagikan Kartu Safar (Share Image)",
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
@@ -436,7 +436,7 @@ fun TripDetailScreen(
                         OutlinedButton(
                             enabled = !isRenderingCard,
                             onClick = {
-                                pngSaveLauncher.launch("konvoiku-card-${trip.roomId.lowercase()}.png")
+                                pngSaveLauncher.launch("safartracking-card-${trip.roomId.lowercase()}.png")
                             },
                             modifier = Modifier.fillMaxWidth().height(44.dp),
                             shape = RoundedCornerShape(12.dp)
@@ -566,19 +566,19 @@ fun TripDetailScreen(
                                         }
                                     }
                                     drawPath(path, Color.White, style = Stroke(11.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-                                    drawPath(path, Color(0xFFEA580C), style = Stroke(4.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                                    drawPath(path, Color(0xFFB45309), style = Stroke(4.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
                                 }
 
                                 pts.firstOrNull()?.let { start ->
                                     val c = Offset(start.x, start.y)
                                     drawCircle(Color.White, radius = 8.5.dp.toPx(), center = c)
-                                    drawCircle(Color(0xFFEA580C), radius = 5.5.dp.toPx(), center = c)
+                                    drawCircle(Color(0xFFB45309), radius = 5.5.dp.toPx(), center = c)
                                 }
 
                                 pts.lastOrNull()?.let { end ->
                                     val c = Offset(end.x, end.y)
                                     drawCircle(Color.White, radius = 8.5.dp.toPx(), center = c)
-                                    drawCircle(Color(0xFF16A34A), radius = 5.5.dp.toPx(), center = c)
+                                    drawCircle(Color(0xFF047857), radius = 5.5.dp.toPx(), center = c)
                                 }
                             }
 
@@ -588,7 +588,7 @@ fun TripDetailScreen(
                                 val py = projectedCp.y.roundToInt()
                                 Surface(
                                     shape = CircleShape,
-                                    color = Color(0xFF0F766E),
+                                    color = Color(0xFF047857),
                                     border = BorderStroke(1.5.dp, Color.White),
                                     modifier = Modifier
                                         .offset {
@@ -632,7 +632,7 @@ fun TripDetailScreen(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("Statistik Konvoi", style = MaterialTheme.typography.titleMedium)
+                        Text("Statistik Safar", style = MaterialTheme.typography.titleMedium)
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -687,14 +687,14 @@ fun TripDetailScreen(
                     ) {
                         Text("Ekspor Data & Bagikan", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            text = "Unduh jejak rute GPX/JSON untuk Google Earth, Garmin, atau bagikan rekap konvoi ke grup WhatsApp.",
+                            text = "Unduh jejak rute GPX/JSON untuk Google Earth, Garmin, atau bagikan rekap safar ke grup WhatsApp.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         Button(
                             onClick = {
-                                gpxExportLauncher.launch("konvoiku-${trip.roomId.lowercase()}.gpx")
+                                gpxExportLauncher.launch("safartracking-${trip.roomId.lowercase()}.gpx")
                             },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
                             shape = RoundedCornerShape(14.dp),
@@ -713,7 +713,7 @@ fun TripDetailScreen(
                         ) {
                             OutlinedButton(
                                 onClick = {
-                                    jsonExportLauncher.launch("konvoiku-${trip.roomId.lowercase()}.json")
+                                    jsonExportLauncher.launch("safartracking-${trip.roomId.lowercase()}.json")
                                 },
                                 modifier = Modifier.weight(1f).height(46.dp),
                                 shape = RoundedCornerShape(14.dp)
@@ -728,16 +728,16 @@ fun TripDetailScreen(
                                     clipboardManager.setText(AnnotatedString(shareSummary))
                                     val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                         type = "text/plain"
-                                        putExtra(Intent.EXTRA_SUBJECT, "Rekap Tour ${trip.tourTitle}")
+                                        putExtra(Intent.EXTRA_SUBJECT, "Rekap Safar ${trip.tourTitle}")
                                         putExtra(Intent.EXTRA_TEXT, shareSummary)
                                     }
                                     runCatching {
                                         context.startActivity(
-                                            Intent.createChooser(shareIntent, "Bagikan Ringkasan Tour")
+                                            Intent.createChooser(shareIntent, "Bagikan Ringkasan Safar")
                                         )
                                     }.onFailure {
                                         coroutineScope.launch {
-                                            snackbarHostState.showSnackbar("Ringkasan tour disalin ke clipboard.")
+                                            snackbarHostState.showSnackbar("Ringkasan safar disalin ke clipboard.")
                                         }
                                     }
                                 },
@@ -750,7 +750,7 @@ fun TripDetailScreen(
                             ) {
                                 Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Bagikan Tour", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text("Bagikan Safar", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
 
@@ -784,7 +784,7 @@ fun TripDetailScreen(
             // 4. Visited Checkpoints
             item {
                 Text(
-                    text = "Titik Istirahat Dikunjungi (${trip.visitedCheckpoints.size})",
+                    text = "Pos / Checkpoint Dikunjungi (${trip.visitedCheckpoints.size})",
                     style = MaterialTheme.typography.titleMedium
                 )
             }
@@ -792,7 +792,7 @@ fun TripDetailScreen(
             if (trip.visitedCheckpoints.isEmpty()) {
                 item {
                     Text(
-                        text = "Tidak ada titik istirahat tercatat pada perjalanan ini.",
+                        text = "Tidak ada pos / checkpoint tercatat pada perjalanan ini.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -848,7 +848,7 @@ fun TripDetailScreen(
             // 5. Convoy Participants
             item {
                 Text(
-                    text = "Peserta Konvoi (${trip.participants.size})",
+                    text = "Jamaah Safar (${trip.participants.size})",
                     style = MaterialTheme.typography.titleMedium
                 )
             }
@@ -856,7 +856,7 @@ fun TripDetailScreen(
             if (trip.participants.isEmpty()) {
                 item {
                     Text(
-                        text = "Daftar anggota peserta tidak tercatat pada riwayat ini.",
+                        text = "Daftar jamaah belum tercatat pada riwayat ini.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -894,7 +894,7 @@ fun TripDetailScreen(
                             )
                         }
                         Icon(
-                            imageVector = if (participant.vehicleType == VehicleType.MOBIL) Icons.Rounded.DirectionsCar else Icons.Rounded.TwoWheeler,
+                            imageVector = if (participant.vehicleType == VehicleType.MOBIL) Icons.Rounded.DirectionsBus else Icons.Rounded.DirectionsWalk,
                             contentDescription = participant.vehicleType.label,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)

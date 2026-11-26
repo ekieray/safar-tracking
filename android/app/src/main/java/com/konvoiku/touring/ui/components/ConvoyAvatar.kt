@@ -12,9 +12,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MilitaryTech
+import androidx.compose.material.icons.rounded.Mosque
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.SportsMotorsports
-import androidx.compose.material.icons.rounded.TwoWheeler
+import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -63,11 +63,11 @@ fun ConvoyAvatar(
     }.value
 
     val gradientColors = when (preset) {
-        AvatarPreset.HELMET_TOURING -> listOf(Color(0xFFEA580C), Color(0xFFF59E0B))
-        AvatarPreset.HELMET_SPORT -> listOf(Color(0xFF1D4ED8), Color(0xFF38BDF8))
-        AvatarPreset.RIDER_CAPTAIN -> listOf(Color(0xFF1E3A8A), Color(0xFF2563EB))
+        AvatarPreset.HELMET_TOURING -> listOf(Color(0xFF047857), Color(0xFF10B981))
+        AvatarPreset.HELMET_SPORT -> listOf(Color(0xFF065F46), Color(0xFF059669))
+        AvatarPreset.RIDER_CAPTAIN -> listOf(Color(0xFFB45309), Color(0xFFF59E0B))
         AvatarPreset.PILOT_CLASSIC -> listOf(Color(0xFF0F766E), Color(0xFF14B8A6))
-        AvatarPreset.RALLY_PRO -> listOf(Color(0xFFB91C1C), Color(0xFFF97316))
+        AvatarPreset.RALLY_PRO -> listOf(Color(0xFF7C3AED), Color(0xFFA78BFA))
         AvatarPreset.STANDARD_USER -> listOf(Color(0xFF475569), Color(0xFF64748B))
     }
 
@@ -138,10 +138,10 @@ fun ConvoyAvatar(
                     }
                     AvatarPreset.PILOT_CLASSIC -> {
                         Icon(
-                            imageVector = Icons.Rounded.SportsMotorsports,
+                            imageVector = Icons.Rounded.Mosque,
                             contentDescription = "Avatar $displayName",
                             tint = Color.White,
-                            modifier = Modifier.size(size * 0.56f)
+                            modifier = Modifier.size(size * 0.54f)
                         )
                     }
                     AvatarPreset.STANDARD_USER -> {

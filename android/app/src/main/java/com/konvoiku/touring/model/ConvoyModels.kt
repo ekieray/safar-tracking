@@ -7,18 +7,18 @@ import kotlin.math.roundToInt
 
 enum class UserRole(val label: String, val subtitle: String) {
     TOUR_LEADER(
-        label = "Tour Leader",
-        subtitle = "Buat room baru, bagikan link akses, dan kelola daftar anggota konvoi."
+        label = "Mutawwif / Ketua",
+        subtitle = "Buat room rombongan, atur titik tujuan safar, dan kelola checklist kegiatan."
     ),
     MEMBER(
-        label = "Anggota Tour",
-        subtitle = "Gabung ke room konvoi menggunakan Room ID atau link undangan."
+        label = "Jamaah Umroh",
+        subtitle = "Gabung ke room rombongan menggunakan Room ID atau link undangan."
     )
 }
 
 enum class VehicleType(val label: String) {
-    MOBIL("Mobil"),
-    MOTOR("Motor")
+    MOBIL("Bus Rombongan"),
+    MOTOR("Pejalan Kaki / Mandiri")
 }
 
 enum class ConnectionStatus(val label: String) {
@@ -29,8 +29,8 @@ enum class ConnectionStatus(val label: String) {
 
 enum class MemberConditionStatus(val label: String) {
     AMAN("Aman"),
-    ISTIRAHAT("Istirahat / Rest Area"),
-    MOGOK("Kendaraan Mogok"),
+    ISTIRAHAT("Istirahat / Maktab"),
+    MOGOK("Butuh Bantuan / Terpisah"),
     SOS("Darurat SOS")
 }
 
@@ -42,11 +42,11 @@ enum class ChatMessageType {
 }
 
 enum class AvatarPreset(val label: String) {
-    HELMET_TOURING("Helm Touring"),
-    HELMET_SPORT("Helm Sport"),
-    RIDER_CAPTAIN("Kapten Rider"),
-    PILOT_CLASSIC("Pilot Klasik"),
-    RALLY_PRO("Rally Pro"),
+    HELMET_TOURING("Peci & Ihram"),
+    HELMET_SPORT("Koko Emerald"),
+    RIDER_CAPTAIN("Ketua Kloter"),
+    PILOT_CLASSIC("Mutawwif"),
+    RALLY_PRO("Muslimah"),
     STANDARD_USER("Foto Standar")
 }
 
@@ -137,28 +137,47 @@ data class RestCheckpoint(
     val longitude: Double
 )
 
+data class DestinationStop(
+    val id: String,
+    val name: String,
+    val address: String,
+    val latitude: Double,
+    val longitude: Double
+)
+
 data class ConvoyRouteConfig(
-    val originName: String = "Simpang Gadog / Tol Jagorawi",
-    val originAddress: String = "Tol Jagorawi KM 45, Ciawi · -6.7100, 106.8500",
+    val originName: String = "Hotel Area Ajyad Makkah",
+    val originAddress: String = "Jl. Ajyad, Makkah · 21.4180, 39.8275",
     val originLockedByLeader: Boolean = false,
-    val destinationName: String = "Puncak Pass Resort",
-    val destinationAddress: String = "Jl. Raya Puncak KM 90, Cisarua · -6.6450, 106.9900",
+    val destinationName: String = "Masjidil Haram (Ka'bah)",
+    val destinationAddress: String = "Al Haram, Makkah 24231 · 21.4225, 39.8262",
+    val destinationStops: List<DestinationStop> = defaultDestinationStops(),
+    val estimatedDurationMillis: Long = 0L,
     val routePreference: RoutePreference = RoutePreference.FASTEST,
     val waypoints: List<RoutePoint> = defaultWaypoints(),
     val routeInstructions: List<RouteInstruction> = emptyList(),
     val checkpoints: List<RestCheckpoint> = defaultCheckpoints(),
-    val totalRouteMeters: Int = 12000,
+    val totalRouteMeters: Int = 1800,
     val offRouteToleranceMeters: Int = 50,
     val maxStragglerDistanceMeters: Int = 1000,
     val soundAlertEnabled: Boolean = true
 ) {
     companion object {
+        fun defaultDestinationStops(): List<DestinationStop> = listOf(
+            DestinationStop(
+                id = "stop-default-1",
+                name = "Masjidil Haram (Ka'bah)",
+                address = "Al Haram, Makkah 24231 · 21.4225, 39.8262",
+                latitude = 21.4225,
+                longitude = 39.8262
+            )
+        )
+
         fun defaultWaypoints(): List<RoutePoint> = listOf(
-            RoutePoint(0.14f, 0.86f, -6.7100, 106.8500),
-            RoutePoint(0.32f, 0.65f, -6.6920, 106.8850),
-            RoutePoint(0.55f, 0.48f, -6.6740, 106.9250),
-            RoutePoint(0.72f, 0.30f, -6.6580, 106.9600),
-            RoutePoint(0.86f, 0.14f, -6.6450, 106.9900)
+            RoutePoint(0.14f, 0.86f, 21.4180, 39.8275),
+            RoutePoint(0.38f, 0.65f, 21.4192, 39.8271),
+            RoutePoint(0.62f, 0.42f, 21.4209, 39.8266),
+            RoutePoint(0.86f, 0.14f, 21.4225, 39.8262)
         )
 
         fun defaultCheckpoints(): List<RestCheckpoint> = emptyList()
@@ -242,18 +261,18 @@ data class ConvoyMember(
     val avatarPhotoUri: String? = null,
     val conditionStatus: MemberConditionStatus = MemberConditionStatus.AMAN,
     val connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED,
-    val lastLocationText: String = "Tol Jagorawi KM 39",
+    val lastLocationText: String = "Pelataran Masjidil Haram",
     val lastUpdatedLabel: String = "Baru saja",
-    val routeDistanceMeters: Int = 5000,
+    val routeDistanceMeters: Int = 1200,
     val offRouteMeters: Int = 0,
     val convoyOrderRank: Int = 1,
     val mapPosition: MapPosition = MapPosition(
         routeProgress = 0.5f,
         xFraction = 0.5f,
         yFraction = 0.5f,
-        latitude = -6.6740,
-        longitude = 106.9250,
-        speedKmh = 54
+        latitude = 21.4225,
+        longitude = 39.8262,
+        speedKmh = 6
     )
 ) {
     val markerTitle: String
@@ -387,10 +406,10 @@ data class TripHistoryRecord(
 )
 
 enum class TripCardTheme(val label: String, val subtitle: String) {
-    DARK_CARBON("Mode Gelap", "Karbon kontras tinggi"),
+    DARK_CARBON("Malam Makkah", "Zamrud gelap & emas"),
     SATELLITE("Peta Satelit", "Topografi & citra satelit"),
     MINIMAL_LIGHT("Minimalis", "Putih bersih editorial"),
-    CUSTOM_PHOTO("Foto Galeri", "Latar foto perjalanan")
+    CUSTOM_PHOTO("Foto Galeri", "Latar foto safar")
 }
 
 fun buildTripGpxXml(trip: TripHistoryRecord): String {
@@ -399,12 +418,12 @@ fun buildTripGpxXml(trip: TripHistoryRecord): String {
     sb.appendLine("""<gpx version="1.1" creator="Safar Tracking App" xmlns="http://www.topografix.com/GPX/1/1">""")
     sb.appendLine("  <metadata>")
     sb.appendLine("    <name>${escapeXml(trip.tourTitle)} (${trip.roomId})</name>")
-    sb.appendLine("    <desc>Konvoi Touring menuju ${escapeXml(trip.destinationName)} · ${trip.distanceKm} km · Rata-rata ${trip.avgSpeedKmh} km/j</desc>")
+    sb.appendLine("    <desc>Safar Rombongan menuju ${escapeXml(trip.destinationName)} · ${trip.distanceKm} km · Rata-rata ${trip.avgSpeedKmh} km/j</desc>")
     sb.appendLine("  </metadata>")
 
     trip.waypoints.firstOrNull()?.let { start ->
         sb.appendLine("""  <wpt lat="${String.format(Locale.US, "%.6f", start.latitude)}" lon="${String.format(Locale.US, "%.6f", start.longitude)}">""")
-        sb.appendLine("    <name>Titik Mulai Konvoi</name>")
+        sb.appendLine("    <name>Titik Mulai Safar</name>")
         sb.appendLine("    <type>Start</type>")
         sb.appendLine("  </wpt>")
     }
@@ -560,6 +579,86 @@ data class AdminRoomOverview(
     val members: List<ConvoyMember> = emptyList()
 )
 
+enum class ManasikGuideType(val id: String, val label: String) {
+    UMRAH("umrah", "Manasik Umroh"),
+    HAJI("haji", "Manasik Haji")
+}
+
+enum class ManasikStepCategory(val label: String) {
+    RUKUN("Rukun"),
+    WAJIB("Wajib"),
+    SUNNAH("Sunnah")
+}
+
+data class ManasikLandmark(
+    val name: String,
+    val latitude: Double,
+    val longitude: Double,
+    val radiusMeters: Int
+)
+
+data class ManasikStepItem(
+    val id: String,
+    val guideType: ManasikGuideType,
+    val order: Int,
+    val title: String,
+    val category: ManasikStepCategory,
+    val locationHint: String,
+    val landmark: ManasikLandmark,
+    val alternateLandmarks: List<ManasikLandmark> = emptyList(),
+    val summary: String,
+    val details: List<String>,
+    val arabicText: String? = null,
+    val transliteration: String? = null,
+    val translation: String? = null
+)
+
+data class ManasikSimulationLocation(
+    val id: String,
+    val label: String,
+    val latitude: Double,
+    val longitude: Double
+)
+
+data class ManasikCheckInRecord(
+    val stepId: String,
+    val landmarkName: String,
+    val checkedInAtLabel: String,
+    val distanceMeters: Int,
+    val latitude: Double,
+    val longitude: Double
+)
+
+data class ManasikGuideProgress(
+    val completedStepIds: List<String> = emptyList(),
+    val checkInRecords: Map<String, ManasikCheckInRecord> = emptyMap(),
+    val updatedAtMs: Long = 0L
+)
+
+data class ManasikProgressState(
+    val umrah: ManasikGuideProgress = ManasikGuideProgress(),
+    val haji: ManasikGuideProgress = ManasikGuideProgress()
+)
+
+data class RoomActivityItem(
+    val id: String,
+    val title: String,
+    val timeLabel: String = "",
+    val locationNote: String = "",
+    val orderIndex: Int = 0,
+    val createdByUid: String = "",
+    val createdAtMs: Long = 0L,
+    val updatedAtMs: Long = 0L
+)
+
+data class RoomActivityMemberProgress(
+    val uid: String,
+    val memberName: String,
+    val completedActivityIds: List<String> = emptyList(),
+    val completedAtByActivity: Map<String, String> = emptyMap(),
+    val updatedAtMs: Long = 0L
+)
+
 data class TourRoom(
     val roomId: String,
     val roomTitle: String,
@@ -632,5 +731,9 @@ data class ConvoyUiState(
     val isJoiningRoom: Boolean = false,
     val pendingAutoFinishTripId: String? = null,
     val autoFinishedTripNotice: String? = null,
-    val activeWebBaseUrl: String = "https://ais-pre-mbwxrxf647cphhl5i4ggug-588877716211.asia-southeast1.run.app"
+    val manasikProgress: ManasikProgressState = ManasikProgressState(),
+    val draftRoomActivities: List<RoomActivityItem> = emptyList(),
+    val roomActivities: List<RoomActivityItem> = emptyList(),
+    val roomActivityProgress: Map<String, RoomActivityMemberProgress> = emptyMap(),
+    val activeWebBaseUrl: String = "https://ais-pre-3puhws3li7lokxfmbtgyz4-588877716211.asia-southeast1.run.app"
 )

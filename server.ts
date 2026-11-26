@@ -5,13 +5,15 @@ import { fileURLToPath } from 'node:url';
 import type { Request, Response } from 'express';
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 
+import fs from 'node:fs';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const DEV_FALLBACK_URL =
-  'https://ais-dev-mbwxrxf647cphhl5i4ggug-588877716211.asia-southeast1.run.app';
+  'https://ais-dev-3puhws3li7lokxfmbtgyz4-588877716211.asia-southeast1.run.app';
 const SHARED_FALLBACK_URL =
-  'https://ais-pre-mbwxrxf647cphhl5i4ggug-588877716211.asia-southeast1.run.app';
+  'https://ais-pre-3puhws3li7lokxfmbtgyz4-588877716211.asia-southeast1.run.app';
 
 function resolveBaseUrl(req: Request): string {
   const envUrl = process.env.APP_URL?.trim();
@@ -512,7 +514,16 @@ async function startServer() {
   app.get(['/auth/callback', '/auth/callback/'], handleInstagramCallback);
 
   // Proxy Firebase Auth & Hosting helper endpoints if hit on this origin
-  const firebaseAuthDomain = 'konvoi-touring.firebaseapp.com';
+  let firebaseAuthDomain = 'excellent-victor-7v0ns.firebaseapp.com';
+  try {
+    const rawCfg = fs.readFileSync(path.join(__dirname, 'firebase-applet-config.json'), 'utf8');
+    const parsedCfg = JSON.parse(rawCfg) as { authDomain?: string };
+    if (parsedCfg.authDomain && parsedCfg.authDomain.trim()) {
+      firebaseAuthDomain = parsedCfg.authDomain.trim();
+    }
+  } catch {
+    // Keep default Safar Tracking authDomain
+  }
   app.all(['/__/auth/*', '/__/firebase/*'], async (req: Request, res: Response) => {
     const targetUrl = `https://${firebaseAuthDomain}${req.originalUrl}`;
     try {

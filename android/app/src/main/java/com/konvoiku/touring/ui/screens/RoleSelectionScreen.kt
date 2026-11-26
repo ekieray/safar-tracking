@@ -1,11 +1,13 @@
 package com.konvoiku.touring.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,16 +26,17 @@ import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.Campaign
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.DirectionsCar
+import androidx.compose.material.icons.rounded.Checklist
+import androidx.compose.material.icons.rounded.DirectionsBus
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Group
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Link
-import androidx.compose.material.icons.rounded.Navigation
+import androidx.compose.material.icons.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Mosque
 import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.material.icons.rounded.Shield
-import androidx.compose.material.icons.rounded.TwoWheeler
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -42,6 +45,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -57,14 +61,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.konvoiku.touring.R
+import com.konvoiku.touring.data.ManasikGuideData
 import com.konvoiku.touring.model.AuthProviderType
 import com.konvoiku.touring.model.GlobalAppConfig
+import com.konvoiku.touring.model.ManasikProgressState
 import com.konvoiku.touring.model.TourRoom
 import com.konvoiku.touring.model.TripHistoryRecord
 import com.konvoiku.touring.model.UserRole
@@ -91,9 +101,13 @@ fun RoleSelectionScreen(
     isAdminUser: Boolean = false,
     isVerifiedAdmin: Boolean = false,
     isCloudSyncConnected: Boolean = false,
+    manasikProgress: ManasikProgressState = ManasikProgressState(),
+    roomActivitiesCount: Int = 0,
+    roomActivitiesDoneCount: Int = 0,
     onRoleSelected: (UserRole) -> Unit,
     onResumeCurrentConvoy: () -> Unit,
     onRepeatTour: (TripHistoryRecord) -> Unit = {},
+    onOpenManasik: (String) -> Unit = {},
     onOpenCustomizeProfile: () -> Unit = {},
     onOpenAdminBackend: () -> Unit = {},
     onOpenTripHistory: () -> Unit,
@@ -102,8 +116,10 @@ fun RoleSelectionScreen(
 ) {
     val roomCreationPaused = !globalConfig.allowNewRooms && !isAdminUser
     var showCompletedOptionsDialog by remember { mutableStateOf(false) }
-    val activeTourName = activeRoom?.roomTitle ?: lastCompletedTrip?.tourTitle ?: "Belum ada konvoi aktif"
+    val activeTourName = activeRoom?.roomTitle ?: lastCompletedTrip?.tourTitle ?: "Belum ada rombongan aktif"
     val activeMemberCount = activeRoom?.members?.size ?: lastCompletedTrip?.participants?.size?.coerceAtLeast(1) ?: 0
+    val umrahDoneCount = manasikProgress.umrah.completedStepIds.size
+    val hajiDoneCount = manasikProgress.haji.completedStepIds.size
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -112,44 +128,77 @@ fun RoleSelectionScreen(
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primary,
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Navigation,
-                                    contentDescription = "Safar Tracking",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_safar_brand),
+                            contentDescription = "Safar Tracking",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(9.dp))
+                        )
                         Text(
                             text = "Safar Tracking",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onSurface
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 },
                 actions = {
-                    TextButton(onClick = onOpenTripHistory) {
+                    Surface(
+                        onClick = { onOpenManasik("manasik") },
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.primary
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.MenuBook,
+                                contentDescription = "Panduan Manasik",
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Text(
+                                text = "Manasik",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                    TextButton(
+                        onClick = onOpenTripHistory,
+                        contentPadding = PaddingValues(horizontal = 6.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Rounded.History,
-                            contentDescription = "Riwayat Tour",
-                            modifier = Modifier.size(18.dp)
+                            contentDescription = "Riwayat Safar",
+                            modifier = Modifier.size(17.dp)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Riwayat ($tripHistoryCount)")
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = "$tripHistoryCount",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1
+                        )
                     }
-                    androidx.compose.material3.IconButton(onClick = onOpenAboutApp) {
+                    IconButton(
+                        onClick = onOpenAboutApp,
+                        modifier = Modifier.size(34.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Rounded.Info,
                             contentDescription = "Tentang Aplikasi",
-                            tint = MaterialTheme.colorScheme.primary
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 },
@@ -175,8 +224,8 @@ fun RoleSelectionScreen(
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 TouringHeroAtmosphereHeader(
-                    title = "Dashboard Konvoi Touring",
-                    subtitle = "Koordinasi perjalanan mobil dan motor secara real-time dalam satu layar bersih."
+                    title = "Dashboard Rombongan Umroh",
+                    subtitle = "Koordinasi jamaah, rute safar multi-tujuan, panduan manasik & kegiatan rombongan secara real-time."
                 )
 
                 if (globalConfig.maintenanceMode) {
@@ -215,9 +264,9 @@ fun RoleSelectionScreen(
 
                 if (globalConfig.announcementActive && globalConfig.announcementMessage.isNotBlank()) {
                     Surface(
-                        color = Color(0xFFEFF6FF),
+                        color = Color(0xFFECFDF5),
                         shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                        border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -227,7 +276,7 @@ fun RoleSelectionScreen(
                             Icon(
                                 imageVector = Icons.Rounded.Campaign,
                                 contentDescription = null,
-                                tint = Color(0xFF1D4ED8),
+                                tint = Color(0xFF047857),
                                 modifier = Modifier.size(18.dp)
                             )
                             Column {
@@ -235,12 +284,12 @@ fun RoleSelectionScreen(
                                     text = globalConfig.announcementTitle.ifBlank { "Info Safar Tracking" },
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
-                                    color = Color(0xFF1E3A8A)
+                                    color = Color(0xFF065F46)
                                 )
                                 Text(
                                     text = globalConfig.announcementMessage,
                                     fontSize = 11.sp,
-                                    color = Color(0xFF1E3A8A)
+                                    color = Color(0xFF065F46)
                                 )
                             }
                         }
@@ -270,7 +319,7 @@ fun RoleSelectionScreen(
                             ConvoyAvatar(
                                 preset = userProfile.avatarPreset,
                                 photoUri = userProfile.avatarPhotoUri,
-                                displayName = authUserName.ifBlank { userProfile.fullName }.ifBlank { "Rider" },
+                                displayName = authUserName.ifBlank { userProfile.fullName }.ifBlank { "Jamaah" },
                                 size = 48.dp,
                                 borderColor = MaterialTheme.colorScheme.primary,
                                 borderWidth = 2.dp
@@ -320,7 +369,7 @@ fun RoleSelectionScreen(
                                     text = if (isGuestMode) {
                                         "Mode Tamu · Sesi Lokal"
                                     } else {
-                                        authUserEmail.ifBlank { userProfile.email }.ifBlank { "Akun Pengendara Aktif" }
+                                        authUserEmail.ifBlank { userProfile.email }.ifBlank { "Akun Jamaah Aktif" }
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -396,9 +445,9 @@ fun RoleSelectionScreen(
                             .clickable(onClick = onOpenAdminBackend),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFF0F172A)
+                            containerColor = Color(0xFF062018)
                         ),
-                        border = BorderStroke(1.dp, Color(0xFF3B82F6))
+                        border = BorderStroke(1.dp, Color(0xFF059669))
                     ) {
                         Row(
                             modifier = Modifier
@@ -408,7 +457,7 @@ fun RoleSelectionScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Surface(
-                                color = Color(0xFF1E3A8A),
+                                color = Color(0xFF064E3B),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.size(44.dp)
                             ) {
@@ -416,7 +465,7 @@ fun RoleSelectionScreen(
                                     Icon(
                                         imageVector = Icons.Rounded.Shield,
                                         contentDescription = null,
-                                        tint = Color(0xFF93C5FD)
+                                        tint = Color(0xFFF59E0B)
                                     )
                                 }
                             }
@@ -429,12 +478,12 @@ fun RoleSelectionScreen(
                                 )
                                 Text(
                                     text = if (isVerifiedAdmin) {
-                                        "Live Terverifikasi · Pantau user & kontrol global"
+                                        "Live Terverifikasi · Pantau jamaah & kontrol global"
                                     } else {
                                         "Buka konsol · Verifikasi akun Google Admin"
                                     },
                                     fontSize = 11.sp,
-                                    color = Color(0xFFCBD5E1),
+                                    color = Color(0xFFD1FAE5),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -442,13 +491,13 @@ fun RoleSelectionScreen(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
                                 contentDescription = "Buka Admin Backend",
-                                tint = Color(0xFF93C5FD)
+                                tint = Color(0xFF6EE7B7)
                             )
                         }
                     }
                 }
 
-            // Card Header 1: Mulai Konvoi Baru (Tour Leader)
+            // Card Header 1: Buat Rombongan Baru (Mutawwif / Ketua)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(22.dp),
@@ -467,33 +516,23 @@ fun RoleSelectionScreen(
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.size(52.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize(),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                            Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    imageVector = Icons.Rounded.DirectionsCar,
+                                    imageVector = Icons.Rounded.Mosque,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Icon(
-                                    imageVector = Icons.Rounded.TwoWheeler,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.secondary,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(26.dp)
                                 )
                             }
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Mulai Konvoi Baru",
+                                text = "Buat Rombongan Baru",
                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Tour Leader · Rute & Room Baru",
+                                text = "Mutawwif / Ketua · Rute Multi-Tujuan",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -504,9 +543,9 @@ fun RoleSelectionScreen(
 
                     Text(
                         text = if (roomCreationPaused) {
-                            "Pembuatan room konvoi baru sedang dijeda sementara oleh Admin Backend."
+                            "Pembuatan room rombongan baru sedang dijeda sementara oleh Admin Backend."
                         } else {
-                            "Tentukan tujuan akhir, gambar jalur resmi, tambah titik istirahat, dan atur jarak sweeper."
+                            "Tentukan multi titik tujuan safar, susun checklist kegiatan rombongan, dan pantau posisi jamaah."
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -522,12 +561,12 @@ fun RoleSelectionScreen(
                             .height(50.dp),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondary,
+                            containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = Color.White
                         )
                     ) {
                         Text(
-                            text = if (roomCreationPaused) "Pembuatan Room Dijeda Admin" else "Mulai Konvoi Baru",
+                            text = if (roomCreationPaused) "Pembuatan Room Dijeda Admin" else "Buat Rombongan Baru",
                             fontWeight = FontWeight.SemiBold
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -540,7 +579,7 @@ fun RoleSelectionScreen(
                 }
             }
 
-            // Card Header 2: Gabung Konvoi (Anggota)
+            // Card Header 2: Gabung Rombongan (Jamaah)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(22.dp),
@@ -561,7 +600,7 @@ fun RoleSelectionScreen(
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    imageVector = Icons.Rounded.Link,
+                                    imageVector = Icons.Rounded.DirectionsBus,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.secondary,
                                     modifier = Modifier.size(24.dp)
@@ -570,12 +609,12 @@ fun RoleSelectionScreen(
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Gabung Konvoi",
+                                text = "Gabung Rombongan",
                                 style = MaterialTheme.typography.titleLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Anggota · Kode Room atau Link",
+                                text = "Jamaah · Kode Room atau Link",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -585,7 +624,7 @@ fun RoleSelectionScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "Masukkan Room ID atau tempel tautan undangan dari Tour Leader untuk langsung ikut konvoi.",
+                        text = "Masukkan Room ID atau tempel tautan undangan dari Mutawwif / Ketua untuk langsung ikut rombongan.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -604,7 +643,7 @@ fun RoleSelectionScreen(
                         )
                     ) {
                         Text(
-                            text = "Gabung Konvoi",
+                            text = "Gabung Rombongan",
                             fontWeight = FontWeight.SemiBold
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -617,10 +656,129 @@ fun RoleSelectionScreen(
                 }
             }
 
-            // Bagian "Konvoi Anda Saat Ini"
+            // Card Manasik & GPS Check-in + Checklist Kegiatan Rombongan
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = if (activeRoom != null) "Konvoi Anda Saat Ini" else "Status Konvoi Terakhir",
+                    text = "Ibadah & Kegiatan Rombongan",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenManasik("manasik") },
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.size(46.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Rounded.MenuBook,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Panduan Manasik & GPS Check-in",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Umroh $umrahDoneCount/${ManasikGuideData.umrahSteps.size} · Haji $hajiDoneCount/${ManasikGuideData.hajjSteps.size} tahap · Doa & landmark Haramain",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                            contentDescription = "Buka Panduan Manasik",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                if (activeRoom != null) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onOpenManasik("activities") },
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.size(46.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Checklist,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
+                            }
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Checklist Kegiatan Rombongan",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "$roomActivitiesDoneCount/$roomActivitiesCount selesai · ${activeRoom.roomId}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                                contentDescription = "Buka Checklist Kegiatan",
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Bagian "Rombongan Anda Saat Ini"
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = if (activeRoom != null) "Rombongan Anda Saat Ini" else "Status Safar Terakhir",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onBackground
                 )
@@ -681,13 +839,13 @@ fun RoleSelectionScreen(
                             Spacer(modifier = Modifier.height(3.dp))
                             Text(
                                 text = when {
-                                    activeRoom != null -> "$activeMemberCount Anggota Aktif · Sedang Berjalan"
-                                    lastCompletedTrip != null -> "$activeMemberCount Peserta · Status: Selesai (${lastCompletedTrip.timeRangeLabel})"
-                                    else -> "Belum ada konvoi aktif"
+                                    activeRoom != null -> "$activeMemberCount Jamaah Aktif · Sedang Berjalan"
+                                    lastCompletedTrip != null -> "$activeMemberCount Jamaah · Status: Selesai (${lastCompletedTrip.timeRangeLabel})"
+                                    else -> "Belum ada rombongan aktif"
                                 },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = when {
-                                    activeRoom != null -> Color(0xFF15803D)
+                                    activeRoom != null -> Color(0xFF047857)
                                     isConvoyFinished -> Color(0xFF475569)
                                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                                 },
@@ -699,7 +857,7 @@ fun RoleSelectionScreen(
                                 text = when {
                                     activeRoom != null -> "Tujuan: $destinationName"
                                     lastCompletedTrip != null -> "Tujuan: ${lastCompletedTrip.destinationName} · ${String.format(Locale.US, "%.1f", lastCompletedTrip.distanceKm)} km"
-                                    else -> "Pilih Mulai Konvoi Baru atau Gabung Konvoi"
+                                    else -> "Pilih Buat Rombongan Baru atau Gabung Rombongan"
                                 },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -735,7 +893,7 @@ fun RoleSelectionScreen(
                     onDismissRequest = { showCompletedOptionsDialog = false },
                     title = {
                         Text(
-                            text = "Konvoi Telah Selesai",
+                            text = "Safar Telah Selesai",
                             fontWeight = FontWeight.Bold
                         )
                     },
@@ -770,7 +928,7 @@ fun RoleSelectionScreen(
                                 }
                             }
                             Text(
-                                text = "Konvoi ini sudah berstatus Selesai. Pilih langkah selanjutnya:",
+                                text = "Perjalanan safar ini sudah berstatus Selesai. Pilih langkah selanjutnya:",
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -829,10 +987,10 @@ fun RoleSelectionScreen(
                 )
             }
 
-            // Bagian "Riwayat Tour & Ekspor Log GPX"
+            // Bagian "Riwayat Safar & Ekspor Log GPX"
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "Riwayat Tour & Ekspor Log",
+                    text = "Riwayat Safar & Ekspor Log",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onBackground
                 )
@@ -870,7 +1028,7 @@ fun RoleSelectionScreen(
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Riwayat Perjalanan ($tripHistoryCount)",
+                                text = "Riwayat Safar ($tripHistoryCount)",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )

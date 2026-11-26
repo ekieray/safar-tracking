@@ -52,8 +52,8 @@ import {
   encodePolyline,
 } from '../utils/geo';
 
-const EMAIL_PROFILE_PREFIX = 'konvoiku_email_profile_v1:';
-const ACTIVE_SESSION_KEY = 'konvoiku_active_session_v1';
+const EMAIL_PROFILE_PREFIX = 'safartracking_email_profile_v1:';
+const ACTIVE_SESSION_KEY = 'safartracking_active_session_v1';
 
 export interface StoredLocalSession {
   fullName: string;

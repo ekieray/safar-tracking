@@ -7,6 +7,7 @@ import joinTourKt from '../../android/app/src/main/java/com/konvoiku/touring/ui/
 import liveTrackingMapKt from '../../android/app/src/main/java/com/konvoiku/touring/ui/screens/LiveTrackingMapScreen.kt?raw';
 import tripHistoryKt from '../../android/app/src/main/java/com/konvoiku/touring/ui/screens/TripHistoryScreen.kt?raw';
 import tripDetailKt from '../../android/app/src/main/java/com/konvoiku/touring/ui/screens/TripDetailScreen.kt?raw';
+import manasikGuideKt from '../../android/app/src/main/java/com/konvoiku/touring/ui/screens/ManasikGuideScreen.kt?raw';
 import aboutAppKt from '../../android/app/src/main/java/com/konvoiku/touring/ui/screens/AboutAppScreen.kt?raw';
 import adminBackendKt from '../../android/app/src/main/java/com/konvoiku/touring/ui/screens/AdminBackendScreen.kt?raw';
 import tripSummaryCardRendererKt from '../../android/app/src/main/java/com/konvoiku/touring/ui/components/TripSummaryCardRenderer.kt?raw';
@@ -20,6 +21,7 @@ import geoUtilsKt from '../../android/app/src/main/java/com/konvoiku/touring/uti
 import gpsLocationTrackerKt from '../../android/app/src/main/java/com/konvoiku/touring/location/GpsLocationTracker.kt?raw';
 import firestoreConvoyRepositoryKt from '../../android/app/src/main/java/com/konvoiku/touring/data/FirestoreConvoyRepository.kt?raw';
 import tomTomApiServiceKt from '../../android/app/src/main/java/com/konvoiku/touring/data/TomTomApiService.kt?raw';
+import manasikGuideDataKt from '../../android/app/src/main/java/com/konvoiku/touring/data/ManasikGuideData.kt?raw';
 import themeKt from '../../android/app/src/main/java/com/konvoiku/touring/ui/theme/Theme.kt?raw';
 import mainActivityKt from '../../android/app/src/main/java/com/konvoiku/touring/MainActivity.kt?raw';
 import settingsGradleKts from '../../android/settings.gradle.kts?raw';
@@ -128,6 +130,14 @@ export const KOTLIN_SOURCE_FILES: KotlinSourceFile[] = [
     code: tripSummaryCardRendererKt,
   },
   {
+    id: 'manasik_guide',
+    name: 'ManasikGuideScreen.kt',
+    path: 'app/src/main/java/com/konvoiku/touring/ui/screens/ManasikGuideScreen.kt',
+    category: 'Layar Compose',
+    linkedRoute: 'manasik_guide',
+    code: manasikGuideKt,
+  },
+  {
     id: 'about_app',
     name: 'AboutAppScreen.kt',
     path: 'app/src/main/java/com/konvoiku/touring/ui/screens/AboutAppScreen.kt',
@@ -214,6 +224,14 @@ export const KOTLIN_SOURCE_FILES: KotlinSourceFile[] = [
     path: 'app/src/main/java/com/konvoiku/touring/data/TomTomApiService.kt',
     category: 'Navigasi & State',
     code: tomTomApiServiceKt,
+  },
+  {
+    id: 'manasik_guide_data',
+    name: 'ManasikGuideData.kt',
+    path: 'app/src/main/java/com/konvoiku/touring/data/ManasikGuideData.kt',
+    category: 'Navigasi & State',
+    linkedRoute: 'manasik_guide',
+    code: manasikGuideDataKt,
   },
   {
     id: 'theme',

@@ -33,7 +33,7 @@ import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.DirectionsCar
+import androidx.compose.material.icons.rounded.DirectionsBus
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Group
@@ -385,7 +385,7 @@ fun AdminBackendScreen(
                         }
 
                         Text(
-                            text = "Panel Admin Backend membaca telemetri semua pengendara secara real-time dan mengubah pengaturan global. Masuk menggunakan akun Google terverifikasi ${FirestoreConvoyRepository.ADMIN_EMAIL} (sesi saat ini: ${authUserEmail.ifBlank { "belum login Google/Email" }}).",
+                            text = "Panel Admin Backend membaca telemetri semua jamaah secara real-time dan mengubah pengaturan global. Masuk menggunakan akun Google terverifikasi ${FirestoreConvoyRepository.ADMIN_EMAIL} (sesi saat ini: ${authUserEmail.ifBlank { "belum login Google/Email" }}).",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -492,19 +492,19 @@ fun AdminBackendScreen(
                                 .fillMaxWidth()
                                 .defaultMinSize(minHeight = 46.dp),
                             shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, Color(0xFF2563EB))
+                            border = BorderStroke(1.dp, Color(0xFF047857))
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.OpenInBrowser,
                                 contentDescription = null,
-                                tint = Color(0xFF2563EB),
+                                tint = Color(0xFF047857),
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Verifikasi Google via Browser",
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF2563EB),
+                                color = Color(0xFF047857),
                                 textAlign = TextAlign.Center
                             )
                         }
@@ -536,7 +536,7 @@ fun AdminBackendScreen(
                                 Text(
                                     text = if (showManualTokenInput) "Tutup tempel token" else "Sudah login di browser?",
                                     fontSize = 11.sp,
-                                    color = Color(0xFF2563EB)
+                                    color = Color(0xFF047857)
                                 )
                             }
                         }
@@ -771,7 +771,7 @@ fun AdminBackendScreen(
                                             Icons.Rounded.Computer
                                         },
                                         contentDescription = null,
-                                        tint = if (p.isTraveling) Color(0xFFEA580C) else MaterialTheme.colorScheme.primary,
+                                        tint = if (p.isTraveling) Color(0xFFB45309) else MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Column(modifier = Modifier.weight(1f)) {
@@ -799,7 +799,7 @@ fun AdminBackendScreen(
                                             },
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (p.isTraveling) Color(0xFFEA580C) else Color(0xFF15803D)
+                                            color = if (p.isTraveling) Color(0xFFB45309) else Color(0xFF047857)
                                         )
                                         Text(
                                             text = p.lastSeenLabel,
@@ -813,14 +813,14 @@ fun AdminBackendScreen(
                     }
                 }
 
-                // Active & Finished Convoy Rooms
+                // Active & Finished Safar Rooms
                 AdminSectionCard(
-                    title = "Kontrol Room Konvoi (${rooms.size})",
+                    title = "Kontrol Room Safar (${rooms.size})",
                     icon = Icons.Rounded.Navigation
                 ) {
                     if (rooms.isEmpty()) {
                         Text(
-                            text = "Belum ada room konvoi tercatat.",
+                            text = "Belum ada room safar tercatat.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -973,7 +973,7 @@ fun AdminBackendScreen(
                                                         modifier = Modifier.weight(1f)
                                                     ) {
                                                         Icon(
-                                                            imageVector = Icons.Rounded.DirectionsCar,
+                                                            imageVector = Icons.Rounded.DirectionsBus,
                                                             contentDescription = null,
                                                             modifier = Modifier.size(15.dp),
                                                             tint = MaterialTheme.colorScheme.primary
@@ -1107,7 +1107,7 @@ fun AdminBackendScreen(
                 }
 
                 AdminSectionCard(
-                    title = "Parameter Default Konvoi Global",
+                    title = "Parameter Default Safar Global",
                     icon = Icons.Rounded.Settings
                 ) {
                     OutlinedTextField(
@@ -1170,7 +1170,7 @@ fun AdminBackendScreen(
                 ) {
                     AdminSwitchRow(
                         label = "Izinkan Pembuatan Room Baru",
-                        subtitle = "Matikan untuk menghentikan pembuatan konvoi baru sementara",
+                        subtitle = "Matikan untuk menghentikan pembuatan room safar baru sementara",
                         checked = draftAllowNewRooms,
                         onCheckedChange = { draftAllowNewRooms = it }
                     )

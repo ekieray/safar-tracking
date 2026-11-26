@@ -30,7 +30,8 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.ContactPhone
-import androidx.compose.material.icons.rounded.DirectionsCar
+import androidx.compose.material.icons.rounded.DirectionsBus
+import androidx.compose.material.icons.rounded.DirectionsWalk
 import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.Group
 import androidx.compose.material.icons.rounded.LocationCity
@@ -38,7 +39,6 @@ import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Save
-import androidx.compose.material.icons.rounded.TwoWheeler
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -116,7 +116,7 @@ fun CustomizeProfileScreen(
                             style = MaterialTheme.typography.titleMedium
                         )
                         Text(
-                            text = "Avatar, Komunitas & Sinkronisasi Email",
+                            text = "Avatar, Kloter Travel & Sinkronisasi Email",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -147,7 +147,7 @@ fun CustomizeProfileScreen(
                         val cleanEmail = draft.email.trim().lowercase()
                         when {
                             cleanName.length < 2 -> {
-                                formError = "Nama lengkap pengendara minimal 2 karakter."
+                                formError = "Nama lengkap jamaah minimal 2 karakter."
                             }
                             cleanEmail.isNotEmpty() && (!cleanEmail.contains("@") || !cleanEmail.contains(".")) -> {
                                 formError = "Format email sinkronisasi tidak valid."
@@ -306,7 +306,7 @@ fun CustomizeProfileScreen(
                         ConvoyAvatar(
                             preset = draft.avatarPreset,
                             photoUri = draft.avatarPhotoUri,
-                            displayName = draft.fullName.ifBlank { "Rider" },
+                            displayName = draft.fullName.ifBlank { "Jamaah" },
                             size = 64.dp,
                             borderColor = MaterialTheme.colorScheme.primary,
                             borderWidth = 2.5.dp
@@ -379,11 +379,11 @@ fun CustomizeProfileScreen(
                 }
             }
 
-            // Identitas Pribadi & Komunitas
+            // Identitas Pribadi & Rombongan
             OutlinedTextField(
                 value = draft.fullName,
                 onValueChange = { draft = draft.copy(fullName = it) },
-                label = { Text("Nama Lengkap / Panggilan Touring") },
+                label = { Text("Nama Lengkap / Panggilan Safar") },
                 leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = null) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
@@ -411,8 +411,8 @@ fun CustomizeProfileScreen(
             OutlinedTextField(
                 value = draft.clubName,
                 onValueChange = { draft = draft.copy(clubName = it) },
-                label = { Text("Klub / Komunitas Touring") },
-                placeholder = { Text("Contoh: Nmax Touring Nusantara") },
+                label = { Text("Travel / Kloter / Majelis") },
+                placeholder = { Text("Contoh: Kloter Safar Al-Haramain") },
                 leadingIcon = { Icon(Icons.Rounded.Group, contentDescription = null) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
@@ -427,7 +427,7 @@ fun CustomizeProfileScreen(
                 value = draft.homeCity,
                 onValueChange = { draft = draft.copy(homeCity = it) },
                 label = { Text("Kota Asal") },
-                placeholder = { Text("Contoh: Bandung") },
+                placeholder = { Text("Contoh: Jakarta / Bandung") },
                 leadingIcon = { Icon(Icons.Rounded.LocationCity, contentDescription = null) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
@@ -442,7 +442,7 @@ fun CustomizeProfileScreen(
                 value = draft.instagramHandle,
                 onValueChange = { draft = draft.copy(instagramHandle = it) },
                 label = { Text("Username Instagram (Opsional)") },
-                placeholder = { Text("Contoh: kangekie.touring") },
+                placeholder = { Text("Contoh: safar.rombongan") },
                 leadingIcon = { Icon(Icons.Rounded.AlternateEmail, contentDescription = null) },
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
@@ -452,17 +452,17 @@ fun CustomizeProfileScreen(
             OutlinedTextField(
                 value = draft.bio,
                 onValueChange = { if (it.length <= 240) draft = draft.copy(bio = it) },
-                label = { Text("Bio Singkat Pengendara") },
-                placeholder = { Text("Hobi sunset ride & safety riding.") },
+                label = { Text("Bio Singkat Jamaah") },
+                placeholder = { Text("Jamaah Umroh Kloter 1 · Siap saling jaga rombongan.") },
                 minLines = 2,
                 maxLines = 3,
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Kendaraan Default
+            // Info Perjalanan Default
             Text(
-                text = "Kendaraan Default & Kontak Darurat",
+                text = "Info Perjalanan Default & Kontak Darurat",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -475,7 +475,7 @@ fun CustomizeProfileScreen(
                         onClick = { draft = draft.copy(vehicleType = type) },
                         icon = {
                             Icon(
-                                imageVector = if (type == VehicleType.MOBIL) Icons.Rounded.DirectionsCar else Icons.Rounded.TwoWheeler,
+                                imageVector = if (type == VehicleType.MOBIL) Icons.Rounded.DirectionsBus else Icons.Rounded.DirectionsWalk,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -489,7 +489,7 @@ fun CustomizeProfileScreen(
             OutlinedTextField(
                 value = draft.vehicleDetail,
                 onValueChange = { draft = draft.copy(vehicleDetail = it) },
-                label = { Text("Model & Warna Kendaraan") },
+                label = { Text("Info Bus / Kloter (Opsional)") },
                 leadingIcon = { Icon(Icons.Rounded.Palette, contentDescription = null) },
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
@@ -499,7 +499,7 @@ fun CustomizeProfileScreen(
             OutlinedTextField(
                 value = draft.licensePlate,
                 onValueChange = { draft = draft.copy(licensePlate = it.uppercase()) },
-                label = { Text("Nomor Plat Kendaraan") },
+                label = { Text("Kode Kloter / Regu") },
                 leadingIcon = { Icon(Icons.Rounded.Badge, contentDescription = null) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),

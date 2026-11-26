@@ -22,10 +22,17 @@ import com.konvoiku.touring.model.ChatMessageType
 import com.konvoiku.touring.model.ConnectionStatus
 import com.konvoiku.touring.model.ConvoyMember
 import com.konvoiku.touring.model.ConvoyRouteConfig
+import com.konvoiku.touring.model.DestinationStop
 import com.konvoiku.touring.model.GlobalAppConfig
+import com.konvoiku.touring.model.ManasikCheckInRecord
+import com.konvoiku.touring.model.ManasikGuideProgress
+import com.konvoiku.touring.model.ManasikGuideType
+import com.konvoiku.touring.model.ManasikProgressState
 import com.konvoiku.touring.model.MapPosition
 import com.konvoiku.touring.model.MemberConditionStatus
 import com.konvoiku.touring.model.RestCheckpoint
+import com.konvoiku.touring.model.RoomActivityItem
+import com.konvoiku.touring.model.RoomActivityMemberProgress
 import com.konvoiku.touring.model.RoomMessage
 import com.konvoiku.touring.model.RouteInstruction
 import com.konvoiku.touring.model.RoutePreference
@@ -80,34 +87,26 @@ data class WebBridgeResolution(
 class FirestoreConvoyRepository {
 
     companion object {
-        // Named Firestore database provisioned on konvoi-touring for Web & Android sync
+        // Named Firestore database provisioned on excellent-victor-7v0ns for Safar Tracking Web & Android sync
         private const val FIRESTORE_DB_ID =
-            "ai-studio-konvoikutouringc-4b128c6d-2347-4d6f-afba-25201f26dbcb"
-        const val FIREBASE_PROJECT_ID_PUBLIC = "konvoi-touring"
+            "ai-studio-safartracking-e69c0149-e70e-44e4-892e-bdaae64e8754"
+        const val FIREBASE_PROJECT_ID_PUBLIC = "excellent-victor-7v0ns"
         private const val FIREBASE_PROJECT_ID = FIREBASE_PROJECT_ID_PUBLIC
-        private const val FIREBASE_APP_ID = "1:492281165480:android:8bae46d9a2cd71fc01749d"
-        const val FIREBASE_WEB_APP_ID = "1:492281165480:web:118d7d76703a006501749d"
-        const val FIREBASE_AUTH_DOMAIN = "konvoi-touring.firebaseapp.com"
+        private const val FIREBASE_APP_ID = "1:886997766185:web:749a3335a7991519350c38"
+        const val FIREBASE_WEB_APP_ID = "1:886997766185:web:749a3335a7991519350c38"
+        const val FIREBASE_AUTH_DOMAIN = "excellent-victor-7v0ns.firebaseapp.com"
         private val FIREBASE_API_KEY = listOf(
-            "AIzaSyDdno",
-            "sett6pyI8ku8",
-            "F05izCmSQ2g3hE1_M"
+            "AIzaSyAjMt",
+            "4190SzciFuy",
+            "VrkGunLf-mPmHQ9rxk"
         ).joinToString("")
-        val FIREBASE_WEB_API_KEY: String = listOf(
-            "AIzaSyBs2Z",
-            "FMhE9UeOXP1x",
-            "mVfEXFw8hKapCQQX0"
-        ).joinToString("")
-        private const val FIREBASE_STORAGE_BUCKET = "konvoi-touring.firebasestorage.app"
-        private const val FIREBASE_SENDER_ID = "492281165480"
+        val FIREBASE_WEB_API_KEY: String = FIREBASE_API_KEY
+        private const val FIREBASE_STORAGE_BUCKET = "excellent-victor-7v0ns.firebasestorage.app"
+        private const val FIREBASE_SENDER_ID = "886997766185"
         private const val SHARED_BASE_URL =
-            "https://ais-pre-mbwxrxf647cphhl5i4ggug-588877716211.asia-southeast1.run.app"
-        private const val DEPLOYED_AI_STUDIO_URL =
-            "https://konvoiku-touring-convoy-kotlin-jetpack-compose.ai.studio"
-        private const val DEPLOYED_CLOUD_RUN_URL =
-            "https://konvoiku-touring-convoy-kotlin-jetpack-compo-pdqf-886997766185.asia-east1.run.app"
+            "https://ais-pre-3puhws3li7lokxfmbtgyz4-588877716211.asia-southeast1.run.app"
         private const val DEV_BASE_URL =
-            "https://ais-dev-mbwxrxf647cphhl5i4ggug-588877716211.asia-southeast1.run.app"
+            "https://ais-dev-3puhws3li7lokxfmbtgyz4-588877716211.asia-southeast1.run.app"
         const val SHARED_GOOGLE_BRIDGE_URL = "$SHARED_BASE_URL/?mobile_auth=google"
         const val DEV_GOOGLE_BRIDGE_URL = "$DEV_BASE_URL/?mobile_auth=google"
         const val GOOGLE_BRIDGE_URL = DEV_GOOGLE_BRIDGE_URL
@@ -207,7 +206,7 @@ class FirestoreConvoyRepository {
             }
             if (code in 200..299) {
                 val body = conn.inputStream.bufferedReader().use { it.readText() }
-                if (body.contains("\"service\"") && body.contains("konvoiku")) {
+                if (body.contains("\"service\"") && body.contains("safar-tracking")) {
                     return@runCatching WebEndpointStatus.LIVE_DIRECT
                 }
                 if (body.contains("mobile_auth_v1")) {
@@ -219,7 +218,7 @@ class FirestoreConvoyRepository {
                 ) {
                     return@runCatching WebEndpointStatus.DEV_PROXY_AUTH
                 }
-                if (body.contains("Safar Tracking", ignoreCase = true) || body.contains("KonvoiKu", ignoreCase = true)) {
+                if (body.contains("Safar Tracking", ignoreCase = true)) {
                     return@runCatching WebEndpointStatus.OUTDATED_BUILD
                 }
             }
@@ -294,26 +293,6 @@ class FirestoreConvoyRepository {
             )
         }
 
-        val deployedAiStudioStatus = probeWebEndpoint(DEPLOYED_AI_STUDIO_URL)
-        if (deployedAiStudioStatus == WebEndpointStatus.LIVE_DIRECT) {
-            return@withContext WebBridgeResolution(
-                baseUrl = DEPLOYED_AI_STUDIO_URL,
-                isPublishedLive = true,
-                isDevProxy = false,
-                isSharedUnpublished = false
-            )
-        }
-
-        val deployedCloudRunStatus = probeWebEndpoint(DEPLOYED_CLOUD_RUN_URL)
-        if (deployedCloudRunStatus == WebEndpointStatus.LIVE_DIRECT) {
-            return@withContext WebBridgeResolution(
-                baseUrl = DEPLOYED_CLOUD_RUN_URL,
-                isPublishedLive = true,
-                isDevProxy = false,
-                isSharedUnpublished = false
-            )
-        }
-
         val devStatus = probeWebEndpoint(DEV_BASE_URL)
         if (devStatus == WebEndpointStatus.LIVE_DIRECT) {
             return@withContext WebBridgeResolution(
@@ -323,9 +302,6 @@ class FirestoreConvoyRepository {
                 isSharedUnpublished = sharedStatus == WebEndpointStatus.NOT_FOUND
             )
         }
-        val hasOutdatedDeployed =
-            deployedAiStudioStatus == WebEndpointStatus.OUTDATED_BUILD ||
-                deployedCloudRunStatus == WebEndpointStatus.OUTDATED_BUILD
 
         if (devStatus == WebEndpointStatus.DEV_PROXY_AUTH || sharedStatus == WebEndpointStatus.DEV_PROXY_AUTH) {
             val targetProxyBase = if (devStatus == WebEndpointStatus.DEV_PROXY_AUTH) DEV_BASE_URL else SHARED_BASE_URL
@@ -338,11 +314,8 @@ class FirestoreConvoyRepository {
                     isSharedUnpublished = sharedUnpublished
                 )
             }
-            val webStatusText = if (hasOutdatedDeployed) {
-                "Web publik yang ada masih versi lama & Web Share (ais-pre) masih 404, sedangkan Dev Preview terkunci khusus pemilik ($ADMIN_EMAIL)."
-            } else {
+            val webStatusText =
                 "Halaman Web Share publik (ais-pre) belum aktif (404) dan Dev Preview terkunci khusus pemilik ($ADMIN_EMAIL)."
-            }
             return@withContext WebBridgeResolution(
                 baseUrl = "",
                 isPublishedLive = false,
@@ -380,8 +353,10 @@ class FirestoreConvoyRepository {
         return { auth.removeAuthStateListener(listener) }
     }
 
-    fun isDeviceCloudGuestEmail(email: String?): Boolean =
-        email?.trim()?.lowercase(Locale.ROOT)?.endsWith("@guest.konvoiku.id") == true
+    fun isDeviceCloudGuestEmail(email: String?): Boolean {
+        val norm = email?.trim()?.lowercase(Locale.ROOT).orEmpty()
+        return norm.endsWith("@guest.safartracking.id") || norm.endsWith("@guest.konvoiku.id")
+    }
 
     fun isDeviceCloudGuestUser(user: FirebaseUser?): Boolean =
         isDeviceCloudGuestEmail(user?.email)
@@ -400,7 +375,7 @@ class FirestoreConvoyRepository {
             ?: return Result.failure(IllegalStateException("Firebase Auth tidak tersedia."))
         auth.currentUser?.uid?.let { return Result.success(it) }
 
-        val prefs = appContext?.getSharedPreferences("konvoiku_cloud_device_auth", Context.MODE_PRIVATE)
+        val prefs = appContext?.getSharedPreferences("safartracking_cloud_device_auth", Context.MODE_PRIVATE)
         val savedEmail = prefs?.getString("cloud_device_email", null)?.trim().orEmpty()
         val savedPassword = prefs?.getString("cloud_device_password", null)?.trim().orEmpty()
         if (savedEmail.isNotEmpty() && savedPassword.isNotEmpty()) {
@@ -423,8 +398,8 @@ class FirestoreConvoyRepository {
 
         // Fallback when Anonymous Auth is disabled in Firebase Console (ADMIN_ONLY_OPERATION):
         // provision an isolated per-device Email/Password cloud session.
-        val deviceEmail = "rider.${UUID.randomUUID().toString().replace("-", "").take(16)}@guest.konvoiku.id"
-        val devicePassword = "Knv#${UUID.randomUUID().toString().replace("-", "")}"
+        val deviceEmail = "jamaah.${UUID.randomUUID().toString().replace("-", "").take(16)}@guest.safartracking.id"
+        val devicePassword = "Sfr#${UUID.randomUUID().toString().replace("-", "")}"
         return runCatching {
             val created = auth.createUserWithEmailAndPassword(deviceEmail, devicePassword).await()
             val uid = created.user?.uid
@@ -629,14 +604,30 @@ class FirestoreConvoyRepository {
             val safeOriginAddress = routeConfig.originAddress.trim().ifBlank {
                 String.format(Locale.US, "%.4f, %.4f", origin?.latitude ?: initialLat, origin?.longitude ?: initialLng)
             }.take(240)
-            val safeDestName = routeConfig.destinationName.trim().ifBlank { "Titik Tujuan" }.take(120)
+            val safeDestName = routeConfig.destinationName.trim().ifBlank { "Masjidil Haram (Ka'bah)" }.take(120)
             val safeDestAddress = routeConfig.destinationAddress.trim().ifBlank {
-                String.format(Locale.US, "%.4f, %.4f", dest?.latitude ?: -6.645, dest?.longitude ?: 106.99)
+                String.format(Locale.US, "%.4f, %.4f", dest?.latitude ?: 21.4225, dest?.longitude ?: 39.8262)
             }.take(240)
 
-            val roomData = hashMapOf(
+            val stopsPayload = routeConfig.destinationStops
+                .take(12)
+                .mapIndexed { idx, s ->
+                    val sName = s.name.trim().ifBlank { "Tujuan ${idx + 1}" }.take(120)
+                    val sAddr = s.address.trim().ifBlank {
+                        String.format(Locale.US, "%s · %.4f, %.4f", sName, s.latitude, s.longitude)
+                    }.take(240)
+                    hashMapOf<String, Any>(
+                        "id" to s.id.trim().ifBlank { "stop-${idx + 1}" }.take(64),
+                        "name" to sName,
+                        "address" to sAddr,
+                        "latitude" to s.latitude,
+                        "longitude" to s.longitude
+                    )
+                }
+
+            val roomData = hashMapOf<String, Any>(
                 "roomId" to cleanRoomId,
-                "roomTitle" to roomTitle.trim().ifBlank { "Konvoi Touring" }.take(100),
+                "roomTitle" to roomTitle.trim().ifBlank { "Rombongan Safar" }.take(100),
                 "leaderUid" to leaderUid,
                 "coLeaderUid" to "",
                 "actingLeaderUid" to leaderUid,
@@ -646,14 +637,16 @@ class FirestoreConvoyRepository {
                 "originAddress" to safeOriginAddress,
                 "destinationName" to safeDestName,
                 "destinationAddress" to safeDestAddress,
-                "destLat" to (dest?.latitude ?: -6.645),
-                "destLng" to (dest?.longitude ?: 106.99),
+                "destinationStops" to stopsPayload,
+                "destLat" to (dest?.latitude ?: 21.4225),
+                "destLng" to (dest?.longitude ?: 39.8262),
                 "originLat" to (origin?.latitude ?: initialLat),
                 "originLng" to (origin?.longitude ?: initialLng),
                 "encodedPolyline" to encoded,
                 "routePreference" to routeConfig.routePreference.id,
                 "routeInstructions" to GeoUtils.compactInstructionsForSync(routeConfig.routeInstructions),
                 "totalRouteMeters" to routeConfig.totalRouteMeters.coerceIn(100, 5_000_000),
+                "estimatedDurationMillis" to routeConfig.estimatedDurationMillis.coerceIn(0L, 604_800_000L),
                 "offRouteToleranceMeters" to routeConfig.offRouteToleranceMeters.coerceIn(10, 5000),
                 "maxStragglerDistanceMeters" to routeConfig.maxStragglerDistanceMeters.coerceIn(100, 50000),
                 "soundAlertEnabled" to routeConfig.soundAlertEnabled,
@@ -674,10 +667,10 @@ class FirestoreConvoyRepository {
             val memberData = hashMapOf(
                 "uid" to leaderUid,
                 "roomId" to cleanRoomId,
-                "fullName" to profile.fullName.trim().ifBlank { "Tour Leader" }.take(80),
+                "fullName" to profile.fullName.trim().ifBlank { "Mutawwif / Ketua" }.take(80),
                 "vehicleType" to profile.vehicleType.name,
                 "vehicleDetail" to profile.displayVehicleLabel.take(80),
-                "licensePlate" to profile.licensePlate.ifBlank { "B 1001 LDR" }.take(24),
+                "licensePlate" to profile.licensePlate.ifBlank { "KLOTER-01" }.take(24),
                 "role" to UserRole.TOUR_LEADER.name,
                 "isSweeper" to false,
                 "avatarPreset" to profile.avatarPreset.name,
@@ -739,7 +732,7 @@ class FirestoreConvoyRepository {
                 throw IllegalArgumentException("Room $cleanRoomId tidak ditemukan di server.")
             }
             if (snap.getString("status") == "FINISHED") {
-                throw IllegalStateException("Konvoi pada Room $cleanRoomId sudah berakhir.")
+                throw IllegalStateException("Perjalanan pada Room $cleanRoomId sudah berakhir.")
             }
             val leaderUid = snap.getString("leaderUid").orEmpty()
             val role = if (leaderUid == uid) UserRole.TOUR_LEADER else UserRole.MEMBER
@@ -753,10 +746,10 @@ class FirestoreConvoyRepository {
                 }.getOrDefault(role)
                 memberRef.update(
                     mapOf(
-                        "fullName" to profile.fullName.trim().ifBlank { "Anggota" }.take(80),
+                        "fullName" to profile.fullName.trim().ifBlank { "Jamaah" }.take(80),
                         "vehicleType" to profile.vehicleType.name,
                         "vehicleDetail" to profile.displayVehicleLabel.take(80),
-                        "licensePlate" to profile.licensePlate.ifBlank { "B 2026 KNV" }.take(24),
+                        "licensePlate" to profile.licensePlate.ifBlank { "JAMAAH" }.take(24),
                         "avatarPreset" to profile.avatarPreset.name,
                         "conditionStatus" to MemberConditionStatus.AMAN.name,
                         "connectionStatus" to ConnectionStatus.CONNECTED.name,
@@ -772,10 +765,10 @@ class FirestoreConvoyRepository {
             val memberData = hashMapOf(
                 "uid" to uid,
                 "roomId" to cleanRoomId,
-                "fullName" to profile.fullName.trim().ifBlank { "Anggota" }.take(80),
+                "fullName" to profile.fullName.trim().ifBlank { "Jamaah" }.take(80),
                 "vehicleType" to profile.vehicleType.name,
                 "vehicleDetail" to profile.displayVehicleLabel.take(80),
-                "licensePlate" to profile.licensePlate.ifBlank { "B 2026 KNV" }.take(24),
+                "licensePlate" to profile.licensePlate.ifBlank { "JAMAAH" }.take(24),
                 "role" to role.name,
                 "isSweeper" to false,
                 "avatarPreset" to profile.avatarPreset.name,
@@ -804,7 +797,9 @@ class FirestoreConvoyRepository {
         onRoomHeader: (SyncedRoomHeader) -> Unit,
         onMembers: (List<ConvoyMember>) -> Unit,
         onCheckpoints: (List<RestCheckpoint>) -> Unit,
-        onMessages: (List<RoomMessage>) -> Unit
+        onMessages: (List<RoomMessage>) -> Unit,
+        onActivities: (List<RoomActivityItem>) -> Unit = {},
+        onActivityProgress: (Map<String, RoomActivityMemberProgress>) -> Unit = {}
     ): () -> Unit {
         val db = getFirestore() ?: return {}
         val cleanRoomId = normalizeRoomId(roomId)
@@ -814,20 +809,16 @@ class FirestoreConvoyRepository {
             .addSnapshotListener { snap, _ ->
                 if (snap == null || !snap.exists()) return@addSnapshotListener
                 val decoded = GeoUtils.decodePolyline(snap.getString("encodedPolyline").orEmpty())
+                val originLat = snap.getDouble("originLat") ?: 21.4180
+                val originLng = snap.getDouble("originLng") ?: 39.8275
+                val destLat = snap.getDouble("destLat") ?: 21.4225
+                val destLng = snap.getDouble("destLng") ?: 39.8262
                 val waypoints = if (decoded.size >= 2) {
                     GeoUtils.toRoutePoints(decoded)
                 } else {
                     listOf(
-                        com.konvoiku.touring.model.RoutePoint(
-                            0.14f, 0.86f,
-                            snap.getDouble("originLat") ?: -6.648,
-                            snap.getDouble("originLng") ?: 106.845
-                        ),
-                        com.konvoiku.touring.model.RoutePoint(
-                            0.86f, 0.14f,
-                            snap.getDouble("destLat") ?: -6.7003,
-                            snap.getDouble("destLng") ?: 106.996
-                        )
+                        com.konvoiku.touring.model.RoutePoint(0.14f, 0.86f, originLat, originLng),
+                        com.konvoiku.touring.model.RoutePoint(0.86f, 0.14f, destLat, destLng)
                     )
                 }
                 val rawInstList = snap.get("routeInstructions") as? List<*>
@@ -848,19 +839,50 @@ class FirestoreConvoyRepository {
                         street = (map["street"] as? String).orEmpty()
                     )
                 }
+                val parsedDestName = snap.getString("destinationName") ?: "Masjidil Haram (Ka'bah)"
+                val parsedDestAddr = snap.getString("destinationAddress") ?: ""
+                val rawStops = snap.get("destinationStops") as? List<*>
+                val parsedStops = rawStops.orEmpty().mapIndexedNotNull { idx, item ->
+                    val m = item as? Map<*, *> ?: return@mapIndexedNotNull null
+                    val lat = (m["latitude"] as? Number)?.toDouble()?.takeIf { it.isFinite() }
+                        ?: return@mapIndexedNotNull null
+                    val lng = (m["longitude"] as? Number)?.toDouble()?.takeIf { it.isFinite() }
+                        ?: return@mapIndexedNotNull null
+                    val name = (m["name"] as? String)?.trim().orEmpty()
+                    if (name.isEmpty()) return@mapIndexedNotNull null
+                    DestinationStop(
+                        id = (m["id"] as? String)?.trim().orEmpty().ifBlank { "stop-${idx + 1}" },
+                        name = name,
+                        address = (m["address"] as? String).orEmpty(),
+                        latitude = lat,
+                        longitude = lng
+                    )
+                }.ifEmpty {
+                    listOf(
+                        DestinationStop(
+                            id = "stop-default-1",
+                            name = parsedDestName,
+                            address = parsedDestAddr,
+                            latitude = destLat,
+                            longitude = destLng
+                        )
+                    )
+                }
                 val leaderUid = snap.getString("leaderUid") ?: ""
                 val cfg = ConvoyRouteConfig(
-                    originName = snap.getString("originName")?.takeIf { it.isNotBlank() } ?: "Titik Keberangkatan",
+                    originName = snap.getString("originName")?.takeIf { it.isNotBlank() } ?: "Hotel Area Ajyad Makkah",
                     originAddress = snap.getString("originAddress") ?: "",
                     originLockedByLeader = true,
-                    destinationName = snap.getString("destinationName") ?: "Tujuan Konvoi",
-                    destinationAddress = snap.getString("destinationAddress") ?: "",
+                    destinationName = parsedDestName,
+                    destinationAddress = parsedDestAddr,
+                    destinationStops = parsedStops,
+                    estimatedDurationMillis = (snap.getLong("estimatedDurationMillis") ?: 0L).coerceAtLeast(0L),
                     routePreference = RoutePreference.fromId(snap.getString("routePreference")),
                     waypoints = waypoints,
                     routeInstructions = parsedInstructions,
                     checkpoints = emptyList(),
-                    totalRouteMeters = (snap.getLong("totalRouteMeters") ?: 12000L).toInt(),
-                    offRouteToleranceMeters = (snap.getLong("offRouteToleranceMeters") ?: 75L).toInt(),
+                    totalRouteMeters = (snap.getLong("totalRouteMeters") ?: 1800L).toInt(),
+                    offRouteToleranceMeters = (snap.getLong("offRouteToleranceMeters") ?: 50L).toInt(),
                     maxStragglerDistanceMeters = (snap.getLong("maxStragglerDistanceMeters") ?: 1000L).toInt(),
                     soundAlertEnabled = snap.getBoolean("soundAlertEnabled") ?: true
                 )
@@ -877,7 +899,7 @@ class FirestoreConvoyRepository {
                 onRoomHeader(
                     SyncedRoomHeader(
                         roomId = snap.getString("roomId") ?: cleanRoomId,
-                        roomTitle = snap.getString("roomTitle") ?: "Konvoi Live",
+                        roomTitle = snap.getString("roomTitle") ?: "Rombongan Safar Live",
                         leaderUid = leaderUid,
                         coLeaderUid = snap.getString("coLeaderUid") ?: "",
                         actingLeaderUid = snap.getString("actingLeaderUid")?.ifBlank { leaderUid } ?: leaderUid,
@@ -900,7 +922,7 @@ class FirestoreConvoyRepository {
                     val updatedTs = doc.getTimestamp("updatedAt")
                     ConvoyMember(
                         id = uid,
-                        fullName = doc.getString("fullName") ?: "Rider",
+                        fullName = doc.getString("fullName") ?: "Jamaah",
                         vehicleType = runCatching {
                             VehicleType.valueOf(doc.getString("vehicleType") ?: "MOBIL")
                         }.getOrDefault(VehicleType.MOBIL),
@@ -930,8 +952,8 @@ class FirestoreConvoyRepository {
                             routeProgress = (doc.getDouble("routeProgress") ?: 0.05).toFloat(),
                             xFraction = (doc.getDouble("xFraction") ?: 0.5).toFloat(),
                             yFraction = (doc.getDouble("yFraction") ?: 0.5).toFloat(),
-                            latitude = doc.getDouble("latitude") ?: -6.67,
-                            longitude = doc.getDouble("longitude") ?: 106.92,
+                            latitude = doc.getDouble("latitude") ?: 21.4225,
+                            longitude = doc.getDouble("longitude") ?: 39.8262,
                             speedKmh = (doc.getLong("speedKmh") ?: 0L).toInt(),
                             heading = (doc.getLong("heading") ?: 0L).toInt(),
                             accuracyMeters = (doc.getLong("accuracyMeters") ?: 20L).toInt()
@@ -949,11 +971,11 @@ class FirestoreConvoyRepository {
                 val cps = snap.documents.map { doc ->
                     RestCheckpoint(
                         id = doc.getString("id") ?: doc.id,
-                        name = doc.getString("name") ?: "Rest Area",
+                        name = doc.getString("name") ?: "Titik Kumpul",
                         xFraction = (doc.getDouble("xFraction") ?: 0.5).toFloat(),
                         yFraction = (doc.getDouble("yFraction") ?: 0.5).toFloat(),
-                        latitude = doc.getDouble("latitude") ?: -6.68,
-                        longitude = doc.getDouble("longitude") ?: 106.92
+                        latitude = doc.getDouble("latitude") ?: 21.4225,
+                        longitude = doc.getDouble("longitude") ?: 39.8262
                     )
                 }
                 onCheckpoints(cps)
@@ -971,7 +993,7 @@ class FirestoreConvoyRepository {
                     RoomMessage(
                         id = doc.getString("id") ?: doc.id,
                         senderId = senderUid,
-                        senderName = doc.getString("senderName") ?: "Rider",
+                        senderName = doc.getString("senderName") ?: "Jamaah",
                         senderVehicle = doc.getString("senderVehicle") ?: "",
                         type = runCatching {
                             ChatMessageType.valueOf(doc.getString("type") ?: "TEXT")
@@ -988,6 +1010,61 @@ class FirestoreConvoyRepository {
                     )
                 }
                 onMessages(msgs)
+            }
+
+        regs += db.collection("rooms").document(cleanRoomId)
+            .collection("activities")
+            .whereEqualTo("roomId", cleanRoomId)
+            .addSnapshotListener { snap, _ ->
+                if (snap == null) return@addSnapshotListener
+                val items = snap.documents.map { doc ->
+                    RoomActivityItem(
+                        id = doc.getString("id") ?: doc.id,
+                        title = doc.getString("title") ?: "Kegiatan Umroh",
+                        timeLabel = doc.getString("timeLabel") ?: "",
+                        locationNote = doc.getString("locationNote") ?: "",
+                        orderIndex = (doc.getLong("orderIndex") ?: 0L).toInt(),
+                        createdByUid = doc.getString("createdByUid") ?: "",
+                        createdAtMs = doc.getTimestamp("createdAt")?.toDate()?.time ?: 0L,
+                        updatedAtMs = doc.getTimestamp("updatedAt")?.toDate()?.time ?: 0L
+                    )
+                }.sortedWith(compareBy<RoomActivityItem> { it.orderIndex }.thenBy { it.createdAtMs })
+                onActivities(items)
+            }
+
+        regs += db.collection("rooms").document(cleanRoomId)
+            .collection("activityProgress")
+            .whereEqualTo("roomId", cleanRoomId)
+            .addSnapshotListener { snap, _ ->
+                if (snap == null) return@addSnapshotListener
+                val progressMap = linkedMapOf<String, RoomActivityMemberProgress>()
+                snap.documents.forEach { doc ->
+                    val uid = doc.getString("uid") ?: doc.id
+                    val completedIds = (doc.get("completedActivityIds") as? List<*>)
+                        ?.mapNotNull { it as? String }
+                        ?.filter { it.isNotBlank() }
+                        .orEmpty()
+                    val recordMap = linkedMapOf<String, String>()
+                    val rawRecords = (doc.get("completedRecords") as? List<*>)
+                        ?.mapNotNull { it as? String }
+                        .orEmpty()
+                    rawRecords.forEach { rec ->
+                        val parts = rec.split("|", limit = 2)
+                        val actId = parts.getOrNull(0)?.trim().orEmpty()
+                        val time = parts.getOrNull(1)?.trim().orEmpty()
+                        if (actId.isNotEmpty() && time.isNotEmpty()) {
+                            recordMap[actId] = time
+                        }
+                    }
+                    progressMap[uid] = RoomActivityMemberProgress(
+                        uid = uid,
+                        memberName = doc.getString("memberName") ?: "Jamaah",
+                        completedActivityIds = completedIds,
+                        completedAtByActivity = recordMap,
+                        updatedAtMs = doc.getTimestamp("updatedAt")?.toDate()?.time ?: 0L
+                    )
+                }
+                onActivityProgress(progressMap)
             }
 
         return { regs.forEach { it.remove() } }
@@ -1030,15 +1107,36 @@ class FirestoreConvoyRepository {
         val encoded = GeoUtils.encodePolyline(
             config.waypoints.map { LatLngGeo(it.latitude, it.longitude) }
         ).take(16000)
+        val stopsPayload = config.destinationStops
+            .take(12)
+            .mapIndexed { idx, s ->
+                val sName = s.name.trim().ifBlank { "Tujuan ${idx + 1}" }.take(120)
+                val sAddr = s.address.trim().ifBlank {
+                    String.format(Locale.US, "%s · %.4f, %.4f", sName, s.latitude, s.longitude)
+                }.take(240)
+                hashMapOf<String, Any>(
+                    "id" to s.id.trim().ifBlank { "stop-${idx + 1}" }.take(64),
+                    "name" to sName,
+                    "address" to sAddr,
+                    "latitude" to s.latitude,
+                    "longitude" to s.longitude
+                )
+            }
+        val safeDestName = config.destinationName.trim().ifBlank { "Masjidil Haram (Ka'bah)" }.take(120)
+        val safeDestAddr = config.destinationAddress.trim().ifBlank {
+            String.format(Locale.US, "%s · %.4f, %.4f", safeDestName, dest?.latitude ?: 21.4225, dest?.longitude ?: 39.8262)
+        }.take(240)
         val updates = hashMapOf<String, Any>(
             "originName" to config.originName.take(120),
             "originAddress" to config.originAddress.take(240),
-            "destinationName" to config.destinationName.take(120),
-            "destinationAddress" to config.destinationAddress.take(240),
+            "destinationName" to safeDestName,
+            "destinationAddress" to safeDestAddr,
+            "destinationStops" to stopsPayload,
             "encodedPolyline" to encoded,
             "routePreference" to config.routePreference.id,
             "routeInstructions" to GeoUtils.compactInstructionsForSync(config.routeInstructions),
             "totalRouteMeters" to config.totalRouteMeters.coerceIn(100, 5_000_000),
+            "estimatedDurationMillis" to config.estimatedDurationMillis.coerceIn(0L, 604_800_000L),
             "offRouteToleranceMeters" to config.offRouteToleranceMeters.coerceIn(10, 5000),
             "maxStragglerDistanceMeters" to config.maxStragglerDistanceMeters.coerceIn(100, 50000),
             "soundAlertEnabled" to config.soundAlertEnabled,
@@ -1239,7 +1337,7 @@ class FirestoreConvoyRepository {
         val safeId = record.id.replace(Regex("[^a-zA-Z0-9_-]"), "").take(64)
             .ifBlank { "trip-${System.currentTimeMillis()}" }
         val roomCode = record.roomId.trim().uppercase(Locale.ROOT).take(24)
-            .ifBlank { "KNV-0000" }
+            .ifBlank { "UMR-0000" }
         val validWaypoints = record.waypoints
             .filter { GeoUtils.hasValidGeoCoord(it.latitude, it.longitude) }
             .map { LatLngGeo(it.latitude, it.longitude) }
@@ -1253,7 +1351,7 @@ class FirestoreConvoyRepository {
         val compactParticipants = record.participants.take(40).map { p ->
             hashMapOf<String, Any>(
                 "id" to p.id.take(128),
-                "fullName" to p.fullName.trim().ifBlank { "Rider" }.take(80),
+                "fullName" to p.fullName.trim().ifBlank { "Jamaah" }.take(80),
                 "vehicleType" to p.vehicleType.name,
                 "vehicleDetail" to p.vehicleDetail.take(80),
                 "licensePlate" to p.licensePlate.take(32),
@@ -1268,7 +1366,7 @@ class FirestoreConvoyRepository {
                 "id" to safeId,
                 "ownerUid" to uid,
                 "roomId" to roomCode,
-                "tourTitle" to record.tourTitle.trim().ifBlank { "Konvoi Touring" }.take(100),
+                "tourTitle" to record.tourTitle.trim().ifBlank { "Safar Rombongan Umroh" }.take(100),
                 "dateLabel" to record.dateLabel.take(32),
                 "timeRangeLabel" to record.timeRangeLabel.take(32),
                 "durationLabel" to record.durationLabel.take(32),
@@ -1318,8 +1416,8 @@ class FirestoreConvoyRepository {
                             id = (m["id"] as? String).orEmpty().ifBlank { "p-$idx" },
                             fullName = name,
                             vehicleType = runCatching {
-                                VehicleType.valueOf((m["vehicleType"] as? String) ?: "MOTOR")
-                            }.getOrDefault(VehicleType.MOTOR),
+                                VehicleType.valueOf((m["vehicleType"] as? String) ?: "MOBIL")
+                            }.getOrDefault(VehicleType.MOBIL),
                             vehicleDetail = (m["vehicleDetail"] as? String).orEmpty(),
                             licensePlate = (m["licensePlate"] as? String).orEmpty(),
                             role = runCatching {
@@ -1333,8 +1431,8 @@ class FirestoreConvoyRepository {
                     }
                     val record = TripHistoryRecord(
                         id = doc.getString("id") ?: doc.id,
-                        roomId = doc.getString("roomId") ?: "KNV-0000",
-                        tourTitle = doc.getString("tourTitle") ?: "Konvoi Touring",
+                        roomId = doc.getString("roomId") ?: "UMR-0000",
+                        tourTitle = doc.getString("tourTitle") ?: "Safar Rombongan",
                         dateLabel = doc.getString("dateLabel") ?: "-",
                         timeRangeLabel = doc.getString("timeRangeLabel") ?: "-",
                         durationLabel = doc.getString("durationLabel") ?: "-",
@@ -1345,7 +1443,7 @@ class FirestoreConvoyRepository {
                         userRole = runCatching {
                             UserRole.valueOf(doc.getString("userRole") ?: "MEMBER")
                         }.getOrDefault(UserRole.MEMBER),
-                        destinationName = doc.getString("destinationName") ?: "Tujuan Konvoi",
+                        destinationName = doc.getString("destinationName") ?: "Masjidil Haram (Ka'bah)",
                         destinationAddress = doc.getString("destinationAddress") ?: "",
                         waypoints = waypoints,
                         visitedCheckpoints = emptyList(),
@@ -1357,6 +1455,215 @@ class FirestoreConvoyRepository {
                 .take(40)
                 .map { it.second }
         }.getOrDefault(emptyList())
+    }
+
+    suspend fun loadManasikProgress(uid: String): ManasikProgressState? {
+        val db = getFirestore() ?: return null
+        return runCatching {
+            val snap = db.collection("users").document(uid)
+                .collection("manasik")
+                .whereEqualTo("ownerUid", uid)
+                .get()
+                .await()
+            var umrah = ManasikGuideProgress()
+            var haji = ManasikGuideProgress()
+            snap.documents.forEach { doc ->
+                val guideId = doc.getString("guideId") ?: doc.id
+                val completed = (doc.get("completedStepIds") as? List<*>)
+                    ?.mapNotNull { it as? String }
+                    ?.filter { it.isNotBlank() }
+                    .orEmpty()
+                val checkIns = linkedMapOf<String, ManasikCheckInRecord>()
+                val rawCheckIns = (doc.get("checkInRecords") as? List<*>)
+                    ?.mapNotNull { it as? String }
+                    .orEmpty()
+                rawCheckIns.forEach { line ->
+                    val parts = line.split("|")
+                    if (parts.size >= 6) {
+                        val stepId = parts[0].trim()
+                        if (stepId.isNotEmpty()) {
+                            checkIns[stepId] = ManasikCheckInRecord(
+                                stepId = stepId,
+                                landmarkName = parts[1].trim(),
+                                checkedInAtLabel = parts[2].trim(),
+                                distanceMeters = parts[3].trim().toIntOrNull() ?: 0,
+                                latitude = parts[4].trim().toDoubleOrNull() ?: 21.4225,
+                                longitude = parts[5].trim().toDoubleOrNull() ?: 39.8262
+                            )
+                        }
+                    }
+                }
+                val guideProgress = ManasikGuideProgress(
+                    completedStepIds = completed,
+                    checkInRecords = checkIns,
+                    updatedAtMs = doc.getTimestamp("updatedAt")?.toDate()?.time ?: 0L
+                )
+                if (guideId == ManasikGuideType.UMRAH.id) {
+                    umrah = guideProgress
+                } else if (guideId == ManasikGuideType.HAJI.id) {
+                    haji = guideProgress
+                }
+            }
+            ManasikProgressState(umrah = umrah, haji = haji)
+        }.getOrNull()
+    }
+
+    suspend fun saveManasikProgress(
+        uid: String,
+        guideType: ManasikGuideType,
+        progress: ManasikGuideProgress
+    ) {
+        val db = getFirestore() ?: return
+        val guideId = guideType.id
+        val docRef = db.collection("users").document(uid)
+            .collection("manasik").document(guideId)
+        val completedList = progress.completedStepIds
+            .map { it.trim().take(64) }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .take(24)
+        val checkInLines = progress.checkInRecords.values.take(24).map { r ->
+            String.format(
+                Locale.US,
+                "%s|%s|%s|%d|%.5f|%.5f",
+                r.stepId.take(40),
+                r.landmarkName.replace("|", " ").take(80),
+                r.checkedInAtLabel.take(24),
+                r.distanceMeters.coerceAtLeast(0),
+                r.latitude,
+                r.longitude
+            ).take(240)
+        }
+        runCatching {
+            val exists = runCatching { docRef.get().await().exists() }.getOrDefault(false)
+            if (exists) {
+                docRef.update(
+                    mapOf(
+                        "completedStepIds" to completedList,
+                        "checkInRecords" to checkInLines,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+            } else {
+                docRef.set(
+                    mapOf(
+                        "guideId" to guideId,
+                        "ownerUid" to uid,
+                        "completedStepIds" to completedList,
+                        "checkInRecords" to checkInLines,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+            }
+        }
+    }
+
+    suspend fun addSyncedRoomActivity(
+        roomId: String,
+        createdByUid: String,
+        activity: RoomActivityItem
+    ) {
+        val db = getFirestore() ?: return
+        val cleanRoomId = normalizeRoomId(roomId)
+        val safeId = activity.id.replace(Regex("[^a-zA-Z0-9_-]"), "").take(64)
+            .ifBlank { "act-${System.currentTimeMillis()}" }
+        runCatching {
+            db.collection("rooms").document(cleanRoomId)
+                .collection("activities").document(safeId)
+                .set(
+                    mapOf(
+                        "id" to safeId,
+                        "roomId" to cleanRoomId,
+                        "createdByUid" to createdByUid.take(128),
+                        "title" to activity.title.trim().ifBlank { "Kegiatan Umroh" }.take(100),
+                        "timeLabel" to activity.timeLabel.trim().take(32),
+                        "locationNote" to activity.locationNote.trim().take(120),
+                        "orderIndex" to activity.orderIndex.coerceIn(0, 200),
+                        "createdAt" to FieldValue.serverTimestamp(),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+        }
+    }
+
+    suspend fun updateSyncedRoomActivityOrder(
+        roomId: String,
+        activityId: String,
+        orderIndex: Int
+    ) {
+        val db = getFirestore() ?: return
+        val cleanRoomId = normalizeRoomId(roomId)
+        val safeId = activityId.replace(Regex("[^a-zA-Z0-9_-]"), "").take(64)
+        if (safeId.isBlank()) return
+        runCatching {
+            db.collection("rooms").document(cleanRoomId)
+                .collection("activities").document(safeId)
+                .update(
+                    mapOf(
+                        "orderIndex" to orderIndex.coerceIn(0, 200),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+        }
+    }
+
+    suspend fun removeSyncedRoomActivity(roomId: String, activityId: String) {
+        val db = getFirestore() ?: return
+        val cleanRoomId = normalizeRoomId(roomId)
+        val safeId = activityId.replace(Regex("[^a-zA-Z0-9_-]"), "").take(64)
+        if (safeId.isBlank()) return
+        runCatching {
+            db.collection("rooms").document(cleanRoomId)
+                .collection("activities").document(safeId)
+                .delete().await()
+        }
+    }
+
+    suspend fun saveMemberRoomActivityProgress(
+        roomId: String,
+        uid: String,
+        memberName: String,
+        completedIds: List<String>,
+        completedAtByActivity: Map<String, String>
+    ) {
+        val db = getFirestore() ?: return
+        val cleanRoomId = normalizeRoomId(roomId)
+        val docRef = db.collection("rooms").document(cleanRoomId)
+            .collection("activityProgress").document(uid)
+        val cleanIds = completedIds
+            .map { it.trim().take(64) }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .take(40)
+        val cleanRecords = cleanIds.map { actId ->
+            val clock = completedAtByActivity[actId]?.trim().orEmpty().ifBlank { "Selesai" }
+            "$actId|${clock.replace("|", " ")}".take(96)
+        }
+        val cleanName = memberName.trim().ifBlank { "Jamaah" }.take(80)
+        runCatching {
+            val exists = runCatching { docRef.get().await().exists() }.getOrDefault(false)
+            if (exists) {
+                docRef.update(
+                    mapOf(
+                        "memberName" to cleanName,
+                        "completedActivityIds" to cleanIds,
+                        "completedRecords" to cleanRecords,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+            } else {
+                docRef.set(
+                    mapOf(
+                        "uid" to uid,
+                        "roomId" to cleanRoomId,
+                        "memberName" to cleanName,
+                        "completedActivityIds" to cleanIds,
+                        "completedRecords" to cleanRecords,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+            }
+        }
     }
 
     fun isAdminEmail(email: String?): Boolean =
@@ -1538,7 +1845,7 @@ class FirestoreConvoyRepository {
                                 val uid = mDoc.getString("uid") ?: mDoc.id
                                 ConvoyMember(
                                     id = uid,
-                                    fullName = mDoc.getString("fullName") ?: "Rider",
+                                    fullName = mDoc.getString("fullName") ?: "Jamaah",
                                     vehicleType = runCatching {
                                         VehicleType.valueOf(mDoc.getString("vehicleType") ?: "MOBIL")
                                     }.getOrDefault(VehicleType.MOBIL),
@@ -1582,7 +1889,7 @@ class FirestoreConvoyRepository {
                 val updatedTs = doc.getTimestamp("updatedAt")
                 AdminRoomOverview(
                     roomId = roomId,
-                    roomTitle = doc.getString("roomTitle") ?: "Konvoi Live",
+                    roomTitle = doc.getString("roomTitle") ?: "Rombongan Safar Live",
                     leaderUid = doc.getString("leaderUid").orEmpty(),
                     destinationName = doc.getString("destinationName") ?: "-",
                     status = if (doc.getString("status") == "FINISHED") "FINISHED" else "ACTIVE",

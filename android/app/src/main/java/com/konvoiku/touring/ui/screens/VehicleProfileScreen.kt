@@ -28,12 +28,12 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Badge
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContactPhone
-import androidx.compose.material.icons.rounded.DirectionsCar
+import androidx.compose.material.icons.rounded.DirectionsBus
+import androidx.compose.material.icons.rounded.DirectionsWalk
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PhotoLibrary
-import androidx.compose.material.icons.rounded.TwoWheeler
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -115,7 +115,7 @@ fun VehicleProfileScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Profil Kendaraan",
+                            text = "Profil Jamaah & Safar",
                             style = MaterialTheme.typography.titleMedium
                         )
                         Text(
@@ -175,9 +175,9 @@ fun VehicleProfileScreen(
                 ) {
                     Text(
                         text = if (selectedRole == UserRole.TOUR_LEADER) {
-                            "Lanjut Setup Konvoi"
+                            "Lanjut Buat Rombongan"
                         } else {
-                            "Lanjut Gabung Konvoi"
+                            "Lanjut Gabung Rombongan"
                         },
                         fontWeight = FontWeight.SemiBold
                     )
@@ -206,7 +206,7 @@ fun VehicleProfileScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = "Lengkapi foto profil/avatar dan identitas kendaraan agar Anda mudah dikenali di peta, daftar peserta, dan chat konvoi.",
+                    text = "Lengkapi foto profil/avatar dan identitas rombongan agar Anda mudah dikenali di peta, daftar jamaah, dan chat safar.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
@@ -231,14 +231,14 @@ fun VehicleProfileScreen(
                         ConvoyAvatar(
                             preset = profile.avatarPreset,
                             photoUri = profile.avatarPhotoUri,
-                            displayName = profile.fullName.ifBlank { "Rider" },
+                            displayName = profile.fullName.ifBlank { "Jamaah" },
                             size = 64.dp,
                             borderColor = MaterialTheme.colorScheme.primary,
                             borderWidth = 2.5.dp
                         )
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(
-                                text = "Foto Profil / Avatar Konvoi",
+                                text = "Foto Profil / Avatar Jamaah",
                                 style = MaterialTheme.typography.titleMedium
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -270,7 +270,7 @@ fun VehicleProfileScreen(
                     }
 
                     Text(
-                        text = "Atau pilih avatar karakter rider bawaan:",
+                        text = "Atau pilih avatar karakter jamaah bawaan:",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -323,7 +323,7 @@ fun VehicleProfileScreen(
                 value = profile.fullName,
                 onValueChange = { onUpdateProfile(it, null, null, null, null, null, null, false) },
                 label = { Text("Nama Lengkap") },
-                placeholder = { Text("Contoh: Budi Santoso") },
+                placeholder = { Text("Contoh: Ahmad Fauzi") },
                 leadingIcon = {
                     Icon(Icons.Rounded.Person, contentDescription = null)
                 },
@@ -340,10 +340,10 @@ fun VehicleProfileScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // 2. Jenis Kendaraan (Mobil / Motor)
+            // 2. Tipe Perjalanan (Bus / Pejalan Kaki)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "Jenis Kendaraan",
+                    text = "Tipe Perjalanan",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onBackground
                 )
@@ -362,9 +362,9 @@ fun VehicleProfileScreen(
                             icon = {
                                 Icon(
                                     imageVector = if (type == VehicleType.MOBIL) {
-                                        Icons.Rounded.DirectionsCar
+                                        Icons.Rounded.DirectionsBus
                                     } else {
-                                        Icons.Rounded.TwoWheeler
+                                        Icons.Rounded.DirectionsWalk
                                     },
                                     contentDescription = null,
                                     modifier = Modifier.size(18.dp)
@@ -380,17 +380,17 @@ fun VehicleProfileScreen(
                 }
             }
 
-            // 3. Model & Warna Kendaraan (untuk Label Marker Peta)
+            // 3. Info Bus / Kloter (untuk Label Marker Peta)
             OutlinedTextField(
                 value = profile.vehicleDetail,
                 onValueChange = { onUpdateProfile(null, null, it, null, null, null, null, false) },
-                label = { Text("Model & Warna Kendaraan (Opsional)") },
+                label = { Text("Info Bus / Kloter (Opsional)") },
                 placeholder = {
                     Text(
                         if (profile.vehicleType == VehicleType.MOBIL) {
-                            "Contoh: Avanza Hitam"
+                            "Contoh: Bus Rombongan #1"
                         } else {
-                            "Contoh: Nmax Putih"
+                            "Contoh: Jamaah Kloter A"
                         }
                     )
                 },
@@ -398,7 +398,7 @@ fun VehicleProfileScreen(
                     Icon(Icons.Rounded.Palette, contentDescription = null)
                 },
                 supportingText = {
-                    Text("Ditampilkan pada label marker peta, misal: Budi - Avanza Hitam.")
+                    Text("Ditampilkan pada label marker peta, misal: Ahmad - Bus Rombongan #1.")
                 },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
@@ -409,18 +409,18 @@ fun VehicleProfileScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // 4. Nomor Plat Kendaraan
+            // 4. Kode Kloter / Regu
             OutlinedTextField(
                 value = profile.licensePlate,
                 onValueChange = { onUpdateProfile(null, null, null, it, null, null, null, false) },
-                label = { Text("Nomor Plat Kendaraan") },
-                placeholder = { Text("Contoh: B 1945 KNV") },
+                label = { Text("Kode Kloter / Regu") },
+                placeholder = { Text("Contoh: KLOTER-01") },
                 leadingIcon = {
                     Icon(Icons.Rounded.Badge, contentDescription = null)
                 },
                 isError = plateError,
                 supportingText = if (plateError) {
-                    { Text("Masukkan nomor plat kendaraan yang valid") }
+                    { Text("Masukkan kode kloter / regu minimal 3 karakter") }
                 } else null,
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
@@ -444,7 +444,7 @@ fun VehicleProfileScreen(
                 supportingText = if (contactError) {
                     { Text("Masukkan nomor kontak darurat minimal 8 digit") }
                 } else {
-                    { Text("Digunakan jika terjadi kendala darurat saat konvoi.") }
+                    { Text("Digunakan jika terjadi kendala darurat saat safar / ibadah.") }
                 },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(

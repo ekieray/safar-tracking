@@ -73,7 +73,7 @@ fun JoinTourScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "Gabung Room Konvoi",
+                        text = "Gabung Room Safar",
                         style = MaterialTheme.typography.titleMedium
                     )
                 },
@@ -112,7 +112,7 @@ fun JoinTourScreen(
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Text(
-                        text = "Masukkan Room ID atau tempel link undangan yang dibagikan oleh Tour Leader.",
+                        text = "Masukkan Room ID atau tempel link undangan yang dibagikan oleh Mutawwif / Ketua.",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -122,7 +122,7 @@ fun JoinTourScreen(
                         value = joinInput,
                         onValueChange = onInputChange,
                         label = { Text("Room ID atau Link Undangan") },
-                        placeholder = { Text("KNV-8492 atau https://konvoiku.id/join/KNV-8492") },
+                        placeholder = { Text("UMR-8492 atau https://safartracking.id/join/UMR-8492") },
                         leadingIcon = {
                             Icon(Icons.Rounded.Link, contentDescription = null)
                         },
@@ -165,10 +165,10 @@ fun JoinTourScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         TextButton(
-                            onClick = { onInputChange("https://konvoiku.id/join/KNV-8492") }
+                            onClick = { onInputChange("https://safartracking.id/join/UMR-8492") }
                         ) {
                             Text(
-                                text = "KNV-8492",
+                                text = "UMR-8492",
                                 fontFamily = FontFamily.Monospace
                             )
                         }
@@ -193,7 +193,7 @@ fun JoinTourScreen(
                     ConvoyAvatar(
                         preset = vehicleProfile.avatarPreset,
                         photoUri = vehicleProfile.avatarPhotoUri,
-                        displayName = vehicleProfile.fullName.ifBlank { "Anggota" },
+                        displayName = vehicleProfile.fullName.ifBlank { "Jamaah" },
                         size = 46.dp,
                         borderColor = MaterialTheme.colorScheme.primary
                     )
@@ -207,7 +207,7 @@ fun JoinTourScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = vehicleProfile.fullName.ifBlank { "Anggota Touring" },
+                            text = vehicleProfile.fullName.ifBlank { "Jamaah Safar" },
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -261,7 +261,7 @@ fun JoinTourScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Masuk Konvoi",
+                            text = "Masuk Rombongan",
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -277,7 +277,7 @@ fun JoinTourScreen(
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                 ) {
                     Text(
-                        text = "Coba Simulasi Demo Offline (KNV-8492)",
+                        text = "Coba Simulasi Demo Offline (UMR-8492)",
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.primary
                     )

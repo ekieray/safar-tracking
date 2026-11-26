@@ -59,11 +59,13 @@ import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.Coffee
 import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.DirectionsCar
+import androidx.compose.material.icons.rounded.DirectionsBus
+import androidx.compose.material.icons.rounded.DirectionsWalk
 import androidx.compose.material.icons.rounded.EditLocationAlt
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
@@ -72,6 +74,7 @@ import androidx.compose.material.icons.rounded.GpsFixed
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.NotificationsActive
@@ -87,7 +90,6 @@ import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Sos
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Stop
-import androidx.compose.material.icons.rounded.TwoWheeler
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.VolumeUp
@@ -159,6 +161,8 @@ import com.konvoiku.touring.model.DestinationEtaInfo
 import com.konvoiku.touring.model.GpsTrackingStatus
 import com.konvoiku.touring.model.MemberConditionStatus
 import com.konvoiku.touring.model.OffRouteAlertState
+import com.konvoiku.touring.model.RoomActivityItem
+import com.konvoiku.touring.model.RoomActivityMemberProgress
 import com.konvoiku.touring.model.RoomMessage
 import com.konvoiku.touring.model.RouteInstruction
 import com.konvoiku.touring.model.RoutePoint
@@ -206,8 +210,13 @@ fun LiveTrackingMapScreen(
     isLeaderTroubleSimActive: Boolean = false,
     gpsStatus: GpsTrackingStatus = GpsTrackingStatus.IDLE,
     gpsAccuracyMeters: Int = 20,
-    activeWebBaseUrl: String = "https://ais-pre-mbwxrxf647cphhl5i4ggug-588877716211.asia-southeast1.run.app",
+    activeWebBaseUrl: String = "https://ais-pre-3puhws3li7lokxfmbtgyz4-588877716211.asia-southeast1.run.app",
     destinationPresets: List<ConvoyViewModel.DestinationPreset>,
+    roomActivities: List<RoomActivityItem> = emptyList(),
+    roomActivityProgress: Map<String, RoomActivityMemberProgress> = emptyMap(),
+    currentUserUid: String = "",
+    onOpenManasik: (String) -> Unit = {},
+    onAddDestinationPoint: (Double, Double, String?, String?) -> Unit = { _, _, _, _ -> },
     onLocationPermissionResult: (Boolean) -> Unit = {},
     onRetryGps: () -> Unit = {},
     onSelectMember: (String) -> Unit,
@@ -248,6 +257,7 @@ fun LiveTrackingMapScreen(
     var isParticipantsExpanded by remember { mutableStateOf(false) }
     var showChatSheet by remember { mutableStateOf(false) }
     var showLeaderSettingsSheet by remember { mutableStateOf(false) }
+    var isLeaderAddPointMode by remember { mutableStateOf(false) }
     var showShareRoomDialog by remember { mutableStateOf(false) }
     var copiedShareHint by remember { mutableStateOf<String?>(null) }
     var destSearchQuery by remember { mutableStateOf("") }
@@ -412,8 +422,14 @@ fun LiveTrackingMapScreen(
         speedHistory = (speedHistory.drop(1) + convoyAvgSpeedKmh).takeLast(10)
     }
 
-    val initialLat = trackedMember?.mapPosition?.latitude ?: -6.674
-    val initialLng = trackedMember?.mapPosition?.longitude ?: 106.925
+    val myActivityProgress = roomActivityProgress[currentUserUid]
+        ?: currentUser?.let { roomActivityProgress[it.id] }
+    val myDoneActivityIds = myActivityProgress?.completedActivityIds.orEmpty().toSet()
+    val totalActivitiesCount = roomActivities.size
+    val myActivitiesDoneCount = roomActivities.count { it.id in myDoneActivityIds }
+
+    val initialLat = trackedMember?.mapPosition?.latitude ?: 21.4225
+    val initialLng = trackedMember?.mapPosition?.longitude ?: 39.8262
     val mapController = rememberTomTomMapController()
     var isAutoFollowing by remember { mutableStateOf(true) }
     val activeNavMode = isNavigationMode && !isPickingDestinationOnMap
@@ -452,22 +468,27 @@ fun LiveTrackingMapScreen(
 
     val routeEndpointsKey = remember(
         routeConfig.destinationName,
+        routeConfig.destinationStops,
         routeConfig.routePreference,
         routeConfig.waypoints,
         currentUser?.vehicleType
     ) {
         val first = routeConfig.waypoints.firstOrNull()
         val last = routeConfig.waypoints.lastOrNull()
+        val stopsSig = routeConfig.destinationStops.joinToString(";") {
+            String.format(Locale.US, "%.4f,%.4f", it.latitude, it.longitude)
+        }
         String.format(
             Locale.US,
-            "%s|%s|%s|%.5f,%.5f->%.5f,%.5f",
+            "%s|%s|%s|%.5f,%.5f->%.5f,%.5f|%s",
             routeConfig.destinationName,
             routeConfig.routePreference.id,
             currentUser?.vehicleType?.name ?: "MOTOR",
             first?.latitude ?: 0.0,
             first?.longitude ?: 0.0,
             last?.latitude ?: 0.0,
-            last?.longitude ?: 0.0
+            last?.longitude ?: 0.0,
+            stopsSig
         )
     }
 
@@ -543,7 +564,7 @@ fun LiveTrackingMapScreen(
                 title = {
                     Column {
                         Text(
-                            text = "${activeRoom?.roomId ?: "KNV-0000"} · Live",
+                            text = "${activeRoom?.roomId ?: "UMR-0000"} · Live",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
@@ -590,7 +611,7 @@ fun LiveTrackingMapScreen(
                             }
                         },
                         shape = RoundedCornerShape(10.dp),
-                        color = if (isNavigationMode) Color(0xFFEA580C) else MaterialTheme.colorScheme.primaryContainer,
+                        color = if (isNavigationMode) Color(0xFFB45309) else MaterialTheme.colorScheme.primaryContainer,
                         contentColor = if (isNavigationMode) Color.White else MaterialTheme.colorScheme.primary
                     ) {
                         Row(
@@ -599,7 +620,7 @@ fun LiveTrackingMapScreen(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             NavCompassArrowCanvasIcon(
-                                tint = if (isNavigationMode) Color.White else Color(0xFFEA580C),
+                                tint = if (isNavigationMode) Color.White else Color(0xFFB45309),
                                 modifier = Modifier.size(13.dp)
                             )
                             Text(
@@ -688,7 +709,7 @@ fun LiveTrackingMapScreen(
                                 " · Sweeper: ${it.fullName}${if (it.isAutoSweeper) " (Auto)" else ""}"
                             }.orEmpty()
                             Text(
-                                text = "Peserta (${members.size})$sweeperText",
+                                text = "Jamaah (${members.size})$sweeperText",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.primary,
                                 maxLines = 1,
@@ -697,7 +718,7 @@ fun LiveTrackingMapScreen(
                             )
                             Icon(
                                 imageVector = if (isParticipantsExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                                contentDescription = "Buka atau Tutup Daftar Peserta",
+                                contentDescription = "Buka atau Tutup Daftar Jamaah",
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -740,7 +761,7 @@ fun LiveTrackingMapScreen(
                                     listOf(
                                         MemberConditionStatus.AMAN to "Aman",
                                         MemberConditionStatus.ISTIRAHAT to "Istirahat",
-                                        MemberConditionStatus.MOGOK to "Mogok"
+                                        MemberConditionStatus.MOGOK to "Butuh Bantuan"
                                     ).forEach { (status, shortLabel) ->
                                         FilterChip(
                                             selected = currentUser?.conditionStatus == status,
@@ -883,6 +904,7 @@ fun LiveTrackingMapScreen(
                     focusedMember?.id,
                     routeConfig.checkpoints,
                     routeConfig.destinationName,
+                    routeConfig.destinationStops,
                     routeConfig.offRouteToleranceMeters,
                     etaInfo.arrivalClockLabel,
                     etaInfo.durationLabel,
@@ -893,12 +915,29 @@ fun LiveTrackingMapScreen(
                     stragglerAlert.trailingMember?.id
                 ) {
                     buildList<TomTomMapPin> {
+                        if (routeConfig.destinationStops.size > 1) {
+                            routeConfig.destinationStops.dropLast(1).forEachIndexed { idx, stop ->
+                                add(
+                                    TomTomMapPin.WaypointBadgePin(
+                                        latitude = stop.latitude,
+                                        longitude = stop.longitude,
+                                        label = "${idx + 1}. ${stop.name.take(12)}",
+                                        colorHex = 0xFFB45309.toInt()
+                                    )
+                                )
+                            }
+                        }
                         if (destPoint != null) {
+                            val stopLabel = if (routeConfig.destinationStops.size > 1) {
+                                "Tujuan ${routeConfig.destinationStops.size}: ${routeConfig.destinationName}"
+                            } else {
+                                "Tujuan: ${routeConfig.destinationName}"
+                            }
                             add(
                                 TomTomMapPin.DestinationPin(
                                     latitude = destPoint.latitude,
                                     longitude = destPoint.longitude,
-                                    title = "Tujuan: ${routeConfig.destinationName}",
+                                    title = stopLabel,
                                     subtitle = "ETA ${etaInfo.arrivalClockLabel} · ${etaInfo.durationLabel} · ${etaInfo.distanceLabel}"
                                 )
                             )
@@ -1101,7 +1140,7 @@ fun LiveTrackingMapScreen(
                             if (activeRoom?.isSyncedRoom == true) {
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = Color(0xE61D4ED8),
+                                    color = Color(0xE6047857),
                                     contentColor = Color.White,
                                     shadowElevation = 3.dp
                                 ) {
@@ -1120,7 +1159,7 @@ fun LiveTrackingMapScreen(
                         // Economical TomTom API Key Ping Indicator Badge
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = if (canPingTomTomRouting) Color(0xEB4338CA) else Color(0xEB0F766E),
+                            color = if (canPingTomTomRouting) Color(0xEB065F46) else Color(0xEB0F766E),
                             contentColor = Color.White,
                             shadowElevation = 3.dp
                         ) {
@@ -1132,13 +1171,49 @@ fun LiveTrackingMapScreen(
                                 Icon(Icons.Rounded.Route, contentDescription = null, modifier = Modifier.size(12.dp))
                                 Text(
                                     text = if (canPingTomTomRouting) {
-                                        if (activeRoom?.leaderTroubleActive == true) "Ping TomTom: Plt. Leader" else "Ping TomTom: HP Leader"
+                                        if (activeRoom?.leaderTroubleActive == true) "Ping TomTom: Plt. Ketua" else "Ping TomTom: HP Ketua"
                                     } else {
-                                        "Salinan Rute Leader (Hemat API)"
+                                        "Salinan Rute Ketua (Hemat API)"
                                     },
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
+                            }
+                        }
+
+                        // Compact Non-Overlapping Quick Entry to Manasik & Checklist Kegiatan
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Surface(
+                                onClick = { onOpenManasik("manasik") },
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xEB047857),
+                                contentColor = Color.White,
+                                shadowElevation = 3.dp
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Rounded.MenuBook, contentDescription = "Panduan Manasik", modifier = Modifier.size(13.dp))
+                                    Text("Manasik", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Surface(
+                                onClick = { onOpenManasik("activities") },
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xEBB45309),
+                                contentColor = Color.White,
+                                shadowElevation = 3.dp
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Checklist, contentDescription = "Checklist Kegiatan", modifier = Modifier.size(13.dp))
+                                    Text("Kegiatan $myActivitiesDoneCount/$totalActivitiesCount", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
 
@@ -1310,11 +1385,11 @@ fun LiveTrackingMapScreen(
                                 }
                             }
                         },
-                        containerColor = if (isNavigationMode) Color(0xFFEA580C) else MaterialTheme.colorScheme.surface,
-                        contentColor = if (isNavigationMode) Color.White else Color(0xFFEA580C)
+                        containerColor = if (isNavigationMode) Color(0xFFB45309) else MaterialTheme.colorScheme.surface,
+                        contentColor = if (isNavigationMode) Color.White else Color(0xFFB45309)
                     ) {
                         NavCompassArrowCanvasIcon(
-                            tint = if (isNavigationMode) Color.White else Color(0xFFEA580C),
+                            tint = if (isNavigationMode) Color.White else Color(0xFFB45309),
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -1414,7 +1489,7 @@ fun LiveTrackingMapScreen(
                                         modifier = Modifier
                                             .size(7.dp)
                                             .align(Alignment.TopEnd)
-                                            .background(Color(0xFFEA580C), CircleShape)
+                                            .background(Color(0xFFB45309), CircleShape)
                                     )
                                 }
                             }
@@ -1599,7 +1674,7 @@ fun LiveTrackingMapScreen(
                                         )
                                     }
                                     Text(
-                                        text = "${activeRoom?.roomId ?: "KNV-0000"} · Auto-hide ${sideInfoSecondsLeft}d",
+                                        text = "${activeRoom?.roomId ?: "UMR-0000"} · Auto-hide ${sideInfoSecondsLeft}d",
                                         fontSize = 10.sp,
                                         fontFamily = FontFamily.Monospace,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1750,7 +1825,7 @@ fun LiveTrackingMapScreen(
                                                     }
                                                     drawPath(
                                                         path = linePath,
-                                                        color = Color(0xFF1D4ED8),
+                                                        color = Color(0xFF047857),
                                                         style = Stroke(width = 4f, cap = StrokeCap.Round)
                                                     )
                                                 }
@@ -1835,6 +1910,40 @@ fun LiveTrackingMapScreen(
                                         }
                                     }
                                     if (activeRoom != null) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(top = 4.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            OutlinedButton(
+                                                onClick = {
+                                                    showSideInfoDrawer = false
+                                                    onOpenManasik("manasik")
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                                                shape = RoundedCornerShape(10.dp)
+                                            ) {
+                                                Icon(Icons.Rounded.MenuBook, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Manasik", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                            }
+                                            Button(
+                                                onClick = {
+                                                    showSideInfoDrawer = false
+                                                    onOpenManasik("activities")
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                                                shape = RoundedCornerShape(10.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                            ) {
+                                                Icon(Icons.Rounded.Checklist, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Kegiatan $myActivitiesDoneCount/$totalActivitiesCount", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                            }
+                                        }
                                         OutlinedButton(
                                             onClick = {
                                                 copiedShareHint = null
@@ -1855,10 +1964,10 @@ fun LiveTrackingMapScreen(
 
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
-                                // Convoy Participants & Quick Self Condition
+                                // Safar Participants & Quick Self Condition
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text(
-                                        text = "PESERTA KONVOI (${members.size})",
+                                        text = "JAMAAH ROMBONGAN (${members.size})",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1870,7 +1979,7 @@ fun LiveTrackingMapScreen(
                                         listOf(
                                             MemberConditionStatus.AMAN to "Aman",
                                             MemberConditionStatus.ISTIRAHAT to "Istirahat",
-                                            MemberConditionStatus.MOGOK to "Mogok"
+                                            MemberConditionStatus.MOGOK to "Bantuan"
                                         ).forEach { (status, shortLabel) ->
                                             FilterChip(
                                                 selected = currentUser?.conditionStatus == status,
@@ -2158,13 +2267,13 @@ fun LiveTrackingMapScreen(
                                     color = Color(0xFFFECACA)
                                 )
                                 Text(
-                                    text = sosState.senderName.ifBlank { "Anggota Konvoi" },
+                                    text = sosState.senderName.ifBlank { "Jamaah Rombongan" },
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = Color.White
                                 )
                                 Text(
-                                    text = "${sosState.senderVehicle.ifBlank { "Kendaraan Konvoi" }} · Pukul ${sosState.triggeredAtLabel.ifBlank { "-" }}",
+                                    text = "${sosState.senderVehicle.ifBlank { "Jamaah Safar" }} · Pukul ${sosState.triggeredAtLabel.ifBlank { "-" }}",
                                     fontSize = 12.sp,
                                     color = Color(0xFFFEE2E2)
                                 )
@@ -2182,7 +2291,7 @@ fun LiveTrackingMapScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "Identitas pengirim SOS tetap tercatat di kolom chat konvoi.",
+                                text = "Identitas pengirim SOS tetap tercatat di kolom chat rombongan.",
                                 fontSize = 11.sp,
                                 color = Color(0xFFFEE2E2)
                             )
@@ -2282,9 +2391,9 @@ fun LiveTrackingMapScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("Komunikasi Konvoi", style = MaterialTheme.typography.titleLarge)
+                        Text("Komunikasi Rombongan", style = MaterialTheme.typography.titleLarge)
                         Text(
-                            text = "${activeRoom?.roomId ?: "KNV-8492"} · ${members.size} Anggota Terhubung",
+                            text = "${activeRoom?.roomId ?: "UMR-8492"} · ${members.size} Jamaah Terhubung",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -2409,9 +2518,9 @@ fun LiveTrackingMapScreen(
             text = {
                 Text(
                     if (isEffectiveLeader && activeRoom?.isSyncedRoom == true) {
-                        "Sesi konvoi akan langsung berakhir untuk Anda dan seluruh anggota room. Rekam jejak rute menuju ${routeConfig.destinationName} dan daftar peserta akan disimpan ke Riwayat Tour untuk ekspor GPX."
+                        "Sesi safar akan langsung berakhir untuk Anda dan seluruh jamaah room. Rekam jejak rute menuju ${routeConfig.destinationName} dan daftar jamaah akan disimpan ke Riwayat Safar untuk ekspor GPX."
                     } else {
-                        "Rekam jejak rute menuju ${routeConfig.destinationName} dan daftar peserta akan disimpan ke Riwayat Tour untuk ekspor GPX."
+                        "Rekam jejak rute menuju ${routeConfig.destinationName} dan daftar jamaah akan disimpan ke Riwayat Safar untuk ekspor GPX."
                     }
                 )
             },
@@ -2428,7 +2537,7 @@ fun LiveTrackingMapScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showFinishTripDialog = false }) {
-                    Text("Lanjut Tour")
+                    Text("Lanjut Safar")
                 }
             }
         )
@@ -2436,14 +2545,14 @@ fun LiveTrackingMapScreen(
 
     // SOS Confirmation Dialog
     if (showSosConfirmDialog) {
-        val latStr = String.format(Locale.US, "%.4f", currentUser?.mapPosition?.latitude ?: -6.6740)
-        val lngStr = String.format(Locale.US, "%.4f", currentUser?.mapPosition?.longitude ?: 106.9250)
+        val latStr = String.format(Locale.US, "%.4f", currentUser?.mapPosition?.latitude ?: 21.4225)
+        val lngStr = String.format(Locale.US, "%.4f", currentUser?.mapPosition?.longitude ?: 39.8262)
         AlertDialog(
             onDismissRequest = { showSosConfirmDialog = false },
             icon = { Icon(Icons.Rounded.Sos, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(32.dp)) },
             title = { Text("Kirim Sinyal Darurat SOS?", fontWeight = FontWeight.Bold) },
             text = {
-                Text("Sinyal bahaya dan koordinat lokasi Anda ($latStr, $lngStr) akan dikirimkan ke seluruh anggota room konvoi.")
+                Text("Sinyal bahaya dan koordinat lokasi Anda ($latStr, $lngStr) akan dikirimkan ke seluruh anggota rombongan safar.")
             },
             confirmButton = {
                 Button(
@@ -2469,7 +2578,7 @@ fun LiveTrackingMapScreen(
         AlertDialog(
             onDismissRequest = { showShareRoomDialog = false },
             icon = { Icon(Icons.Rounded.Share, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-            title = { Text("Bagikan Undangan Konvoi", fontWeight = FontWeight.Bold) },
+            title = { Text("Bagikan Undangan Safar", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Surface(
@@ -2542,7 +2651,7 @@ fun LiveTrackingMapScreen(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Rounded.Share, contentDescription = null, tint = Color(0xFFEA580C), modifier = Modifier.size(16.dp))
+                            Icon(Icons.Rounded.Share, contentDescription = null, tint = Color(0xFFB45309), modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text("Link APK Safar Tracking", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -2564,7 +2673,7 @@ fun LiveTrackingMapScreen(
                             text = copiedShareHint.orEmpty(),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF15803D)
+                            color = Color(0xFF047857)
                         )
                     }
                 }
@@ -2575,10 +2684,10 @@ fun LiveTrackingMapScreen(
                         val shareBody = "Gabung rombongan \"${activeRoom.roomTitle}\" di Safar Tracking!\nKode Room: ${activeRoom.roomId}\nLink Web: $webShareLink\nLink Aplikasi: ${activeRoom.inviteLink}"
                         val sendIntent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
-                            putExtra(Intent.EXTRA_SUBJECT, "Undangan Konvoi ${activeRoom.roomId}")
+                            putExtra(Intent.EXTRA_SUBJECT, "Undangan Rombongan Safar ${activeRoom.roomId}")
                             putExtra(Intent.EXTRA_TEXT, shareBody)
                         }
-                        context.startActivity(Intent.createChooser(sendIntent, "Bagikan Undangan Konvoi"))
+                        context.startActivity(Intent.createChooser(sendIntent, "Bagikan Undangan Safar"))
                     }
                 ) {
                     Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -2619,12 +2728,34 @@ fun LiveTrackingMapScreen(
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Titik Tujuan Akhir & Garis Rute Resmi", style = MaterialTheme.typography.labelLarge)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Tujuan Multi-Point (${routeConfig.destinationStops.size}/12)",
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                        FilterChip(
+                            selected = isLeaderAddPointMode,
+                            onClick = { isLeaderAddPointMode = !isLeaderAddPointMode },
+                            label = {
+                                Text(
+                                    text = if (isLeaderAddPointMode) "Mode: + Add Point" else "+ Add Point",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        )
+                    }
                     OutlinedTextField(
                         value = destSearchQuery,
                         onValueChange = { destSearchQuery = it },
-                        label = { Text("Cari Area Tujuan Baru") },
-                        placeholder = { Text("Mis. Puncak, Ciwidey, Rest Area...") },
+                        label = {
+                            Text(if (isLeaderAddPointMode) "Cari Point Tujuan Baru" else "Cari Area Tujuan Utama")
+                        },
+                        placeholder = { Text("Mis. Masjidil Haram, Arafah, Quba...") },
                         leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                         trailingIcon = {
                             if (destSearchQuery.isNotEmpty()) {
@@ -2661,12 +2792,22 @@ fun LiveTrackingMapScreen(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .clickable {
-                                                    onPickCustomDestinationLatLng(
-                                                        result.latitude,
-                                                        result.longitude,
-                                                        result.name,
-                                                        result.address
-                                                    )
+                                                    if (isLeaderAddPointMode) {
+                                                        onAddDestinationPoint(
+                                                            result.latitude,
+                                                            result.longitude,
+                                                            result.name,
+                                                            result.address
+                                                        )
+                                                        isLeaderAddPointMode = false
+                                                    } else {
+                                                        onPickCustomDestinationLatLng(
+                                                            result.latitude,
+                                                            result.longitude,
+                                                            result.name,
+                                                            result.address
+                                                        )
+                                                    }
                                                     destSearchQuery = ""
                                                     destSearchResults = emptyList()
                                                 }
@@ -2686,7 +2827,19 @@ fun LiveTrackingMapScreen(
                             rowPresets.forEach { preset ->
                                 FilterChip(
                                     selected = routeConfig.destinationName == preset.name,
-                                    onClick = { onSelectPreset(preset) },
+                                    onClick = {
+                                        if (isLeaderAddPointMode) {
+                                            onAddDestinationPoint(
+                                                preset.endPoint.latitude,
+                                                preset.endPoint.longitude,
+                                                preset.name,
+                                                preset.name
+                                            )
+                                            isLeaderAddPointMode = false
+                                        } else {
+                                            onSelectPreset(preset)
+                                        }
+                                    },
                                     label = { Text(preset.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                     modifier = Modifier.weight(1f)
                                 )
@@ -2833,7 +2986,7 @@ private fun TopParticipantChip(
                                     member.isActingLeader && member.role != UserRole.TOUR_LEADER -> Color(0xFF6D28D9)
                                     member.isSweeper -> Color(0xFFB45309)
                                     member.isCoLeader -> Color(0xFF0F766E)
-                                    else -> Color(0xFF1D4ED8)
+                                    else -> Color(0xFF047857)
                                 },
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                             )
@@ -2842,7 +2995,7 @@ private fun TopParticipantChip(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(
-                        imageVector = if (member.vehicleType == VehicleType.MOBIL) Icons.Rounded.DirectionsCar else Icons.Rounded.TwoWheeler,
+                        imageVector = if (member.vehicleType == VehicleType.MOBIL) Icons.Rounded.DirectionsBus else Icons.Rounded.DirectionsWalk,
                         contentDescription = member.vehicleType.label,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(12.dp)
@@ -3017,7 +3170,7 @@ private fun DestinationEtaHudBar(
                 ) {
                     Column {
                         Text(
-                            text = "RATA² KONVOI · 10 MNT",
+                            text = "RATA² ROMBONGAN · 10 MNT",
                             fontSize = 9.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -3048,7 +3201,7 @@ private fun DestinationEtaHudBar(
                             }
                             drawPath(
                                 path = linePath,
-                                color = Color(0xFF1D4ED8),
+                                color = Color(0xFF047857),
                                 style = Stroke(width = 4.5f, cap = StrokeCap.Round)
                             )
                         }
@@ -3214,7 +3367,7 @@ private fun InteractiveWaveformPttButton(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = if (isRecording) "0:${recordingSeconds.toString().padStart(2, '0')} · Audio konvoi" else "Pesan suara instan ke semua anggota",
+                        text = if (isRecording) "0:${recordingSeconds.toString().padStart(2, '0')} · Audio rombongan" else "Pesan suara instan ke semua jamaah",
                         fontSize = 11.sp,
                         color = Color.White.copy(alpha = 0.88f)
                     )
@@ -3506,7 +3659,7 @@ private fun ConvoyMapMarker(
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        imageVector = if (isSosBeacon) Icons.Rounded.Sos else if (member.vehicleType == VehicleType.MOBIL) Icons.Rounded.DirectionsCar else Icons.Rounded.TwoWheeler,
+                        imageVector = if (isSosBeacon) Icons.Rounded.Sos else if (member.vehicleType == VehicleType.MOBIL) Icons.Rounded.DirectionsBus else Icons.Rounded.DirectionsWalk,
                         contentDescription = member.markerTitle,
                         tint = pinIconTint,
                         modifier = Modifier.size(17.dp)

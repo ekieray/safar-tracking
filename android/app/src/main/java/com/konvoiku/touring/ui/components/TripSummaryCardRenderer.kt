@@ -135,9 +135,9 @@ fun StravaStyleTripShareCard(
         ?: matchedSelf?.avatarPhotoUri
         ?: if (trimmedLoginName.isNotEmpty()) null else leader?.avatarPhotoUri
     val headerRoleLabel = when {
-        trip.userRole == UserRole.TOUR_LEADER -> "Tour Leader"
-        matchedSelf?.isSweeper == true -> "Sweeper"
-        else -> "Anggota Konvoi"
+        trip.userRole == UserRole.TOUR_LEADER -> "Mutawwif"
+        matchedSelf?.isSweeper == true -> "Pendamping"
+        else -> "Jamaah Safar"
     }
 
     Surface(
@@ -178,7 +178,7 @@ fun StravaStyleTripShareCard(
                             y += step
                         }
                         drawCircle(
-                            color = Color(0xFFEA580C).copy(alpha = 0.14f),
+                            color = Color(0xFFB45309).copy(alpha = 0.16f),
                             radius = size.width * 0.45f,
                             center = Offset(size.width * 0.85f, size.height * 0.15f)
                         )
@@ -308,7 +308,7 @@ fun StravaStyleTripShareCard(
                     ) {
                         Surface(
                             shape = RoundedCornerShape(9.dp),
-                            color = Color(0xFFEA580C),
+                            color = Color(0xFF047857),
                             modifier = Modifier.size(28.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -351,7 +351,7 @@ fun StravaStyleTripShareCard(
                             )
                             Text(
                                 text = headerRoleLabel,
-                                color = if (isLight) Color(0xFF1D4ED8) else Color(0xFFFDBA74),
+                                color = if (isLight) Color(0xFF047857) else Color(0xFFFCD34D),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -361,7 +361,7 @@ fun StravaStyleTripShareCard(
                             photoUri = headerAvatarPhotoUri,
                             displayName = headerDisplayName,
                             size = 34.dp,
-                            borderColor = Color(0xFFEA580C),
+                            borderColor = Color(0xFFB45309),
                             borderWidth = 2.dp
                         )
                     }
@@ -443,8 +443,8 @@ fun StravaStyleTripShareCard(
                         }
                     }.value
 
-                    val routeStrokeColor = if (isLight) Color(0xFF1D4ED8) else Color(0xFFFB923C)
-                    val routeGlowColor = if (isLight) Color(0xFF93C5FD).copy(alpha = 0.5f) else Color(0xFFEA580C).copy(alpha = 0.35f)
+                    val routeStrokeColor = if (isLight) Color(0xFF047857) else Color(0xFFFBBF24)
+                    val routeGlowColor = if (isLight) Color(0xFF6EE7B7).copy(alpha = 0.5f) else Color(0xFFB45309).copy(alpha = 0.35f)
 
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         if (isSatellite) {
@@ -490,12 +490,12 @@ fun StravaStyleTripShareCard(
                         pts.firstOrNull()?.let { start ->
                             val c = Offset(start.x, start.y)
                             drawCircle(Color.White, radius = 8.dp.toPx(), center = c)
-                            drawCircle(Color(0xFFEA580C), radius = 5.dp.toPx(), center = c)
+                            drawCircle(Color(0xFFB45309), radius = 5.dp.toPx(), center = c)
                         }
                         pts.lastOrNull()?.let { end ->
                             val c = Offset(end.x, end.y)
                             drawCircle(Color.White, radius = 8.dp.toPx(), center = c)
-                            drawCircle(Color(0xFF16A34A), radius = 5.dp.toPx(), center = c)
+                            drawCircle(Color(0xFF047857), radius = 5.dp.toPx(), center = c)
                         }
                     }
 
@@ -569,9 +569,9 @@ fun StravaStyleTripShareCard(
 
                     Text(
                         text = if (trip.participants.isNotEmpty()) {
-                            "Anggota Konvoi (${trip.participants.size}): ${trip.participants.joinToString(", ") { it.fullName }}"
+                            "Jamaah Safar (${trip.participants.size}): ${trip.participants.joinToString(", ") { it.fullName }}"
                         } else {
-                            "Peserta konvoi belum tercatat"
+                            "Jamaah safar belum tercatat"
                         },
                         color = secondaryText,
                         fontSize = 10.sp,
@@ -752,7 +752,7 @@ suspend fun renderTripCardBitmapToFile(
 
     // 2. Top Brand Lockup
     val badgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = AndroidColor.parseColor("#EA580C")
+        color = AndroidColor.parseColor("#047857")
     }
     canvas.drawRoundRect(RectF(pad, pad, pad + 72f, pad + 72f), 20f, 20f, badgePaint)
     val navArrowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -800,9 +800,9 @@ suspend fun renderTripCardBitmapToFile(
         ?: matchedSelf?.avatarPhotoUri
         ?: if (trimmedLoginName.isNotEmpty()) null else leader?.avatarPhotoUri
     val headerRoleLabel = when {
-        trip.userRole == UserRole.TOUR_LEADER -> "Tour Leader"
-        matchedSelf?.isSweeper == true -> "Sweeper"
-        else -> "Anggota Konvoi"
+        trip.userRole == UserRole.TOUR_LEADER -> "Mutawwif"
+        matchedSelf?.isSweeper == true -> "Pendamping"
+        else -> "Jamaah Safar"
     }
 
     run {
@@ -830,9 +830,9 @@ suspend fun renderTripCardBitmapToFile(
         } else {
             val avBg = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = when (headerPreset) {
-                    AvatarPreset.HELMET_SPORT -> AndroidColor.parseColor("#1D4ED8")
+                    AvatarPreset.HELMET_SPORT -> AndroidColor.parseColor("#047857")
                     AvatarPreset.PILOT_CLASSIC -> AndroidColor.parseColor("#0F766E")
-                    else -> AndroidColor.parseColor("#EA580C")
+                    else -> AndroidColor.parseColor("#B45309")
                 }
             }
             canvas.drawCircle(avCx, avCy, avRadius, avBg)
@@ -842,14 +842,14 @@ suspend fun renderTripCardBitmapToFile(
                 textAlign = Paint.Align.CENTER
                 typeface = Typeface.DEFAULT_BOLD
             }
-            val initial = headerName.firstOrNull()?.uppercaseChar()?.toString() ?: "R"
+            val initial = headerName.firstOrNull()?.uppercaseChar()?.toString() ?: "J"
             canvas.drawText(initial, avCx, avCy + 11f, initPaint)
         }
 
         val avBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 5f
-            color = AndroidColor.parseColor("#EA580C")
+            color = AndroidColor.parseColor("#B45309")
         }
         canvas.drawCircle(avCx, avCy, avRadius, avBorder)
 
@@ -861,7 +861,7 @@ suspend fun renderTripCardBitmapToFile(
         }
         canvas.drawText(headerName.take(26), avCx - avRadius - 20f, pad + 32f, userNamePaint)
         val userRolePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (isLight) AndroidColor.parseColor("#1D4ED8") else AndroidColor.parseColor("#FDBA74")
+            color = if (isLight) AndroidColor.parseColor("#047857") else AndroidColor.parseColor("#FCD34D")
             textSize = 22f
             textAlign = Paint.Align.RIGHT
             typeface = Typeface.DEFAULT_BOLD
@@ -958,7 +958,7 @@ suspend fun renderTripCardBitmapToFile(
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
             strokeWidth = 36f
-            color = if (isLight) AndroidColor.argb(110, 147, 197, 253) else AndroidColor.argb(95, 234, 88, 12)
+            color = if (isLight) AndroidColor.argb(110, 110, 231, 183) else AndroidColor.argb(95, 180, 83, 9)
         }
         canvas.drawPath(routePath, glowPaint)
 
@@ -967,7 +967,7 @@ suspend fun renderTripCardBitmapToFile(
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
             strokeWidth = 14f
-            color = if (isLight) AndroidColor.parseColor("#1D4ED8") else AndroidColor.parseColor("#FB923C")
+            color = if (isLight) AndroidColor.parseColor("#047857") else AndroidColor.parseColor("#FBBF24")
         }
         canvas.drawPath(routePath, linePaint)
     }
@@ -976,13 +976,13 @@ suspend fun renderTripCardBitmapToFile(
         val cx = mapLeft + start.x
         val cy = mapTop + start.y
         canvas.drawCircle(cx, cy, 22f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE })
-        canvas.drawCircle(cx, cy, 14f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.parseColor("#EA580C") })
+        canvas.drawCircle(cx, cy, 14f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.parseColor("#B45309") })
     }
     pts.lastOrNull()?.let { end ->
         val cx = mapLeft + end.x
         val cy = mapTop + end.y
         canvas.drawCircle(cx, cy, 22f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.WHITE })
-        canvas.drawCircle(cx, cy, 14f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.parseColor("#16A34A") })
+        canvas.drawCircle(cx, cy, 14f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.parseColor("#047857") })
     }
 
     projection.checkpoints.forEach { cp ->
@@ -1028,9 +1028,9 @@ suspend fun renderTripCardBitmapToFile(
         textSize = 24f
     }
     val membersText = if (trip.participants.isNotEmpty()) {
-        "Anggota Konvoi (${trip.participants.size}): ${trip.participants.joinToString(", ") { it.fullName }}"
+        "Jamaah Safar (${trip.participants.size}): ${trip.participants.joinToString(", ") { it.fullName }}"
     } else {
-        "Peserta konvoi belum tercatat"
+        "Jamaah safar belum tercatat"
     }
     drawWrappedCanvasText(
         canvas = canvas,
@@ -1044,7 +1044,7 @@ suspend fun renderTripCardBitmapToFile(
     )
 
     val folder = File(context.cacheDir, "shared_cards").apply { mkdirs() }
-    val outFile = File(folder, "konvoiku-card-${trip.roomId.lowercase()}.png")
+    val outFile = File(folder, "safartracking-card-${trip.roomId.lowercase()}.png")
     FileOutputStream(outFile).use { fos ->
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
     }
@@ -1106,11 +1106,11 @@ fun shareTripCardImage(
             type = "image/png"
             putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(Intent.EXTRA_TEXT, caption)
-            putExtra(Intent.EXTRA_SUBJECT, "Kartu Tour ${trip.tourTitle}")
+            putExtra(Intent.EXTRA_SUBJECT, "Kartu Safar ${trip.tourTitle}")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(
-            Intent.createChooser(intent, "Bagikan Kartu Tour (Share Image)")
+            Intent.createChooser(intent, "Bagikan Kartu Safar (Share Image)")
         )
         true
     }.getOrDefault(false)

@@ -64,8 +64,8 @@ import java.util.Locale
 
 private enum class TripRoleFilter(val label: String) {
     ALL("Semua"),
-    LEADER("Sebagai Leader"),
-    MEMBER("Sebagai Anggota")
+    LEADER("Sebagai Mutawwif"),
+    MEMBER("Sebagai Jamaah")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,7 +93,7 @@ fun TripHistoryScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Riwayat Tour", style = MaterialTheme.typography.titleMedium)
+                        Text("Riwayat Safar", style = MaterialTheme.typography.titleMedium)
                         Text(
                             text = "${trips.size} Perjalanan Selesai · ${String.format(Locale.US, "%.1f km", totalDistanceKm)}",
                             style = MaterialTheme.typography.bodyMedium,
@@ -168,7 +168,7 @@ fun TripHistoryScreen(
                             )
                             Text("Belum Ada Riwayat", style = MaterialTheme.typography.titleMedium)
                             Text(
-                                text = "Selesaikan sesi konvoi untuk merekam rute perjalanan dan mengekspor log GPX.",
+                                text = "Selesaikan sesi safar untuk merekam rute perjalanan dan mengekspor log GPX.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -232,10 +232,10 @@ private fun TripHistoryCard(
                         }
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = if (isLeader) Color(0xFFFFEDD5) else MaterialTheme.colorScheme.surfaceVariant
+                            color = if (isLeader) Color(0xFFFEF3C7) else MaterialTheme.colorScheme.surfaceVariant
                         ) {
                             Text(
-                                text = if (isLeader) "Tour Leader" else "Anggota",
+                                text = if (isLeader) "Mutawwif" else "Jamaah",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (isLeader) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -300,7 +300,7 @@ private fun TripHistoryCard(
                                     }
                                     drawPath(
                                         path = path,
-                                        color = Color(0xFFEA580C),
+                                        color = Color(0xFFB45309),
                                         style = Stroke(
                                             width = 2.2.dp.toPx(),
                                             cap = StrokeCap.Round,
@@ -309,10 +309,10 @@ private fun TripHistoryCard(
                                     )
                                 }
                                 pts.firstOrNull()?.let { start ->
-                                    drawCircle(Color(0xFFEA580C), radius = 3.dp.toPx(), center = Offset(start.x, start.y))
+                                    drawCircle(Color(0xFFB45309), radius = 3.dp.toPx(), center = Offset(start.x, start.y))
                                 }
                                 pts.lastOrNull()?.let { end ->
-                                    drawCircle(Color(0xFF16A34A), radius = 3.dp.toPx(), center = Offset(end.x, end.y))
+                                    drawCircle(Color(0xFF047857), radius = 3.dp.toPx(), center = Offset(end.x, end.y))
                                 }
                             }
                         }
@@ -381,9 +381,9 @@ private fun TripHistoryCard(
                 }
                 Text(
                     text = if (trip.participants.isNotEmpty()) {
-                        "${trip.participants.size} Anggota Ikut: ${trip.participants.joinToString(", ") { it.fullName }}"
+                        "${trip.participants.size} Jamaah Ikut: ${trip.participants.joinToString(", ") { it.fullName }}"
                     } else {
-                        "Peserta konvoi belum tercatat"
+                        "Jamaah safar belum tercatat"
                     },
                     fontSize = 12.sp,
                     lineHeight = 16.sp,

@@ -159,8 +159,8 @@ sealed interface TomTomMapPin {
 fun TomTomConvoyMap(
     modifier: Modifier = Modifier,
     controller: TomTomMapController = rememberTomTomMapController(),
-    initialLat: Double = -6.674,
-    initialLng: Double = 106.925,
+    initialLat: Double = 21.4225,
+    initialLng: Double = 39.8262,
     initialZoom: Double = 13.0,
     mapStyle: TomTomMapStyle = TomTomMapStyle.ROAD,
     isDarkMode: Boolean = false,
@@ -337,7 +337,7 @@ fun TomTomConvoyMap(
                 }
                 val roadLine = Polyline(mv).apply {
                     setPoints(geoPts)
-                    outlinePaint.color = 0xFF1D4ED8.toInt()
+                    outlinePaint.color = 0xFF047857.toInt()
                     outlinePaint.strokeWidth = 9f
                     outlinePaint.strokeCap = Paint.Cap.ROUND
                     outlinePaint.strokeJoin = Paint.Join.ROUND
@@ -457,7 +457,7 @@ private fun createCheckpointDrawable(context: Context, name: String): BitmapDraw
     val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
 
-    val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF0F766E.toInt() }
+    val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF047857.toInt() }
     val whiteStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         style = Paint.Style.STROKE
@@ -509,7 +509,7 @@ private fun createDestinationDrawable(
     val flagRadius = 13f * d
     val cx = w / 2f
     val cy = h - flagRadius - 2f * d
-    val greenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF16A34A.toInt() }
+    val greenPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF047857.toInt() }
     val whiteStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         style = Paint.Style.STROKE
@@ -545,7 +545,7 @@ private fun createMemberDrawable(
         pin.isStraggler || member.isSweeper -> 0xFFB45309.toInt()
         member.isActingLeader && member.role != UserRole.TOUR_LEADER -> 0xFF7C3AED.toInt()
         member.isCoLeader -> 0xFF0F766E.toInt()
-        pin.isSelected -> 0xFF1D4ED8.toInt()
+        pin.isSelected -> 0xFF047857.toInt()
         else -> Color.WHITE
     }
     val pillTextColor = if (
@@ -598,8 +598,8 @@ private fun createMemberDrawable(
         pin.isSosBeacon || pin.isOffRoute -> 0xFFDC2626.toInt()
         member.isActingLeader -> 0xFF7C3AED.toInt()
         member.isCoLeader -> 0xFF0D9488.toInt()
-        member.isCurrentUser -> 0xFFEA580C.toInt()
-        member.role == UserRole.TOUR_LEADER -> 0xFF1D4ED8.toInt()
+        member.isCurrentUser -> 0xFFB45309.toInt()
+        member.role == UserRole.TOUR_LEADER -> 0xFF047857.toInt()
         else -> 0xFF334155.toInt()
     }
     val circlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = pinColor }
@@ -613,8 +613,8 @@ private fun createMemberDrawable(
 
     val glyph = when {
         pin.isSosBeacon || member.conditionStatus == MemberConditionStatus.SOS -> "!"
-        member.vehicleType == VehicleType.MOBIL -> "M"
-        else -> "B"
+        member.vehicleType == VehicleType.MOBIL -> "B"
+        else -> "J"
     }
     val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
@@ -639,7 +639,7 @@ private fun createNavigationPuckDrawable(
     val cy = size / 2f
 
     val haloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = if (isAlert) 0x55DC2626 else 0x552563EB
+        color = if (isAlert) 0x55DC2626 else 0x55047857
     }
     canvas.drawCircle(cx, cy, 23f * d, haloPaint)
 
@@ -654,7 +654,7 @@ private fun createNavigationPuckDrawable(
     canvas.drawCircle(cx, cy, 14f * d, corePaint)
 
     val arrowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = if (isAlert) Color.WHITE else 0xFF38BDF8.toInt()
+        color = if (isAlert) Color.WHITE else 0xFF34D399.toInt()
         style = Paint.Style.FILL
     }
     val arrowPath = Path().apply {

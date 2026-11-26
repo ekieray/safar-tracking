@@ -105,7 +105,7 @@ export async function testFirestoreConnection(): Promise<boolean> {
   }
 }
 
-const REDIRECT_MODE_STORAGE_KEY = 'konvoiku_pending_google_redirect';
+const REDIRECT_MODE_STORAGE_KEY = 'safartracking_pending_google_redirect';
 
 function isRunningInIframe(): boolean {
   try {
@@ -249,10 +249,14 @@ export async function signOutFirebase(): Promise<void> {
   await signOut(auth);
 }
 
-const CLOUD_DEVICE_AUTH_KEY = 'konvoiku_cloud_device_auth_v1';
+const CLOUD_DEVICE_AUTH_KEY = 'safartracking_cloud_device_auth_v1';
 
 export function isDeviceCloudGuestEmail(email?: string | null): boolean {
-  return (email || '').trim().toLowerCase().endsWith('@guest.konvoiku.id');
+  const normalized = (email || '').trim().toLowerCase();
+  return (
+    normalized.endsWith('@guest.safartracking.id') ||
+    normalized.endsWith('@guest.konvoiku.id')
+  );
 }
 
 function generateRandomTokenPart(): string {
@@ -291,8 +295,8 @@ export async function ensureCloudSignedInUser(): Promise<User> {
     return anonCred.user;
   } catch {
     // Fallback when Anonymous Auth is disabled (ADMIN_ONLY_OPERATION):
-    const deviceEmail = `rider.${generateRandomTokenPart().slice(0, 16)}@guest.konvoiku.id`;
-    const devicePassword = `Knv#${generateRandomTokenPart().slice(0, 24)}`;
+    const deviceEmail = `jamaah.${generateRandomTokenPart().slice(0, 16)}@guest.safartracking.id`;
+    const devicePassword = `Sfr#${generateRandomTokenPart().slice(0, 24)}`;
     const cred = await createUserWithEmailAndPassword(
       auth,
       deviceEmail,
