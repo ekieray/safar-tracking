@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, BookOpenCheck, ClipboardCheck } from 'lucide-react';
+import { ArrowLeft, BookOpen, BookOpenCheck, ClipboardCheck } from 'lucide-react';
 import { GpsPermissionStatus } from '../../hooks/useDeviceGps';
 import {
   ManasikCheckInRecord,
@@ -10,16 +10,19 @@ import {
   TourRoom,
 } from '../../types/convoy';
 import { ManasikChecklistPanel } from '../ManasikChecklistPanel';
+import { PrayerGuidePanel } from '../PrayerGuidePanel';
 import { RoomActivityChecklistPanel } from '../RoomActivityChecklistPanel';
 import {
   TouringCanvasBackdrop,
   TouringHeroBanner,
 } from '../TouringAtmosphereBackdrop';
 
+export type ManasikViewTab = 'manasik' | 'doa' | 'activities';
+
 interface ManasikGuideViewProps {
   progress: ManasikProgressState;
   isCloudSynced: boolean;
-  initialTab?: 'manasik' | 'activities';
+  initialTab?: ManasikViewTab;
   activeRoom?: TourRoom | null;
   roomActivities?: RoomActivityItem[];
   roomActivityProgress?: Record<string, RoomActivityMemberProgress>;
@@ -52,6 +55,16 @@ interface ManasikGuideViewProps {
   onBack: () => void;
 }
 
+function resolveManasikTab(
+  requested: ManasikViewTab,
+  hasActiveRoom: boolean
+): ManasikViewTab {
+  if (requested === 'activities' && !hasActiveRoom) {
+    return 'manasik';
+  }
+  return requested;
+}
+
 export function ManasikGuideView({
   progress,
   isCloudSynced,
@@ -75,12 +88,12 @@ export function ManasikGuideView({
   onOpenAssistant,
   onBack,
 }: ManasikGuideViewProps) {
-  const [activeTab, setActiveTab] = useState<'manasik' | 'activities'>(
-    activeRoom ? initialTab : 'manasik'
+  const [activeTab, setActiveTab] = useState<ManasikViewTab>(() =>
+    resolveManasikTab(initialTab, Boolean(activeRoom))
   );
 
   useEffect(() => {
-    setActiveTab(activeRoom ? initialTab : 'manasik');
+    setActiveTab(resolveManasikTab(initialTab, Boolean(activeRoom)));
   }, [initialTab, activeRoom?.roomId]);
 
   const selfId =
@@ -91,6 +104,20 @@ export function ManasikGuideView({
     selfId ? (roomActivityProgress[selfId]?.completedActivityIds ?? []) : []
   );
   const doneCount = roomActivities.filter((a) => myCompletedSet.has(a.id)).length;
+
+  const headerTitle =
+    activeTab === 'activities' && activeRoom
+      ? 'Checklist Kegiatan Umroh'
+      : activeTab === 'doa'
+      ? 'Kumpulan Doa Travel & Harian'
+      : 'Panduan & Check-in Manasik';
+
+  const headerSubtitle =
+    activeTab === 'activities' && activeRoom
+      ? `${activeRoom.roomTitle} · ${doneCount}/${roomActivities.length} selesai`
+      : activeTab === 'doa'
+      ? 'Standar Tuntunan Manasik Kemenag RI & MUI'
+      : 'Tandai & check-in lokasi GPS setiap tahapan Umroh & Haji';
 
   return (
     <div className="relative flex flex-col min-h-full bg-transparent text-[#0B1F16] dark:text-[#ECFDF5]">
@@ -105,15 +132,9 @@ export function ManasikGuideView({
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="min-w-0">
-          <h2 className="text-sm font-bold truncate">
-            {activeTab === 'activities' && activeRoom
-              ? 'Checklist Kegiatan Umroh'
-              : 'Panduan & Check-in Manasik'}
-          </h2>
+          <h2 className="text-sm font-bold truncate">{headerTitle}</h2>
           <p className="text-[11px] text-[#4D6659] dark:text-[#9CC2AE] truncate">
-            {activeTab === 'activities' && activeRoom
-              ? `${activeRoom.roomTitle} · ${doneCount}/${roomActivities.length} selesai`
-              : "Tandai & check-in lokasi GPS setiap tahapan Umroh & Haji"}
+            {headerSubtitle}
           </p>
         </div>
       </div>
@@ -123,36 +144,54 @@ export function ManasikGuideView({
         <TouringCanvasBackdrop />
 
         <div className="relative z-10 space-y-4">
-          {activeRoom && (
-            <div className="grid grid-cols-2 gap-1.5 p-1 rounded-[16px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E]">
-              <button
-                type="button"
-                onClick={() => setActiveTab('manasik')}
-                className={`min-h-[40px] px-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                  activeTab === 'manasik'
-                    ? 'bg-[#047857] text-white'
-                    : 'text-[#4D6659] dark:text-[#9CC2AE] hover:bg-[#F4F8F5] dark:hover:bg-[#132E24]'
-                }`}
-              >
-                <BookOpenCheck className="w-3.5 h-3.5 shrink-0" />
-                <span>Panduan Manasik</span>
-              </button>
+          <div
+            className={`grid gap-1.5 p-1 rounded-[16px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] ${
+              activeRoom ? 'grid-cols-3' : 'grid-cols-2'
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => setActiveTab('manasik')}
+              className={`min-h-[40px] px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                activeTab === 'manasik'
+                  ? 'bg-[#047857] text-white'
+                  : 'text-[#4D6659] dark:text-[#9CC2AE] hover:bg-[#F4F8F5] dark:hover:bg-[#132E24]'
+              }`}
+            >
+              <BookOpenCheck className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">Manasik</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('doa')}
+              className={`min-h-[40px] px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                activeTab === 'doa'
+                  ? 'bg-[#047857] text-white'
+                  : 'text-[#4D6659] dark:text-[#9CC2AE] hover:bg-[#F4F8F5] dark:hover:bg-[#132E24]'
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">
+                {activeRoom ? 'Doa Kemenag' : 'Doa Kemenag / MUI'}
+              </span>
+            </button>
+            {activeRoom && (
               <button
                 type="button"
                 onClick={() => setActiveTab('activities')}
-                className={`min-h-[40px] px-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer tabular-nums ${
+                className={`min-h-[40px] px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer tabular-nums ${
                   activeTab === 'activities'
                     ? 'bg-[#047857] text-white'
                     : 'text-[#4D6659] dark:text-[#9CC2AE] hover:bg-[#F4F8F5] dark:hover:bg-[#132E24]'
                 }`}
               >
                 <ClipboardCheck className="w-3.5 h-3.5 shrink-0" />
-                <span>
-                  Kegiatan Grup ({doneCount}/{roomActivities.length})
+                <span className="truncate">
+                  Kegiatan ({doneCount}/{roomActivities.length})
                 </span>
               </button>
-            </div>
-          )}
+            )}
+          </div>
 
           {activeTab === 'activities' && activeRoom ? (
             <RoomActivityChecklistPanel
@@ -171,6 +210,8 @@ export function ManasikGuideView({
               onMoveActivity={onMoveRoomActivity}
               onApplyStarterTemplates={onApplyRoomStarterTemplates}
             />
+          ) : activeTab === 'doa' ? (
+            <PrayerGuidePanel onOpenAssistant={onOpenAssistant} />
           ) : (
             <>
               <TouringHeroBanner

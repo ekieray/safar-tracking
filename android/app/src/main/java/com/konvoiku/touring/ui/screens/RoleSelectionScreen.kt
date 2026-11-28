@@ -83,6 +83,7 @@ import com.konvoiku.touring.model.VehicleProfile
 import com.konvoiku.touring.ui.components.ConvoyAvatar
 import com.konvoiku.touring.ui.components.TouringDashboardCanvasBackdrop
 import com.konvoiku.touring.ui.components.TouringHeroAtmosphereHeader
+import com.konvoiku.touring.util.DualTimezoneClockBar
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -106,6 +107,8 @@ fun RoleSelectionScreen(
     manasikProgress: ManasikProgressState = ManasikProgressState(),
     roomActivitiesCount: Int = 0,
     roomActivitiesDoneCount: Int = 0,
+    userGpsLat: Double? = null,
+    userGpsLng: Double? = null,
     onRoleSelected: (UserRole) -> Unit,
     onResumeCurrentConvoy: () -> Unit,
     onRepeatTour: (TripHistoryRecord) -> Unit = {},
@@ -229,6 +232,14 @@ fun RoleSelectionScreen(
                 TouringHeroAtmosphereHeader(
                     title = "Dashboard Rombongan Umroh",
                     subtitle = "Koordinasi jamaah, rute safar multi-tujuan, panduan manasik & kegiatan rombongan secara real-time."
+                )
+
+                val selfPos = activeRoom?.members?.firstOrNull { it.isCurrentUser }?.mapPosition
+                DualTimezoneClockBar(
+                    latitude = selfPos?.latitude ?: userGpsLat,
+                    longitude = selfPos?.longitude ?: userGpsLng,
+                    subjectName = "Lokasi Anda",
+                    compact = false
                 )
 
                 if (globalConfig.maintenanceMode) {
@@ -736,6 +747,60 @@ fun RoleSelectionScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
                             contentDescription = "Buka Panduan Manasik",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenManasik("doa") },
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Surface(
+                            color = Color(0xFFECFDF5),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.size(46.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Verified,
+                                    contentDescription = null,
+                                    tint = Color(0xFF047857)
+                                )
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Doa Travel Umroh & Harian",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Standar Tuntunan Kemenag RI & MUI · Arab, Latin & arti",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                            contentDescription = "Buka Kumpulan Doa",
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }

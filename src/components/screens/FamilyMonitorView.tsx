@@ -19,6 +19,7 @@ import {
   RoomActivityItem,
 } from '../../types/convoy';
 import { ConvoyAvatar } from '../ConvoyAvatar';
+import { DualTimezoneClockBar } from '../DualTimezoneClockBar';
 import { LiveGoogleConvoyMap } from '../map/LiveGoogleConvoyMap';
 
 interface FamilyMonitorViewProps {
@@ -258,6 +259,17 @@ export function FamilyMonitorView({
               Tujuan: {snapshot?.destinationName || routeConfig.destinationName}
             </span>
           </div>
+
+          <DualTimezoneClockBar
+            latitude={
+              target?.mapPosition.latitude ?? routeConfig.waypoints[0]?.latitude
+            }
+            longitude={
+              target?.mapPosition.longitude ??
+              routeConfig.waypoints[0]?.longitude
+            }
+            subjectName={target?.fullName || grant.targetName}
+          />
         </div>
       </div>
 

@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   BatteryCharging,
   BellRing,
+  BookOpen,
   BookOpenCheck,
   Bus,
   Check,
@@ -75,7 +76,9 @@ import {
   VehicleType,
 } from '../../types/convoy';
 import { ConvoyAvatar } from '../ConvoyAvatar';
+import { DualTimezoneClockBar } from '../DualTimezoneClockBar';
 import { ManasikChecklistPanel } from '../ManasikChecklistPanel';
+import { PrayerGuidePanel } from '../PrayerGuidePanel';
 import { RoomActivityChecklistPanel } from '../RoomActivityChecklistPanel';
 import { LiveGoogleConvoyMap } from '../map/LiveGoogleConvoyMap';
 import { GpsPermissionStatus } from '../../hooks/useDeviceGps';
@@ -463,6 +466,7 @@ export function LiveTrackingMapView({
   const [participantsExpanded, setParticipantsExpanded] = useState(false);
   const [showChatSheet, setShowChatSheet] = useState(false);
   const [showManasikSheet, setShowManasikSheet] = useState(false);
+  const [manasikSheetTab, setManasikSheetTab] = useState<'checklist' | 'doa'>('checklist');
   const [showRoomActivitiesSheet, setShowRoomActivitiesSheet] = useState(false);
   const [showLeaderSettings, setShowLeaderSettings] = useState(false);
   const [showShareRoomModal, setShowShareRoomModal] = useState(false);
@@ -848,6 +852,25 @@ export function LiveTrackingMapView({
           )}
         </div>
       </div>
+
+      {/* Dual Live Clock: Jam Lokasi Jamaah + Jam Fix WIB */}
+      <DualTimezoneClockBar
+        compact
+        latitude={
+          trackedMember?.mapPosition.latitude ??
+          routeConfig.waypoints[0]?.latitude
+        }
+        longitude={
+          trackedMember?.mapPosition.longitude ??
+          routeConfig.waypoints[0]?.longitude
+        }
+        subjectName={
+          trackedMember && trackedMember.id !== currentUser?.id
+            ? trackedMember.fullName
+            : 'Lokasi Anda'
+        }
+        className="shrink-0"
+      />
 
       {/* Collapsible Top Participant Strip & Overlay Drawer (Hidden during Clean Navigation Mode) */}
       {!isCleanNavHud && (
@@ -3147,60 +3170,111 @@ export function LiveTrackingMapView({
               className="w-full max-h-[84%] rounded-t-[24px] bg-[#F4F8F5] dark:bg-[#06130E] border-t border-[#D8E6DD] dark:border-[#1B3B2E] shadow-2xl flex flex-col overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="shrink-0 px-4 py-3 bg-white dark:bg-[#0C1E17] border-b border-[#D8E6DD] dark:border-[#1B3B2E] flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <BookOpenCheck className="w-4 h-4 text-[#047857] dark:text-[#34D399] shrink-0" />
-                  <div className="min-w-0">
-                    <h3 className="text-sm font-bold truncate">
-                      Checklist &amp; Check-in Manasik
-                    </h3>
-                    <p className="text-[11px] text-[#4D6659] dark:text-[#9CC2AE] truncate">
-                      Check-in GPS aktif otomatis saat di area landmark ibadah
-                    </p>
+              <div className="shrink-0 px-4 py-3 bg-white dark:bg-[#0C1E17] border-b border-[#D8E6DD] dark:border-[#1B3B2E] space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {manasikSheetTab === 'doa' ? (
+                      <BookOpen className="w-4 h-4 text-[#047857] dark:text-[#34D399] shrink-0" />
+                    ) : (
+                      <BookOpenCheck className="w-4 h-4 text-[#047857] dark:text-[#34D399] shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-bold truncate">
+                        {manasikSheetTab === 'doa'
+                          ? 'Kumpulan Doa Travel & Harian'
+                          : 'Checklist & Check-in Manasik'}
+                      </h3>
+                      <p className="text-[11px] text-[#4D6659] dark:text-[#9CC2AE] truncate">
+                        {manasikSheetTab === 'doa'
+                          ? 'Standar Tuntunan Manasik Kemenag RI & MUI'
+                          : 'Check-in GPS aktif otomatis saat di area landmark ibadah'}
+                      </p>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowManasikSheet(false)}
+                    aria-label="Tutup Checklist Manasik"
+                    className="min-w-[36px] min-h-[36px] rounded-full flex items-center justify-center text-[#4D6659] hover:bg-[#ECFDF5] dark:hover:bg-[#132E24] cursor-pointer shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowManasikSheet(false)}
-                  aria-label="Tutup Checklist Manasik"
-                  className="min-w-[36px] min-h-[36px] rounded-full flex items-center justify-center text-[#4D6659] hover:bg-[#ECFDF5] dark:hover:bg-[#132E24] cursor-pointer shrink-0"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+
+                <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-[#F4F8F5] dark:bg-[#06130E] border border-[#D8E6DD] dark:border-[#1B3B2E]">
+                  <button
+                    type="button"
+                    onClick={() => setManasikSheetTab('checklist')}
+                    className={`min-h-[34px] px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                      manasikSheetTab === 'checklist'
+                        ? 'bg-[#047857] text-white'
+                        : 'text-[#4D6659] dark:text-[#9CC2AE]'
+                    }`}
+                  >
+                    <BookOpenCheck className="w-3.5 h-3.5 shrink-0" />
+                    <span>Checklist Manasik</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setManasikSheetTab('doa')}
+                    className={`min-h-[34px] px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                      manasikSheetTab === 'doa'
+                        ? 'bg-[#047857] text-white'
+                        : 'text-[#4D6659] dark:text-[#9CC2AE]'
+                    }`}
+                  >
+                    <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                    <span>Doa Kemenag / MUI</span>
+                  </button>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto p-3.5">
-                <ManasikChecklistPanel
-                  progress={manasikProgress}
-                  isCloudSynced={isManasikCloudSynced}
-                  userLocation={
-                    currentUser
-                      ? {
-                          latitude: currentUser.mapPosition.latitude,
-                          longitude: currentUser.mapPosition.longitude,
-                          accuracyMeters: currentUser.mapPosition.accuracyMeters,
-                          sourceLabel:
-                            gpsStatus === 'active'
-                              ? 'GPS Live Rombongan'
-                              : `Posisi Peta (${currentUser.lastLocationText})`,
-                        }
-                      : null
-                  }
-                  gpsStatus={gpsStatus}
-                  onRetryGps={onRetryGps}
-                  onToggleStep={onToggleManasikStep}
-                  onCheckInStep={onCheckInManasikStep}
-                  onResetGuide={onResetManasikGuide}
-                  onOpenAssistant={
-                    onOpenManasikAssistant
-                      ? (prompt) => {
-                          setShowManasikSheet(false);
-                          onOpenManasikAssistant(prompt);
-                        }
-                      : undefined
-                  }
-                  compact
-                />
+                {manasikSheetTab === 'doa' ? (
+                  <PrayerGuidePanel
+                    compact
+                    onOpenAssistant={
+                      onOpenManasikAssistant
+                        ? (prompt) => {
+                            setShowManasikSheet(false);
+                            onOpenManasikAssistant(prompt);
+                          }
+                        : undefined
+                    }
+                  />
+                ) : (
+                  <ManasikChecklistPanel
+                    progress={manasikProgress}
+                    isCloudSynced={isManasikCloudSynced}
+                    userLocation={
+                      currentUser
+                        ? {
+                            latitude: currentUser.mapPosition.latitude,
+                            longitude: currentUser.mapPosition.longitude,
+                            accuracyMeters: currentUser.mapPosition.accuracyMeters,
+                            sourceLabel:
+                              gpsStatus === 'active'
+                                ? 'GPS Live Rombongan'
+                                : `Posisi Peta (${currentUser.lastLocationText})`,
+                          }
+                        : null
+                    }
+                    gpsStatus={gpsStatus}
+                    onRetryGps={onRetryGps}
+                    onToggleStep={onToggleManasikStep}
+                    onCheckInStep={onCheckInManasikStep}
+                    onResetGuide={onResetManasikGuide}
+                    onOpenAssistant={
+                      onOpenManasikAssistant
+                        ? (prompt) => {
+                            setShowManasikSheet(false);
+                            onOpenManasikAssistant(prompt);
+                          }
+                        : undefined
+                    }
+                    compact
+                  />
+                )}
               </div>
             </div>
           </div>

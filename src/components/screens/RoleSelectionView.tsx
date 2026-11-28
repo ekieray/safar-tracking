@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   ArrowRight,
   BadgeCheck,
+  BookOpen,
   BookOpenCheck,
   Bus,
   CheckCircle2,
@@ -24,6 +25,7 @@ import safarTrackingIcon from '../../assets/images/safar_tracking_icon_179559932
 import { MANASIK_GUIDE_MAP } from '../../data/manasikGuideData';
 import { AuthProviderId, GlobalAppConfig, ManasikProgressState, RoomActivityItem, RoomActivityMemberProgress, TourRoom, TripHistoryRecord, UserRole, VehicleProfile } from '../../types/convoy';
 import { ConvoyAvatar } from '../ConvoyAvatar';
+import { DualTimezoneClockBar } from '../DualTimezoneClockBar';
 import {
   TouringCanvasBackdrop,
   TouringHeroBanner,
@@ -54,12 +56,14 @@ interface RoleSelectionViewProps {
   onRepeatTour?: (trip: TripHistoryRecord) => void;
   onOpenTripHistory: () => void;
   onOpenManasikGuide?: () => void;
+  onOpenPrayerGuide?: () => void;
   onOpenRoomActivities?: () => void;
   onOpenAssistant?: () => void;
   manasikProgress?: ManasikProgressState;
   roomActivities?: RoomActivityItem[];
   roomActivityProgress?: Record<string, RoomActivityMemberProgress>;
   currentMemberUid?: string;
+  userGpsLocation?: { lat: number; lng: number } | null;
   onOpenAboutApp: () => void;
 }
 
@@ -96,12 +100,14 @@ export function RoleSelectionView({
   onRepeatTour,
   onOpenTripHistory,
   onOpenManasikGuide,
+  onOpenPrayerGuide,
   onOpenRoomActivities,
   onOpenAssistant,
   manasikProgress,
   roomActivities = [],
   roomActivityProgress = {},
   currentMemberUid = '',
+  userGpsLocation = null,
   onOpenAboutApp,
 }: RoleSelectionViewProps) {
   const umrahDoneCount = manasikProgress?.umrah.length ?? 0;
@@ -193,6 +199,22 @@ export function RoleSelectionView({
             title="Dashboard Perjalanan Umroh"
             subtitle="Pantau pergerakan jamaah umroh, bus rombongan, dan titik kumpul Masjidil Haram secara real-time dengan GPS & Google Maps."
           />
+
+          {/* Jam Lokasi Saat Ini + Jam Fix WIB */}
+          {(() => {
+            const selfMember = activeRoom?.members.find((m) => m.isCurrentUser);
+            const clockLat =
+              selfMember?.mapPosition.latitude ?? userGpsLocation?.lat ?? null;
+            const clockLng =
+              selfMember?.mapPosition.longitude ?? userGpsLocation?.lng ?? null;
+            return (
+              <DualTimezoneClockBar
+                latitude={clockLat}
+                longitude={clockLng}
+                subjectName="Lokasi Anda"
+              />
+            );
+          })()}
 
           {/* Backend Maintenance & Announcement Banners */}
           {globalConfig?.maintenanceMode && (
@@ -635,6 +657,29 @@ export function RoleSelectionView({
 
                 <ArrowRight className="w-4 h-4 text-[#047857] dark:text-[#34D399] shrink-0" />
               </button>
+
+              {onOpenPrayerGuide && (
+                <button
+                  type="button"
+                  onClick={onOpenPrayerGuide}
+                  className="w-full text-left rounded-[18px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] p-3.5 flex items-center gap-3 hover:border-[#047857] transition-colors cursor-pointer"
+                >
+                  <div className="w-11 h-11 rounded-[12px] bg-[#ECFDF5] dark:bg-[#064E3B] flex items-center justify-center text-[#047857] dark:text-[#34D399] shrink-0">
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold truncate">
+                      Kumpulan Doa Travel &amp; Harian
+                    </p>
+                    <p className="text-[11px] text-[#4D6659] dark:text-[#9CC2AE] truncate">
+                      29 doa safar, umroh, ziarah &amp; harian standar Kemenag RI / MUI
+                    </p>
+                  </div>
+
+                  <ArrowRight className="w-4 h-4 text-[#047857] dark:text-[#34D399] shrink-0" />
+                </button>
+              )}
 
               {onOpenAssistant && (
                 <button

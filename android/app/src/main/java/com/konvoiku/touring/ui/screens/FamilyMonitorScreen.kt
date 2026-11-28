@@ -93,6 +93,7 @@ import com.konvoiku.touring.ui.theme.RoadAmber
 import com.konvoiku.touring.ui.theme.SosRed
 import com.konvoiku.touring.ui.theme.TouringBlue
 import com.konvoiku.touring.ui.theme.TouringBlueLight
+import com.konvoiku.touring.util.DualTimezoneClockBar
 import kotlinx.coroutines.delay
 
 private const val FAMILY_MISSING_THRESHOLD_MS = 75_000L
@@ -622,6 +623,13 @@ private fun FamilyTargetHeaderCard(
                     }
                 }
             }
+
+            DualTimezoneClockBar(
+                latitude = targetMember?.mapPosition?.latitude ?: snapshot.routeConfig.waypoints.firstOrNull()?.latitude,
+                longitude = targetMember?.mapPosition?.longitude ?: snapshot.routeConfig.waypoints.firstOrNull()?.longitude,
+                subjectName = displayName,
+                compact = false
+            )
         }
     }
 }

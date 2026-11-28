@@ -94,6 +94,7 @@ import androidx.compose.material.icons.rounded.Sos
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.VolumeUp
@@ -185,6 +186,7 @@ import com.konvoiku.touring.ui.components.TomTomConvoyMap
 import com.konvoiku.touring.ui.components.TomTomMapPin
 import com.konvoiku.touring.ui.components.TomTomMapStyle
 import com.konvoiku.touring.ui.components.rememberTomTomMapController
+import com.konvoiku.touring.util.DualTimezoneClockBar
 import com.konvoiku.touring.util.GeoUtils
 import com.konvoiku.touring.util.LatLngGeo
 import com.konvoiku.touring.viewmodel.ConvoyViewModel
@@ -751,6 +753,14 @@ fun LiveTrackingMapScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            // Dual Live Clock: Jam Lokasi Jamaah + Jam Fix WIB
+            DualTimezoneClockBar(
+                latitude = trackedMember?.mapPosition?.latitude ?: routeConfig.waypoints.firstOrNull()?.latitude,
+                longitude = trackedMember?.mapPosition?.longitude ?: routeConfig.waypoints.firstOrNull()?.longitude,
+                subjectName = if (trackedMember != null && trackedMember.id != currentUser?.id) trackedMember.fullName else "Lokasi Anda",
+                compact = true
+            )
+
             // Top Collapsible Participant Strip + Expanded Panel (Hidden when Clean Navigation HUD is active)
             if (!isCleanNavHud) {
                 Surface(
@@ -1466,6 +1476,22 @@ fun LiveTrackingMapScreen(
                                 ) {
                                     Icon(Icons.Rounded.MenuBook, contentDescription = "Panduan Manasik", modifier = Modifier.size(13.dp))
                                     Text("Manasik", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Surface(
+                                onClick = { onOpenManasik("doa") },
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xEB0F766E),
+                                contentColor = Color.White,
+                                shadowElevation = 3.dp
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Verified, contentDescription = "Doa Kemenag MUI", modifier = Modifier.size(13.dp))
+                                    Text("Doa", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                             Surface(
@@ -2388,6 +2414,19 @@ fun LiveTrackingMapScreen(
                                                 Spacer(modifier = Modifier.width(4.dp))
                                                 Text("Kegiatan $myActivitiesDoneCount/$totalActivitiesCount", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                                             }
+                                        }
+                                        OutlinedButton(
+                                            onClick = {
+                                                showSideInfoDrawer = false
+                                                onOpenManasik("doa")
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
+                                            Icon(Icons.Rounded.Verified, contentDescription = null, modifier = Modifier.size(15.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("Doa Travel & Harian (Kemenag/MUI)", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                                         }
                                         OutlinedButton(
                                             onClick = {

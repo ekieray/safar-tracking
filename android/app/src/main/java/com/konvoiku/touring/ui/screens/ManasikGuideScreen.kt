@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
@@ -42,6 +43,7 @@ import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -81,7 +83,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -91,6 +95,9 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.konvoiku.touring.data.ManasikGuideData
+import com.konvoiku.touring.data.PrayerCategory
+import com.konvoiku.touring.data.PrayerLibraryData
+import com.konvoiku.touring.data.PrayerLibraryItem
 import com.konvoiku.touring.model.GpsTrackingStatus
 import com.konvoiku.touring.model.ManasikGuideType
 import com.konvoiku.touring.model.ManasikProgressState
@@ -130,11 +137,16 @@ fun ManasikGuideScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+    val clipboardManager = LocalClipboardManager.current
 
     val hasActiveRoom = activeRoom != null
     var selectedMainTab by remember(initialTab, hasActiveRoom) {
         mutableStateOf(
-            if (initialTab == "activities" && hasActiveRoom) "activities" else "manasik"
+            when {
+                initialTab == "activities" && hasActiveRoom -> "activities"
+                initialTab == "doa" -> "doa"
+                else -> "manasik"
+            }
         )
     }
     var selectedGuide by remember { mutableStateOf(ManasikGuideType.UMRAH) }
@@ -142,6 +154,10 @@ fun ManasikGuideScreen(
     var expandedStepId by remember { mutableStateOf<String?>(null) }
     var simLocationId by remember { mutableStateOf<String?>(null) }
     var showResetConfirm by remember { mutableStateOf(false) }
+
+    // Doa Kemenag/MUI state
+    var selectedPrayerCategory by remember { mutableStateOf<PrayerCategory?>(null) }
+    var prayerSearchQuery by remember { mutableStateOf("") }
 
     // Group activity state
     var activityFilter by remember { mutableStateOf("all") } // "all" | "pending" | "done"
@@ -170,6 +186,20 @@ fun ManasikGuideScreen(
         }
     }
 
+    val filteredPrayers = remember(selectedPrayerCategory, prayerSearchQuery) {
+        val q = prayerSearchQuery.trim().lowercase()
+        PrayerLibraryData.prayers.filter { item ->
+            val catOk = selectedPrayerCategory == null || item.category == selectedPrayerCategory
+            if (!catOk) return@filter false
+            if (q.isEmpty()) return@filter true
+            item.title.lowercase().contains(q) ||
+                item.occasionHint.lowercase().contains(q) ||
+                item.transliteration.lowercase().contains(q) ||
+                item.translation.lowercase().contains(q) ||
+                item.verificationBadge.lowercase().contains(q)
+        }
+    }
+
     Scaffold(
         containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -178,20 +208,20 @@ fun ManasikGuideScreen(
                 title = {
                     Column {
                         Text(
-                            text = if (selectedMainTab == "activities" && hasActiveRoom) {
-                                "Checklist Kegiatan Umroh"
-                            } else {
-                                "Panduan Manasik"
+                            text = when {
+                                selectedMainTab == "activities" && hasActiveRoom -> "Checklist Kegiatan Umroh"
+                                selectedMainTab == "doa" -> "Kumpulan Doa Travel & Harian"
+                                else -> "Panduan Manasik"
                             },
                             style = MaterialTheme.typography.titleMedium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = if (selectedMainTab == "activities" && hasActiveRoom) {
-                                "${activeRoom?.roomId ?: ""} · ${activeRoom?.roomTitle ?: "Rombongan"}"
-                            } else {
-                                "Tuntunan Umroh & Haji + Check-in GPS"
+                            text = when {
+                                selectedMainTab == "activities" && hasActiveRoom -> "${activeRoom?.roomId ?: ""} · ${activeRoom?.roomTitle ?: "Rombongan"}"
+                                selectedMainTab == "doa" -> "Standar Tuntunan Manasik Kemenag RI & MUI"
+                                else -> "Tuntunan Umroh & Haji + Check-in GPS"
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -255,27 +285,54 @@ fun ManasikGuideScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (hasActiveRoom) {
-                    item {
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                            SegmentedButton(
-                                selected = selectedMainTab == "manasik",
-                                onClick = { selectedMainTab = "manasik" },
-                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                                icon = {
-                                    Icon(
-                                        imageVector = Icons.Rounded.MenuBook,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            ) {
-                                Text("Panduan Manasik", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                item {
+                    val tabCount = if (hasActiveRoom) 3 else 2
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        SegmentedButton(
+                            selected = selectedMainTab == "manasik",
+                            onClick = { selectedMainTab = "manasik" },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = tabCount),
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.MenuBook,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
                             }
+                        ) {
+                            Text(
+                                text = if (hasActiveRoom) "Manasik" else "Panduan Manasik",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        SegmentedButton(
+                            selected = selectedMainTab == "doa",
+                            onClick = { selectedMainTab = "doa" },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = tabCount),
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Verified,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        ) {
+                            Text(
+                                text = if (hasActiveRoom) "Doa Kemenag" else "Doa Kemenag / MUI",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (hasActiveRoom) {
                             SegmentedButton(
                                 selected = selectedMainTab == "activities",
                                 onClick = { selectedMainTab = "activities" },
-                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                                shape = SegmentedButtonDefaults.itemShape(index = 2, count = tabCount),
                                 icon = {
                                     Icon(
                                         imageVector = Icons.Rounded.Checklist,
@@ -285,8 +342,8 @@ fun ManasikGuideScreen(
                                 }
                             ) {
                                 Text(
-                                    text = "Kegiatan Grup (${roomActivities.size})",
-                                    fontSize = 12.sp,
+                                    text = "Kegiatan (${roomActivities.size})",
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -296,7 +353,153 @@ fun ManasikGuideScreen(
                     }
                 }
 
-                if (selectedMainTab == "manasik" || !hasActiveRoom) {
+                if (selectedMainTab == "doa") {
+                    item {
+                        Card(
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFECFDF5)),
+                            border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Verified,
+                                        contentDescription = null,
+                                        tint = Color(0xFF047857),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = "Terverifikasi Buku Tuntunan Manasik Kemenag RI & MUI",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF065F46)
+                                    )
+                                }
+                                Text(
+                                    text = "${PrayerLibraryData.prayers.size} doa lengkap (Arab, Latin, arti & adab) meliputi doa safar travel umroh, ihram/tawaf/sa'i, ziarah Madinah, serta doa harian standar.",
+                                    fontSize = 11.sp,
+                                    lineHeight = 16.sp,
+                                    color = Color(0xFF065F46)
+                                )
+                            }
+                        }
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = prayerSearchQuery,
+                            onValueChange = { prayerSearchQuery = it },
+                            placeholder = { Text("Cari doa (contoh: kendaraan, tawaf, makan, rawdah)", fontSize = 12.sp) },
+                            leadingIcon = {
+                                Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+                            },
+                            trailingIcon = {
+                                if (prayerSearchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { prayerSearchQuery = "" }) {
+                                        Icon(Icons.Rounded.Close, contentDescription = "Bersihkan pencarian", modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    item {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            item {
+                                FilterChip(
+                                    selected = selectedPrayerCategory == null,
+                                    onClick = { selectedPrayerCategory = null },
+                                    label = {
+                                        Text(
+                                            text = "Semua (${PrayerLibraryData.prayers.size})",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                )
+                            }
+                            items(PrayerCategory.entries.toList(), key = { it.id }) { cat ->
+                                val count = PrayerLibraryData.prayers.count { it.category == cat }
+                                FilterChip(
+                                    selected = selectedPrayerCategory == cat,
+                                    onClick = { selectedPrayerCategory = cat },
+                                    label = {
+                                        Text(
+                                            text = "${cat.shortLabel} ($count)",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    if (filteredPrayers.isEmpty()) {
+                        item {
+                            Card(
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = "Doa tidak ditemukan untuk pencarian tersebut.",
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    TextButton(onClick = {
+                                        prayerSearchQuery = ""
+                                        selectedPrayerCategory = null
+                                    }) {
+                                        Text("Reset Filter Doa")
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        items(filteredPrayers, key = { it.id }) { prayer ->
+                            PrayerLibraryCard(
+                                prayer = prayer,
+                                onCopy = {
+                                    val copyText = buildString {
+                                        appendLine(prayer.title)
+                                        appendLine("(${prayer.verificationBadge})")
+                                        appendLine()
+                                        appendLine(prayer.arabicText)
+                                        appendLine(prayer.transliteration)
+                                        append("Artinya: \"${prayer.translation}\"")
+                                    }
+                                    clipboardManager.setText(AnnotatedString(copyText))
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Doa disalin: ${prayer.title}")
+                                    }
+                                },
+                                onAskAi = onOpenAssistant
+                            )
+                        }
+                    }
+                } else if (selectedMainTab == "manasik" || !hasActiveRoom) {
                     // Umroh / Haji Switcher
                     item {
                         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
@@ -1304,3 +1507,192 @@ private fun ManasikStepCard(
         }
     }
 }
+
+@Composable
+private fun PrayerLibraryCard(
+    prayer: PrayerLibraryItem,
+    onCopy: () -> Unit,
+    onAskAi: () -> Unit
+) {
+    val categoryColor = when (prayer.category) {
+        PrayerCategory.SAFAR -> Color(0xFF047857)
+        PrayerCategory.UMRAH -> Color(0xFF0F766E)
+        PrayerCategory.MADINAH -> Color(0xFFB45309)
+        PrayerCategory.HARIAN -> Color(0xFF1D4ED8)
+    }
+    val categoryBg = when (prayer.category) {
+        PrayerCategory.SAFAR -> Color(0xFFECFDF5)
+        PrayerCategory.UMRAH -> Color(0xFFF0FDFA)
+        PrayerCategory.MADINAH -> Color(0xFFFFFBEB)
+        PrayerCategory.HARIAN -> Color(0xFFEFF6FF)
+    }
+
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            color = categoryBg,
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = prayer.category.shortLabel,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = categoryColor,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        Surface(
+                            color = Color(0xFFECFDF5),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Verified,
+                                    contentDescription = null,
+                                    tint = Color(0xFF047857),
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Text(
+                                    text = prayer.verificationBadge,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF047857),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = prayer.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = prayer.occasionHint,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                IconButton(
+                    onClick = onCopy,
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ContentCopy,
+                        contentDescription = "Salin Doa",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color(0xFFECFDF5),
+                border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                        Text(
+                            text = prayer.arabicText,
+                            fontSize = 20.sp,
+                            lineHeight = 32.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF064E3B),
+                            textAlign = TextAlign.Right,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    Text(
+                        text = prayer.transliteration,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF047857)
+                    )
+                }
+            }
+
+            Text(
+                text = "Artinya: \"${prayer.translation}\"",
+                fontSize = 12.sp,
+                lineHeight = 18.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            if (!prayer.adabNote.isNullOrBlank()) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFFFFFBEB),
+                    border = BorderStroke(1.dp, Color(0xFFFDE68A)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Catatan Adab: ${prayer.adabNote}",
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                        color = Color(0xFF92400E),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(
+                    onClick = onAskAi,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.AutoAwesome,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Tanya Mutawwif AI",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+    }
+}
+

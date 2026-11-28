@@ -941,7 +941,7 @@ export default function App() {
   const [manasikProgress, setManasikProgress] = useState<ManasikProgressState>(() =>
     loadManasikProgressLocal('default')
   );
-  const [manasikInitialTab, setManasikInitialTab] = useState<'manasik' | 'activities'>('manasik');
+  const [manasikInitialTab, setManasikInitialTab] = useState<'manasik' | 'doa' | 'activities'>('manasik');
   const [draftRoomActivities, setDraftRoomActivities] = useState<RoomActivityItem[]>(() =>
     createStarterRoomUmrahActivities('leader')
   );
@@ -5335,6 +5335,10 @@ export default function App() {
                           setManasikInitialTab('manasik');
                           navigateTo('manasik_guide', 1);
                         }}
+                        onOpenPrayerGuide={() => {
+                          setManasikInitialTab('doa');
+                          navigateTo('manasik_guide', 1);
+                        }}
                         onOpenRoomActivities={() => {
                           setManasikInitialTab('activities');
                           navigateTo('manasik_guide', 1);
@@ -5350,6 +5354,14 @@ export default function App() {
                           activeRoom?.members.find((m) => m.isCurrentUser)?.id ||
                           authUser?.uid ||
                           ''
+                        }
+                        userGpsLocation={
+                          gps.lastFix
+                            ? {
+                                lat: gps.lastFix.latitude,
+                                lng: gps.lastFix.longitude,
+                              }
+                            : null
                         }
                         onOpenAboutApp={() => {
                           setAboutReturnRoute('role_selection');

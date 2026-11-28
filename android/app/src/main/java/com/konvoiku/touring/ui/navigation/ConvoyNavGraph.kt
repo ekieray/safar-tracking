@@ -307,6 +307,8 @@ fun ConvoyNavGraph(
                 manasikProgress = uiState.manasikProgress,
                 roomActivitiesCount = uiState.roomActivities.size,
                 roomActivitiesDoneCount = doneActCount,
+                userGpsLat = uiState.userGpsLat,
+                userGpsLng = uiState.userGpsLng,
                 onRoleSelected = { role ->
                     val effectiveRole = if (role == UserRole.TOUR_LEADER && !viewModel.canCreateRoom()) {
                         UserRole.MEMBER
