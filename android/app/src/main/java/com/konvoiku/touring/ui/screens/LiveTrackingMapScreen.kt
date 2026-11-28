@@ -218,6 +218,7 @@ fun LiveTrackingMapScreen(
     isStragglerSimActive: Boolean,
     canPingTomTomRouting: Boolean = role == UserRole.TOUR_LEADER,
     isEffectiveLeader: Boolean = role == UserRole.TOUR_LEADER,
+    isRoomCreator: Boolean = false,
     isLeaderTroubleSimActive: Boolean = false,
     isMissingPilgrimSimActive: Boolean = false,
     gpsStatus: GpsTrackingStatus = GpsTrackingStatus.IDLE,
@@ -722,11 +723,13 @@ fun LiveTrackingMapScreen(
                             modifier = Modifier.size(19.dp)
                         )
                     }
-                    TextButton(
-                        onClick = { showFinishTripDialog = true },
-                        contentPadding = PaddingValues(horizontal = 6.dp)
-                    ) {
-                        Text("Selesai", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    if (isRoomCreator) {
+                        TextButton(
+                            onClick = { showFinishTripDialog = true },
+                            contentPadding = PaddingValues(horizontal = 6.dp)
+                        ) {
+                            Text("Selesai", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                     if (isEffectiveLeader) {
                         IconButton(
@@ -3074,7 +3077,7 @@ fun LiveTrackingMapScreen(
     }
 
     // Finish & Save Trip to History Dialog
-    if (showFinishTripDialog) {
+    if (showFinishTripDialog && isRoomCreator) {
         AlertDialog(
             onDismissRequest = { showFinishTripDialog = false },
             icon = { Icon(Icons.Rounded.Flag, contentDescription = null, tint = Color(0xFF16A34A), modifier = Modifier.size(30.dp)) },

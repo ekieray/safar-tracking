@@ -483,7 +483,7 @@ export function RoleSelectionView({
                     : 'bg-[#ECFDF5] dark:bg-[#064E3B] text-[#047857] dark:text-[#A7F3D0]'
                 }`}
               >
-                {activeRoom ? 'Buka' : isConvoyFinished ? 'Selesai' : canCreateRoom ? 'Mulai' : 'Gabung'}
+                {activeRoom ? 'Buka' : isConvoyFinished ? (canCreateRoom ? 'Selesai' : 'Riwayat') : canCreateRoom ? 'Mulai' : 'Gabung'}
               </span>
             </div>
 

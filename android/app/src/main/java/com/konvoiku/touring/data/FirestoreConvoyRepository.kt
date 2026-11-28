@@ -176,7 +176,7 @@ class FirestoreConvoyRepository {
     private fun normalizeRoomId(raw: String): String =
         raw.trim().uppercase(Locale.ROOT)
 
-    private fun normalizeHttpBaseUrl(raw: String): String? {
+    fun normalizeHttpBaseUrl(raw: String): String? {
         val clean = raw.trim().trimEnd('/')
         if (clean.isEmpty()) return null
         if (!clean.startsWith("https://", ignoreCase = true) &&
@@ -1301,9 +1301,8 @@ class FirestoreConvoyRepository {
         runCatching {
             val roomRef = db.collection("rooms").document(roomId)
             val snap = roomRef.get().await()
-            val isEffective = snap.exists() &&
-                (snap.getString("leaderUid") == uid || snap.getString("actingLeaderUid") == uid)
-            if (isEffective && snap.getString("status") != "FINISHED") {
+            val isCreator = snap.exists() && snap.getString("leaderUid") == uid
+            if (isCreator && snap.getString("status") != "FINISHED") {
                 roomRef.update(
                     mapOf(
                         "status" to "FINISHED",
@@ -2310,49 +2309,88 @@ class FirestoreConvoyRepository {
                 put("context", contextObj)
             }.toString()
 
-            val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"
-                connectTimeout = 15000
-                readTimeout = 30000
-                doOutput = true
-                setRequestProperty("Content-Type", "application/json; charset=UTF-8")
-                setRequestProperty("Accept", "application/json")
-            }
-            try {
-                conn.outputStream.use { os ->
-                    os.write(bodyJson.toByteArray(StandardCharsets.UTF_8))
+            val attemptCall: (String) -> Pair<String, String> = { targetBase ->
+                val endpoint = "$targetBase/api/gemini/chat"
+                val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    instanceFollowRedirects = false
+                    connectTimeout = 15000
+                    readTimeout = 30000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                    setRequestProperty("Accept", "application/json")
                 }
-                val code = conn.responseCode
-                val rawBody = (if (code in 200..299) conn.inputStream else conn.errorStream)
-                    ?.bufferedReader(StandardCharsets.UTF_8)
-                    ?.use { it.readText() }
-                    .orEmpty()
-
-                if (code == 401 || code == 403 || rawBody.contains("accounts.google.com", ignoreCase = true)) {
-                    throw IllegalStateException(
-                        "Server AI membutuhkan aplikasi web terpublish (Published Web URL). Pastikan URL backend web aktif."
-                    )
-                }
-                if (code == 404) {
-                    throw IllegalStateException(
-                        "Endpoint /api/gemini/chat belum ditemukan di server ($base)."
-                    )
-                }
-                val json = runCatching { JSONObject(rawBody) }.getOrNull()
-                if (code !in 200..299 || json == null || !json.optBoolean("ok", false)) {
-                    val serverErr = json?.optString("error").orEmpty().ifBlank {
-                        "Gagal menghubungi Mutawwif AI (HTTP $code)."
+                try {
+                    conn.outputStream.use { os ->
+                        os.write(bodyJson.toByteArray(StandardCharsets.UTF_8))
                     }
-                    throw IllegalStateException(serverErr)
+                    val code = conn.responseCode
+                    val location = conn.getHeaderField("Location").orEmpty()
+                    if (code in 300..399) {
+                        if (location.contains("__cookie_check", ignoreCase = true) ||
+                            location.contains("accounts.google.com", ignoreCase = true) ||
+                            location.contains("aistudio", ignoreCase = true)
+                        ) {
+                            throw IllegalStateException(
+                                "URL ($targetBase) mengarah ke Dev Preview AI Studio yang terkunci login Google. Gunakan URL Web hasil Deploy / Share."
+                            )
+                        }
+                        throw IllegalStateException(
+                            "Server ($targetBase) mengalihkan request ($code). Pastikan URL menunjuk ke server web Safar Tracking yang aktif."
+                        )
+                    }
+                    val rawBody = (if (code in 200..299) conn.inputStream else conn.errorStream)
+                        ?.bufferedReader(StandardCharsets.UTF_8)
+                        ?.use { it.readText() }
+                        .orEmpty()
+
+                    if (code == 401 || code == 403 || rawBody.contains("accounts.google.com", ignoreCase = true)) {
+                        throw IllegalStateException(
+                            "Server AI membutuhkan aplikasi web terpublish (Published Web URL). Pastikan URL backend web aktif."
+                        )
+                    }
+                    if (code == 404) {
+                        val healthStatus = probeWebEndpoint(targetBase)
+                        val detailMsg = when (healthStatus) {
+                            WebEndpointStatus.NOT_FOUND ->
+                                "Server Web ($targetBase) belum aktif / belum di-Publish di AI Studio (HTTP 404). Klik Deploy / Share di AI Studio atau isi URL server web yang aktif di bawah."
+                            WebEndpointStatus.DEV_PROXY_AUTH ->
+                                "URL ($targetBase) mengarah ke Dev Preview AI Studio yang memerlukan login Google pemilik. Gunakan URL hasil Deploy / Share."
+                            WebEndpointStatus.OUTDATED_BUILD ->
+                                "Web di ($targetBase) belum menjalankan server backend Express (/api/gemini/chat). Pastikan aplikasi dijalankan lewat server full-stack (npm start)."
+                            WebEndpointStatus.LIVE_DIRECT ->
+                                "Endpoint /api/gemini/chat belum ditemukan di server ($targetBase). Deploy ulang versi web terbaru."
+                            WebEndpointStatus.UNREACHABLE ->
+                                "Endpoint /api/gemini/chat tidak ditemukan di server ($targetBase) (HTTP 404)."
+                        }
+                        throw IllegalStateException(detailMsg)
+                    }
+                    val json = runCatching { JSONObject(rawBody) }.getOrNull()
+                    if (code !in 200..299 || json == null || !json.optBoolean("ok", false)) {
+                        val serverErr = json?.optString("error").orEmpty().ifBlank {
+                            "Gagal menghubungi Mutawwif AI (HTTP $code)."
+                        }
+                        throw IllegalStateException(serverErr)
+                    }
+                    val reply = json.optString("reply", "").trim()
+                    if (reply.isEmpty()) {
+                        throw IllegalStateException("Jawaban Mutawwif AI kosong.")
+                    }
+                    val model = json.optString("model", "gemini-4-hydrogen")
+                    reply to model
+                } finally {
+                    conn.disconnect()
                 }
-                val reply = json.optString("reply", "").trim()
-                if (reply.isEmpty()) {
-                    throw IllegalStateException("Jawaban Mutawwif AI kosong.")
+            }
+
+            try {
+                attemptCall(base)
+            } catch (firstErr: Throwable) {
+                if (base != SHARED_BASE_URL && probeWebEndpoint(SHARED_BASE_URL) == WebEndpointStatus.LIVE_DIRECT) {
+                    attemptCall(SHARED_BASE_URL)
+                } else {
+                    throw firstErr
                 }
-                val model = json.optString("model", "gemini-4-hydrogen")
-                reply to model
-            } finally {
-                conn.disconnect()
             }
         }
     }

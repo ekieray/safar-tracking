@@ -78,7 +78,11 @@ async function startServer() {
     },
   };
 
-  app.post('/api/gemini/chat', async (req: Request, res: Response) => {
+  app.options(['/api/gemini/chat', '/api/gemini/chat/'], (_req: Request, res: Response) => {
+    res.status(204).end();
+  });
+
+  app.post(['/api/gemini/chat', '/api/gemini/chat/'], async (req: Request, res: Response) => {
     const apiKey = process.env.GEMINI_API_KEY?.trim();
     if (!apiKey) {
       res.status(503).json({
@@ -131,11 +135,26 @@ async function startServer() {
           typeof rawText === 'string' &&
           rawText.trim().length > 0
         ) {
-          formattedHistory.push({
-            role: rawRole,
-            parts: [{ text: rawText.trim().slice(0, 4000) }],
-          });
+          const cleanText = rawText.trim().slice(0, 4000);
+          if (formattedHistory.length === 0 && rawRole !== 'user') {
+            continue;
+          }
+          const prev = formattedHistory[formattedHistory.length - 1];
+          if (prev && prev.role === rawRole) {
+            prev.parts.push({ text: cleanText });
+          } else {
+            formattedHistory.push({
+              role: rawRole,
+              parts: [{ text: cleanText }],
+            });
+          }
         }
+      }
+      if (
+        formattedHistory.length > 0 &&
+        formattedHistory[formattedHistory.length - 1].role === 'user'
+      ) {
+        formattedHistory.pop();
       }
     }
 
@@ -577,7 +596,7 @@ async function startServer() {
     });
   }
 
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Safar Tracking server listening on http://0.0.0.0:${PORT}`);
   });

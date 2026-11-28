@@ -525,6 +525,7 @@ fun ConvoyNavGraph(
 
         composable(ConvoyRoute.LiveMap.route) {
             val isEffectiveLeader = viewModel.isCurrentUserEffectiveLeader()
+            val isRoomCreator = viewModel.isCurrentUserRoomCreator()
             LiveTrackingMapScreen(
                 activeRoom = uiState.activeRoom,
                 role = uiState.selectedRole ?: UserRole.MEMBER,
@@ -547,6 +548,7 @@ fun ConvoyNavGraph(
                 isStragglerSimActive = uiState.isStragglerSimActive,
                 canPingTomTomRouting = isEffectiveLeader,
                 isEffectiveLeader = isEffectiveLeader,
+                isRoomCreator = isRoomCreator,
                 isLeaderTroubleSimActive = uiState.isLeaderTroubleSimActive,
                 isMissingPilgrimSimActive = uiState.isMissingPilgrimSimActive,
                 gpsStatus = uiState.gpsStatus,
@@ -725,8 +727,10 @@ fun ConvoyNavGraph(
                 messages = uiState.manasikChatMessages,
                 isSending = uiState.isSendingManasikChat,
                 errorMessage = uiState.manasikChatError,
+                activeWebBaseUrl = uiState.activeWebBaseUrl,
                 onSelectRole = viewModel::setManasikChatRole,
                 onSendMessage = viewModel::sendManasikChatMessage,
+                onUpdateServerUrl = viewModel::updateCustomWebBaseUrl,
                 onClearHistory = viewModel::clearManasikChatHistory,
                 onBack = { navController.popBackStack() }
             )

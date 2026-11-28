@@ -154,16 +154,30 @@ export function ManasikChatbotView({
         }),
       });
 
-      const data = (await response.json()) as {
+      type ChatApiResponse = {
         ok?: boolean;
         reply?: string;
         model?: string;
         error?: string;
       };
+      const rawBody = await response.text();
+      let data: ChatApiResponse | null = null;
+      try {
+        data = rawBody ? (JSON.parse(rawBody) as ChatApiResponse) : null;
+      } catch {
+        data = null;
+      }
 
-      if (!response.ok || !data.ok || !data.reply) {
+      if (response.status === 404) {
         throw new Error(
-          data.error || `Gagal menerima jawaban asisten (${response.status}).`
+          data?.error ||
+            'Endpoint /api/gemini/chat belum ditemukan di server web. Pastikan server backend aktif.'
+        );
+      }
+
+      if (!response.ok || !data?.ok || !data?.reply) {
+        throw new Error(
+          data?.error || `Gagal menerima jawaban asisten (HTTP ${response.status}).`
         );
       }
 

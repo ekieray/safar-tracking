@@ -113,6 +113,7 @@ interface LiveTrackingMapViewProps {
   isLeaderTroubleSimActive: boolean;
   canPingRouting: boolean;
   isEffectiveLeader: boolean;
+  isRoomCreator?: boolean;
   destinationPresets: DestinationPreset[];
   darkMode?: boolean;
   gpsStatus: GpsPermissionStatus;
@@ -391,6 +392,7 @@ export function LiveTrackingMapView({
   isLeaderTroubleSimActive,
   canPingRouting,
   isEffectiveLeader,
+  isRoomCreator = false,
   destinationPresets,
   darkMode,
   gpsStatus,
@@ -832,13 +834,15 @@ export function LiveTrackingMapView({
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={() => setShowFinishTripConfirm(true)}
-            className="min-h-[32px] px-2 py-1 rounded-lg bg-[#ECFDF5] dark:bg-[#064E3B] text-[11px] font-semibold text-[#047857] dark:text-[#6EE7B7] transition-colors cursor-pointer whitespace-nowrap"
-          >
-            Selesai
-          </button>
+          {isRoomCreator && (
+            <button
+              type="button"
+              onClick={() => setShowFinishTripConfirm(true)}
+              className="min-h-[32px] px-2 py-1 rounded-lg bg-[#ECFDF5] dark:bg-[#064E3B] text-[11px] font-semibold text-[#047857] dark:text-[#6EE7B7] transition-colors cursor-pointer whitespace-nowrap"
+            >
+              Selesai
+            </button>
+          )}
 
           {isEffectiveLeader && (
             <button
@@ -2601,7 +2605,7 @@ export function LiveTrackingMapView({
       )}
 
       {/* Finish & Save Trip Confirmation Modal */}
-      {showFinishTripConfirm && (
+      {isRoomCreator && showFinishTripConfirm && (
         <div className="absolute inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-center justify-center p-5">
           <div className="w-full max-w-[320px] rounded-[22px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] p-5 space-y-4 shadow-2xl">
             <div className="flex items-center gap-3">

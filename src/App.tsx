@@ -595,6 +595,25 @@ function isRoomEffectiveLeader(room: TourRoom | null | undefined, uid?: string |
   return room.leaderUid === uid;
 }
 
+function isRoomCreatorUser(
+  room: TourRoom | null | undefined,
+  uid?: string | null,
+  fallbackRole?: UserRole | null
+): boolean {
+  if (!room) return false;
+  if (room.isSyncedRoom) {
+    return Boolean(uid && room.leaderUid && room.leaderUid === uid);
+  }
+  const selfMember = room.members.find((m) => m.isCurrentUser);
+  if (room.leaderUid && selfMember) {
+    return selfMember.id === room.leaderUid && fallbackRole !== 'MEMBER';
+  }
+  if (selfMember) {
+    return selfMember.role === 'TOUR_LEADER' && fallbackRole !== 'MEMBER';
+  }
+  return fallbackRole === 'TOUR_LEADER';
+}
+
 function landmarkForProgress(progress: number): string {
   if (progress < 0.3) return 'Hotel Area Ajyad';
   if (progress < 0.5) return 'Jalur Menuju Bab Al-Malik';
@@ -4692,6 +4711,10 @@ export default function App() {
       navigateTo('trip_history', 1);
       return;
     }
+    const isCreator = isRoomCreatorUser(room, user?.uid, selectedRole);
+    if (!autoEndedByLeader && !isCreator) {
+      return;
+    }
 
     const activeSpeeds = room.members
       .map((m) => m.mapPosition.speedKmh)
@@ -4768,7 +4791,7 @@ export default function App() {
     };
 
     if (room.isSyncedRoom && user) {
-      if (!autoEndedByLeader && isRoomEffectiveLeader(room, user.uid)) {
+      if (!autoEndedByLeader && isCreator) {
         finishSyncedRoom(room.roomId).catch(() => {});
       }
       saveTripRecordToFirestore(user.uid, newRecord).catch((err) =>
@@ -5508,6 +5531,11 @@ export default function App() {
                                 selfMember.id === activeRoom.actingLeaderUid
                             )
                           : selectedRole === 'TOUR_LEADER';
+                      const isRoomCreatorNow = isRoomCreatorUser(
+                        activeRoom,
+                        authUser?.uid,
+                        selectedRole
+                      );
                       return (
                       <LiveTrackingMapView
                         activeRoom={activeRoom}
@@ -5532,6 +5560,7 @@ export default function App() {
                         isLeaderTroubleSimActive={isLeaderTroubleSimActive}
                         canPingRouting={isEffectiveLeaderNow}
                         isEffectiveLeader={isEffectiveLeaderNow}
+                        isRoomCreator={isRoomCreatorNow}
                         destinationPresets={DESTINATION_PRESETS}
                         darkMode={darkMode}
                         gpsStatus={gps.status}

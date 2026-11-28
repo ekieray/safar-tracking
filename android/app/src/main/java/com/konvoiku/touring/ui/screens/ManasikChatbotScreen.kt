@@ -90,14 +90,17 @@ fun ManasikChatbotScreen(
     messages: List<AssistantChatMessage>,
     isSending: Boolean,
     errorMessage: String?,
+    activeWebBaseUrl: String = "",
     onSelectRole: (AssistantRoleId) -> Unit,
     onSendMessage: (String) -> Unit,
+    onUpdateServerUrl: (String) -> Unit = {},
     onClearHistory: () -> Unit,
     onBack: () -> Unit,
     initialPrompt: String? = null,
     onConsumeInitialPrompt: () -> Unit = {}
 ) {
     var inputText by remember { mutableStateOf("") }
+    var serverUrlDraft by remember(activeWebBaseUrl) { mutableStateOf(activeWebBaseUrl) }
     val listState = rememberLazyListState()
 
     LaunchedEffect(initialPrompt) {
@@ -419,29 +422,78 @@ fun ManasikChatbotScreen(
 
                     if (!errorMessage.isNullOrBlank()) {
                         item(key = "error_banner") {
+                            val showServerUrlEditor = errorMessage.contains("404", ignoreCase = true) ||
+                                errorMessage.contains("/api/gemini/chat", ignoreCase = true) ||
+                                errorMessage.contains("Deploy", ignoreCase = true) ||
+                                errorMessage.contains("URL", ignoreCase = true)
+                            val lastUserPrompt = messages.lastOrNull { it.role == "user" }?.text
                             Surface(
                                 shape = RoundedCornerShape(14.dp),
                                 color = Color(0xFFFEF2F2),
                                 border = BorderStroke(1.dp, Color(0xFFFECACA)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Row(
+                                Column(
                                     modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.Top,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Warning,
-                                        contentDescription = null,
-                                        tint = Color(0xFFDC2626),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Text(
-                                        text = errorMessage,
-                                        fontSize = 12.sp,
-                                        lineHeight = 17.sp,
-                                        color = Color(0xFF991B1B)
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.Top,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Warning,
+                                            contentDescription = null,
+                                            tint = Color(0xFFDC2626),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Text(
+                                            text = errorMessage,
+                                            fontSize = 12.sp,
+                                            lineHeight = 17.sp,
+                                            color = Color(0xFF991B1B)
+                                        )
+                                    }
+                                    if (showServerUrlEditor) {
+                                        OutlinedTextField(
+                                            value = serverUrlDraft,
+                                            onValueChange = { serverUrlDraft = it },
+                                            singleLine = true,
+                                            label = { Text("URL Server Web Aktif", fontSize = 11.sp) },
+                                            placeholder = { Text("https://...run.app", fontSize = 12.sp) },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            TextButton(
+                                                onClick = {
+                                                    onUpdateServerUrl(serverUrlDraft)
+                                                    if (!lastUserPrompt.isNullOrBlank() && !isSending) {
+                                                        onSendMessage(lastUserPrompt)
+                                                    }
+                                                }
+                                            ) {
+                                                Text(
+                                                    text = if (!lastUserPrompt.isNullOrBlank()) "Simpan & Coba Lagi" else "Simpan URL",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            if (serverUrlDraft.isNotBlank()) {
+                                                TextButton(
+                                                    onClick = {
+                                                        serverUrlDraft = ""
+                                                        onUpdateServerUrl("")
+                                                    }
+                                                ) {
+                                                    Text("Reset Default", fontSize = 12.sp)
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

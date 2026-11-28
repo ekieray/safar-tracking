@@ -1023,7 +1023,7 @@ fun RoleSelectionScreen(
                             Text(
                                 text = when {
                                     activeRoom != null -> "Buka"
-                                    isConvoyFinished -> "Selesai"
+                                    isConvoyFinished -> if (canCreateRoom) "Selesai" else "Riwayat"
                                     else -> if (canCreateRoom) "Mulai" else "Gabung"
                                 },
                                 style = MaterialTheme.typography.labelLarge,

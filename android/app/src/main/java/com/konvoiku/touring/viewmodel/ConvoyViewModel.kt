@@ -2721,6 +2721,24 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         return state.selectedRole == UserRole.TOUR_LEADER || self?.role == UserRole.TOUR_LEADER
     }
 
+    fun isCurrentUserRoomCreator(): Boolean {
+        val state = _uiState.value
+        if (state.authSession?.loginRole == AuthLoginRole.FAMILY) return false
+        val room = state.activeRoom ?: return false
+        val self = room.members.find { it.isCurrentUser }
+        if (room.isSyncedRoom) {
+            val uid = syncRepo.currentUid()
+            return uid != null && room.leaderUid.isNotBlank() && uid == room.leaderUid
+        }
+        if (room.leaderUid.isNotBlank() && self != null) {
+            return self.id == room.leaderUid
+        }
+        if (self != null) {
+            return self.role == UserRole.TOUR_LEADER && state.selectedRole != UserRole.MEMBER
+        }
+        return state.selectedRole == UserRole.TOUR_LEADER
+    }
+
     fun toggleLeaderTroubleSimulation() {
         val state = _uiState.value
         val room = state.activeRoom ?: return
@@ -4349,13 +4367,16 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun finishAndSaveCurrentTrip(autoEndedByLeader: Boolean = false): TripHistoryRecord? {
+        val state = _uiState.value
+        val room = state.activeRoom ?: return null
+        if (!autoEndedByLeader && !isCurrentUserRoomCreator()) {
+            return null
+        }
         roomUnsubscribe?.invoke()
         roomUnsubscribe = null
         voiceTimerJob?.cancel()
         releaseVoiceRecorder(deleteFile = true)
         stopVoicePlayback()
-        val state = _uiState.value
-        val room = state.activeRoom ?: return null
         val route = state.routeConfig
         val role = state.selectedRole ?: UserRole.MEMBER
 
@@ -4479,8 +4500,8 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
             viewModelScope.launch {
                 val uid = syncRepo.currentUid()
                 if (uid != null) {
-                    val effective = room.leaderUid == uid || room.actingLeaderUid == uid
-                    if (!autoEndedByLeader && room.isSyncedRoom && effective) {
+                    val isCreator = room.leaderUid == uid
+                    if (!autoEndedByLeader && room.isSyncedRoom && isCreator) {
                         syncRepo.finishRoomIfLeader(room.roomId, uid)
                     }
                     syncRepo.saveTripRecord(uid, record)
@@ -5328,6 +5349,33 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update { it.copy(manasikChatMessages = emptyList(), manasikChatError = null) }
     }
 
+    fun updateCustomWebBaseUrl(rawUrl: String) {
+        val trimmed = rawUrl.trim()
+        if (trimmed.isEmpty()) {
+            profilePrefs.edit().remove("custom_web_base_url").apply()
+            viewModelScope.launch {
+                val resolved = syncRepo.resolveActiveWebBaseUrl(null)
+                _uiState.update {
+                    it.copy(activeWebBaseUrl = resolved, manasikChatError = null)
+                }
+            }
+            return
+        }
+        val clean = syncRepo.normalizeHttpBaseUrl(trimmed)
+        if (clean == null) {
+            _uiState.update {
+                it.copy(
+                    manasikChatError = "Format URL server tidak valid. Awali dengan https:// (contoh: https://...run.app)."
+                )
+            }
+            return
+        }
+        profilePrefs.edit().putString("custom_web_base_url", clean).apply()
+        _uiState.update {
+            it.copy(activeWebBaseUrl = clean, manasikChatError = null)
+        }
+    }
+
     fun sendManasikChatMessage(rawText: String) {
         val trimmed = rawText.trim()
         val state = _uiState.value
@@ -5375,8 +5423,19 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
             }.orEmpty()
 
         viewModelScope.launch {
+            val savedCustomUrl = profilePrefs.getString("custom_web_base_url", null)
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+            val resolvedBase = if (savedCustomUrl != null) {
+                syncRepo.normalizeHttpBaseUrl(savedCustomUrl) ?: state.activeWebBaseUrl
+            } else {
+                syncRepo.resolveActiveWebBaseUrl(null)
+            }
+            if (resolvedBase != _uiState.value.activeWebBaseUrl) {
+                _uiState.update { it.copy(activeWebBaseUrl = resolvedBase) }
+            }
             val result = syncRepo.sendManasikChatMessage(
-                webBaseUrl = state.activeWebBaseUrl,
+                webBaseUrl = resolvedBase,
                 message = trimmed,
                 history = historySnapshot,
                 roleId = roleId,
