@@ -1120,14 +1120,12 @@ fun AdminBackendScreen(
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    val meta = listOf(
-                                        u.vehicleDetail,
-                                        u.licensePlate,
+                                    val meta = listOfNotNull(
+                                        u.vehicleDetail.takeIf { it.isNotBlank() },
+                                        u.licensePlate.takeIf { it.isNotBlank() },
                                         u.passportNumber.takeIf { it.isNotBlank() }?.let { "Paspor: $it" },
-                                        u.clubName
-                                    )
-                                        .filter { it.isNotBlank() }
-                                        .joinToString(" · ")
+                                        u.clubName.takeIf { it.isNotBlank() }
+                                    ).joinToString(" · ")
                                     if (meta.isNotBlank()) {
                                         Text(
                                             text = meta,
