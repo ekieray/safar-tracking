@@ -109,6 +109,7 @@ service cloud.firestore {
         'vehicleType',
         'vehicleDetail',
         'licensePlate',
+        'passportNumber',
         'emergencyContact',
         'avatarPreset',
         'createdAt',
@@ -119,6 +120,7 @@ service cloud.firestore {
       data.vehicleType in ['MOBIL', 'MOTOR'] &&
       data.vehicleDetail is string && data.vehicleDetail.size() <= 80 &&
       data.licensePlate is string && data.licensePlate.size() <= 24 &&
+      (!('passportNumber' in data) || (data.passportNumber is string && data.passportNumber.size() <= 32)) &&
       data.emergencyContact is string && data.emergencyContact.size() <= 40 &&
       data.avatarPreset is string && data.avatarPreset.size() >= 1 && data.avatarPreset.size() <= 40 &&
       (!('email' in data) || (data.email is string && data.email.size() <= 160)) &&
@@ -783,6 +785,7 @@ service cloud.firestore {
           'vehicleType',
           'vehicleDetail',
           'licensePlate',
+          'passportNumber',
           'emergencyContact',
           'avatarPreset',
           'updatedAt'

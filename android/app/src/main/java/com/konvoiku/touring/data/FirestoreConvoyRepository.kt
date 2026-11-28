@@ -538,6 +538,7 @@ class FirestoreConvoyRepository {
                     "vehicleType" to profile.vehicleType.name,
                     "vehicleDetail" to profile.vehicleDetail.trim().take(80),
                     "licensePlate" to profile.licensePlate.trim().take(24),
+                    "passportNumber" to profile.passportNumber.trim().uppercase().take(32),
                     "emergencyContact" to profile.emergencyContact.trim().take(40),
                     "avatarPreset" to profile.avatarPreset.name,
                     "createdAt" to FieldValue.serverTimestamp(),
@@ -557,6 +558,7 @@ class FirestoreConvoyRepository {
                     "vehicleType" to profile.vehicleType.name,
                     "vehicleDetail" to profile.vehicleDetail.trim().take(80),
                     "licensePlate" to profile.licensePlate.trim().take(24),
+                    "passportNumber" to profile.passportNumber.trim().uppercase().take(32),
                     "emergencyContact" to profile.emergencyContact.trim().take(40),
                     "avatarPreset" to profile.avatarPreset.name,
                     "updatedAt" to FieldValue.serverTimestamp()
@@ -585,6 +587,7 @@ class FirestoreConvoyRepository {
                 }.getOrDefault(VehicleType.MOBIL),
                 vehicleDetail = snap.getString("vehicleDetail").orEmpty(),
                 licensePlate = snap.getString("licensePlate").orEmpty(),
+                passportNumber = snap.getString("passportNumber").orEmpty(),
                 emergencyContact = snap.getString("emergencyContact").orEmpty(),
                 avatarPreset = runCatching {
                     AvatarPreset.valueOf(snap.getString("avatarPreset") ?: "HELMET_TOURING")
@@ -1842,6 +1845,7 @@ class FirestoreConvoyRepository {
                     }.getOrDefault(VehicleType.MOBIL),
                     vehicleDetail = doc.getString("vehicleDetail").orEmpty(),
                     licensePlate = doc.getString("licensePlate").orEmpty(),
+                    passportNumber = doc.getString("passportNumber").orEmpty(),
                     avatarPreset = runCatching {
                         AvatarPreset.valueOf(doc.getString("avatarPreset") ?: "HELMET_TOURING")
                     }.getOrDefault(AvatarPreset.HELMET_TOURING),

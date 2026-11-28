@@ -157,7 +157,8 @@ export function AdminBackendView({
         u.email.toLowerCase().includes(q) ||
         u.clubName.toLowerCase().includes(q) ||
         u.homeCity.toLowerCase().includes(q) ||
-        u.licensePlate.toLowerCase().includes(q)
+        u.licensePlate.toLowerCase().includes(q) ||
+        (u.passportNumber || '').toLowerCase().includes(q)
     );
   }, [users, userSearch]);
 
@@ -787,10 +788,11 @@ export function AdminBackendView({
                             {u.clubName ? ` · ${u.clubName}` : ''}
                             {u.homeCity ? ` (${u.homeCity})` : ''}
                           </p>
-                          {(u.vehicleDetail || u.licensePlate) && (
+                          {(u.vehicleDetail || u.licensePlate || u.passportNumber) && (
                             <p className="text-[10px] text-[#2D4A3D] dark:text-[#D1FAE5] truncate">
                               {u.vehicleDetail || u.vehicleType}
                               {u.licensePlate ? ` · ${u.licensePlate}` : ''}
+                              {u.passportNumber ? ` · Paspor: ${u.passportNumber}` : ''}
                             </p>
                           )}
                         </div>

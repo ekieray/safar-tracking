@@ -6,6 +6,7 @@ import {
   Bus,
   CheckCircle2,
   CloudCheck,
+  FileText,
   Footprints,
   Hotel,
   ImagePlus,
@@ -122,6 +123,7 @@ export function CustomizeProfileView({
       instagramHandle: (draft.instagramHandle || '').trim(),
       vehicleDetail: draft.vehicleDetail.trim(),
       licensePlate: draft.licensePlate.trim().toUpperCase(),
+      passportNumber: (draft.passportNumber || '').trim().toUpperCase().slice(0, 32),
       emergencyContact: draft.emergencyContact.trim(),
     };
 
@@ -523,6 +525,35 @@ export function CustomizeProfileView({
                 />
               </div>
             </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor="custom-passport"
+              className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1"
+            >
+              Nomor Passport (Opsional)
+            </label>
+            <div className="relative">
+              <FileText className="w-4 h-4 text-[#4D6659] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                id="custom-passport"
+                type="text"
+                maxLength={32}
+                value={draft.passportNumber || ''}
+                onChange={(e) =>
+                  setDraft((prev) => ({
+                    ...prev,
+                    passportNumber: e.target.value.toUpperCase(),
+                  }))
+                }
+                placeholder="Contoh: C1234567"
+                className="w-full min-h-[44px] pl-10 pr-3.5 rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#C6DACD] dark:border-[#1E3F31] text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-[#047857]"
+              />
+            </div>
+            <p className="mt-1 text-[11px] text-[#4D6659] dark:text-[#9CC2AE]">
+              Tersimpan aman di profil pribadi (tidak dibagikan ke peta publik jamaah lain).
+            </p>
           </div>
         </div>
 

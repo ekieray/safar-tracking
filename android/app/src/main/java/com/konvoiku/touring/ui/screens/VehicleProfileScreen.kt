@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -85,6 +86,7 @@ fun VehicleProfileScreen(
         vehicleType: VehicleType?,
         vehicleDetail: String?,
         licensePlate: String?,
+        passportNumber: String?,
         emergencyContact: String?,
         avatarPreset: AvatarPreset?,
         avatarPhotoUri: String?,
@@ -100,7 +102,7 @@ fun VehicleProfileScreen(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
-            onUpdateProfile(null, null, null, null, null, null, uri.toString(), false)
+            onUpdateProfile(null, null, null, null, null, null, null, uri.toString(), false)
         }
     }
 
@@ -257,7 +259,7 @@ fun VehicleProfileScreen(
                                 if (!profile.avatarPhotoUri.isNullOrBlank()) {
                                     TextButton(
                                         onClick = {
-                                            onUpdateProfile(null, null, null, null, null, null, null, true)
+                                            onUpdateProfile(null, null, null, null, null, null, null, null, true)
                                         }
                                     ) {
                                         Icon(Icons.Rounded.Close, contentDescription = "Hapus Foto", modifier = Modifier.size(16.dp))
@@ -279,16 +281,16 @@ fun VehicleProfileScreen(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(AvatarPreset.entries) { preset ->
-                            val isSelected = profile.avatarPhotoUri.isNullOrBlank() && profile.avatarPreset == preset
+                            val selected = profile.avatarPhotoUri.isNullOrBlank() && profile.avatarPreset == preset
                             Surface(
                                 onClick = {
-                                    onUpdateProfile(null, null, null, null, null, preset, null, true)
+                                    onUpdateProfile(null, null, null, null, null, null, preset, null, true)
                                 },
                                 shape = RoundedCornerShape(14.dp),
-                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background,
+                                color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.background,
                                 border = BorderStroke(
-                                    width = if (isSelected) 1.5.dp else 1.dp,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                    width = if (selected) 1.5.dp else 1.dp,
+                                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                                 )
                             ) {
                                 Column(
@@ -307,7 +309,7 @@ fun VehicleProfileScreen(
                                     Text(
                                         text = preset.label,
                                         fontSize = 10.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -321,7 +323,7 @@ fun VehicleProfileScreen(
             // 1. Nama Lengkap
             OutlinedTextField(
                 value = profile.fullName,
-                onValueChange = { onUpdateProfile(it, null, null, null, null, null, null, false) },
+                onValueChange = { onUpdateProfile(it, null, null, null, null, null, null, null, false) },
                 label = { Text("Nama Lengkap") },
                 placeholder = { Text("Contoh: Ahmad Fauzi") },
                 leadingIcon = {
@@ -358,7 +360,7 @@ fun VehicleProfileScreen(
                                 count = VehicleType.entries.size
                             ),
                             selected = profile.vehicleType == type,
-                            onClick = { onUpdateProfile(null, type, null, null, null, null, null, false) },
+                            onClick = { onUpdateProfile(null, type, null, null, null, null, null, null, false) },
                             icon = {
                                 Icon(
                                     imageVector = if (type == VehicleType.MOBIL) {
@@ -383,7 +385,7 @@ fun VehicleProfileScreen(
             // 3. Info Bus / Kloter (untuk Label Marker Peta)
             OutlinedTextField(
                 value = profile.vehicleDetail,
-                onValueChange = { onUpdateProfile(null, null, it, null, null, null, null, false) },
+                onValueChange = { onUpdateProfile(null, null, it, null, null, null, null, null, false) },
                 label = { Text("Info Bus / Kloter (Opsional)") },
                 placeholder = {
                     Text(
@@ -412,7 +414,7 @@ fun VehicleProfileScreen(
             // 4. Kode Kloter / Regu
             OutlinedTextField(
                 value = profile.licensePlate,
-                onValueChange = { onUpdateProfile(null, null, null, it, null, null, null, false) },
+                onValueChange = { onUpdateProfile(null, null, null, it, null, null, null, null, false) },
                 label = { Text("Kode Kloter / Regu") },
                 placeholder = { Text("Contoh: KLOTER-01") },
                 leadingIcon = {
@@ -431,10 +433,33 @@ fun VehicleProfileScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // 5. Kontak Darurat
+            // 5. Nomor Passport (Opsional & Privat)
+            OutlinedTextField(
+                value = profile.passportNumber,
+                onValueChange = {
+                    onUpdateProfile(null, null, null, null, it.uppercase().take(32), null, null, null, false)
+                },
+                label = { Text("Nomor Passport (Opsional)") },
+                placeholder = { Text("Contoh: C1234567") },
+                leadingIcon = {
+                    Icon(Icons.Rounded.Shield, contentDescription = null)
+                },
+                supportingText = {
+                    Text("Disimpan privat di akun Anda (tidak dibagikan ke peta publik).")
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Characters,
+                    imeAction = ImeAction.Next
+                ),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // 6. Kontak Darurat
             OutlinedTextField(
                 value = profile.emergencyContact,
-                onValueChange = { onUpdateProfile(null, null, null, null, it, null, null, false) },
+                onValueChange = { onUpdateProfile(null, null, null, null, null, it, null, null, false) },
                 label = { Text("Kontak Darurat (No. Telepon / WA)") },
                 placeholder = { Text("Contoh: 0812-3456-7890") },
                 leadingIcon = {

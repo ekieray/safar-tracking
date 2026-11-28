@@ -549,6 +549,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
             put("vehicleType", profile.vehicleType.name)
             put("vehicleDetail", profile.vehicleDetail)
             put("licensePlate", profile.licensePlate)
+            put("passportNumber", profile.passportNumber)
             put("emergencyContact", profile.emergencyContact)
             put("avatarPreset", profile.avatarPreset.name)
             put("avatarPhotoUri", profile.avatarPhotoUri.orEmpty())
@@ -575,6 +576,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                 }.getOrDefault(VehicleType.MOBIL),
                 vehicleDetail = json.optString("vehicleDetail"),
                 licensePlate = json.optString("licensePlate"),
+                passportNumber = json.optString("passportNumber"),
                 emergencyContact = json.optString("emergencyContact"),
                 avatarPreset = runCatching {
                     AvatarPreset.valueOf(json.optString("avatarPreset", "HELMET_TOURING"))
@@ -870,6 +872,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
             instagramHandle = primary.instagramHandle.ifBlank { fallback.instagramHandle },
             vehicleDetail = primary.vehicleDetail.ifBlank { fallback.vehicleDetail },
             licensePlate = primary.licensePlate.ifBlank { fallback.licensePlate },
+            passportNumber = primary.passportNumber.ifBlank { fallback.passportNumber },
             emergencyContact = primary.emergencyContact.ifBlank { fallback.emergencyContact },
             avatarPhotoUri = primary.avatarPhotoUri ?: fallback.avatarPhotoUri
         )
@@ -1797,7 +1800,8 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
             fullName = cleanName,
             email = cleanEmail,
             authProvider = resolvedProvider,
-            licensePlate = profile.licensePlate.trim().uppercase()
+            licensePlate = profile.licensePlate.trim().uppercase(),
+            passportNumber = profile.passportNumber.trim().uppercase().take(32)
         )
         saveProfileByEmail(cleaned)
         saveActiveSession(cleanName, cleanEmail, resolvedProvider, _uiState.value.isGuestMode)
@@ -2023,6 +2027,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         vehicleType: VehicleType? = null,
         vehicleDetail: String? = null,
         licensePlate: String? = null,
+        passportNumber: String? = null,
         emergencyContact: String? = null,
         avatarPreset: AvatarPreset? = null,
         avatarPhotoUri: String? = null,
@@ -2036,6 +2041,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                     vehicleType = vehicleType ?: current.vehicleType,
                     vehicleDetail = vehicleDetail ?: current.vehicleDetail,
                     licensePlate = (licensePlate ?: current.licensePlate).uppercase(),
+                    passportNumber = (passportNumber ?: current.passportNumber).uppercase().take(32),
                     emergencyContact = emergencyContact ?: current.emergencyContact,
                     avatarPreset = avatarPreset ?: current.avatarPreset,
                     avatarPhotoUri = if (clearPhoto) null else (avatarPhotoUri ?: current.avatarPhotoUri)

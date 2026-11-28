@@ -3628,6 +3628,114 @@ fun LiveTrackingMapScreen(
             }
         }
     }
+
+    if (showBroadcastModal && isEffectiveLeader) {
+        val quickTemplates = listOf(
+            "Kumpul Pintu Masjidil Haram" to "Seluruh jamaah harap berkumpul di Pintu King Fahd dalam 15 menit.",
+            "Persiapan Miqat & Ihram" to "Segera mandi sunnah & kenakan kain ihram sebelum rombongan bergerak.",
+            "Bus Segera Berangkat" to "Mohon seluruh jamaah naik ke bus masing-masing dalam 10 menit.",
+            "Tawaf & Sa'i Dimulai" to "Rombongan bersiap menuju area Mataf bersama Mutawwif."
+        )
+        AlertDialog(
+            onDismissRequest = { showBroadcastModal = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Rounded.Campaign,
+                    contentDescription = null,
+                    tint = Color(0xFFB45309),
+                    modifier = Modifier.size(30.dp)
+                )
+            },
+            title = { Text("Broadcast Prioritas", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Tampil serentak di layar seluruh jamaah beserta notifikasi suara.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Template Cepat Umroh / Haji",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        quickTemplates.chunked(2).forEach { pair ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                pair.forEach { (tplTitle, tplMsg) ->
+                                    Surface(
+                                        onClick = {
+                                            broadcastTitleInput = tplTitle
+                                            broadcastMessageInput = tplMsg
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.background,
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            text = tplTitle,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            lineHeight = 14.sp,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = broadcastTitleInput,
+                        onValueChange = { if (it.length <= 120) broadcastTitleInput = it },
+                        label = { Text("Judul Pengumuman", fontSize = 12.sp) },
+                        placeholder = { Text("Misal: Kumpul di Pintu King Fahd", fontSize = 12.sp) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = broadcastMessageInput,
+                        onValueChange = { if (it.length <= 500) broadcastMessageInput = it },
+                        label = { Text("Isi Instruksi untuk Jamaah", fontSize = 12.sp) },
+                        placeholder = { Text("Tulis instruksi penting untuk seluruh rombongan...", fontSize = 12.sp) },
+                        minLines = 3,
+                        maxLines = 4,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onSendPriorityBroadcast(broadcastTitleInput, broadcastMessageInput)
+                        broadcastTitleInput = ""
+                        broadcastMessageInput = ""
+                        showBroadcastModal = false
+                    },
+                    enabled = broadcastTitleInput.isNotBlank() && broadcastMessageInput.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB45309))
+                ) {
+                    Text("Kirim Broadcast")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBroadcastModal = false }) {
+                    Text("Batal")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -3737,114 +3845,6 @@ private fun TopParticipantChip(
                 }
             }
         }
-    }
-
-    if (showBroadcastModal && isEffectiveLeader) {
-        val quickTemplates = listOf(
-            "Kumpul Pintu Masjidil Haram" to "Seluruh jamaah harap berkumpul di Pintu King Fahd dalam 15 menit.",
-            "Persiapan Miqat & Ihram" to "Segera mandi sunnah & kenakan kain ihram sebelum rombongan bergerak.",
-            "Bus Segera Berangkat" to "Mohon seluruh jamaah naik ke bus masing-masing dalam 10 menit.",
-            "Tawaf & Sa'i Dimulai" to "Rombongan bersiap menuju area Mataf bersama Mutawwif."
-        )
-        AlertDialog(
-            onDismissRequest = { showBroadcastModal = false },
-            icon = {
-                Icon(
-                    imageVector = Icons.Rounded.Campaign,
-                    contentDescription = null,
-                    tint = Color(0xFFB45309),
-                    modifier = Modifier.size(30.dp)
-                )
-            },
-            title = { Text("Broadcast Prioritas", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = "Tampil serentak di layar seluruh jamaah beserta notifikasi suara.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "Template Cepat Umroh / Haji",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        quickTemplates.chunked(2).forEach { pair ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                pair.forEach { (tplTitle, tplMsg) ->
-                                    Surface(
-                                        onClick = {
-                                            broadcastTitleInput = tplTitle
-                                            broadcastMessageInput = tplMsg
-                                        },
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = MaterialTheme.colorScheme.background,
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Text(
-                                            text = tplTitle,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            lineHeight = 14.sp,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    OutlinedTextField(
-                        value = broadcastTitleInput,
-                        onValueChange = { if (it.length <= 120) broadcastTitleInput = it },
-                        label = { Text("Judul Pengumuman", fontSize = 12.sp) },
-                        placeholder = { Text("Misal: Kumpul di Pintu King Fahd", fontSize = 12.sp) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = broadcastMessageInput,
-                        onValueChange = { if (it.length <= 500) broadcastMessageInput = it },
-                        label = { Text("Isi Instruksi untuk Jamaah", fontSize = 12.sp) },
-                        placeholder = { Text("Tulis instruksi penting untuk seluruh rombongan...", fontSize = 12.sp) },
-                        minLines = 3,
-                        maxLines = 4,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onSendPriorityBroadcast(broadcastTitleInput, broadcastMessageInput)
-                        broadcastTitleInput = ""
-                        broadcastMessageInput = ""
-                        showBroadcastModal = false
-                    },
-                    enabled = broadcastTitleInput.isNotBlank() && broadcastMessageInput.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB45309))
-                ) {
-                    Text("Kirim Broadcast")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showBroadcastModal = false }) {
-                    Text("Batal")
-                }
-            }
-        )
     }
 }
 

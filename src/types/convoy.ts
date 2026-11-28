@@ -175,6 +175,7 @@ export interface VehicleProfile {
   vehicleType: VehicleType;
   vehicleDetail: string;
   licensePlate: string;
+  passportNumber?: string;
   emergencyContact: string;
   avatarPreset: AvatarPreset;
   avatarPhotoUrl?: string;
@@ -328,6 +329,7 @@ export interface AdminUserSummary {
   vehicleType: VehicleType;
   vehicleDetail: string;
   licensePlate: string;
+  passportNumber?: string;
   avatarPreset: AvatarPreset;
   avatarPhotoUrl?: string;
   updatedAtLabel: string;

@@ -229,6 +229,7 @@ data class VehicleProfile(
     val vehicleType: VehicleType = VehicleType.MOBIL,
     val vehicleDetail: String = "",
     val licensePlate: String = "",
+    val passportNumber: String = "",
     val emergencyContact: String = "",
     val avatarPreset: AvatarPreset = AvatarPreset.HELMET_TOURING,
     val avatarPhotoUri: String? = null
@@ -559,6 +560,7 @@ data class AdminUserSummary(
     val vehicleType: VehicleType,
     val vehicleDetail: String,
     val licensePlate: String,
+    val passportNumber: String = "",
     val avatarPreset: AvatarPreset,
     val avatarPhotoUri: String? = null,
     val updatedAtLabel: String = "-"

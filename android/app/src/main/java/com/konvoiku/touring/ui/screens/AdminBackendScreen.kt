@@ -220,7 +220,8 @@ fun AdminBackendScreen(
             u.fullName.lowercase().contains(q) ||
             u.email.lowercase().contains(q) ||
             u.clubName.lowercase().contains(q) ||
-            u.licensePlate.lowercase().contains(q)
+            u.licensePlate.lowercase().contains(q) ||
+            u.passportNumber.lowercase().contains(q)
     }
 
     Scaffold(
@@ -1119,7 +1120,12 @@ fun AdminBackendScreen(
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                    val meta = listOf(u.vehicleDetail, u.licensePlate, u.clubName)
+                                    val meta = listOf(
+                                        u.vehicleDetail,
+                                        u.licensePlate,
+                                        u.passportNumber.takeIf { it.isNotBlank() }?.let { "Paspor: $it" },
+                                        u.clubName
+                                    )
                                         .filter { it.isNotBlank() }
                                         .joinToString(" · ")
                                     if (meta.isNotBlank()) {

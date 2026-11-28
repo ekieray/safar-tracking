@@ -2,7 +2,7 @@
 
 ## 1. Data Invariants
 1. **Master Source of Truth**: `/rooms/{roomId}` is the root authority for convoy rooms (`leaderUid`, `status`, route geometry, tolerances). All subcollections (`/members`, `/checkpoints`, `/messages`) belong strictly to a valid parent room via `exists(/databases/$(database)/documents/rooms/$(roomId))`.
-2. **PII Isolation**: `emergencyContact` and email details reside strictly in `/users/{userId}` (owner-only read/write) and are NEVER replicated into public or shared `/rooms/{roomId}/members/{memberId}` documents.
+2. **PII Isolation**: `passportNumber`, `emergencyContact`, and `email` details reside strictly in `/users/{userId}` (owner-only read/write, plus Admin read) and are NEVER replicated into public or shared `/rooms/{roomId}/members/{memberId}` or `/family_links/{inviteCode}` documents.
 3. **Role & Privilege Integrity**: Only `leaderUid` can create a room with `role == 'TOUR_LEADER'`, alter destination/route/straggler/off-route thresholds, add/remove checkpoints, assign `isSweeper`, or set `status == 'FINISHED'`. Regular members can only join with `role == 'MEMBER'` and `isSweeper == false`, update their own telemetry/condition fields, trigger/resolve SOS alerts, and post messages as `senderUid == request.auth.uid`.
 4. **Terminal State Locking**: Once a room reaches `status == 'FINISHED'`, all subsequent updates to the room or subcollection GPS writes are rejected.
 5. **Temporal Integrity**: `createdAt`, `joinedAt`, and `updatedAt` are validated strictly against `request.time`.

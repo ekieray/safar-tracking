@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.Save
+import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -165,6 +166,7 @@ fun CustomizeProfileScreen(
                                         instagramHandle = draft.instagramHandle.trim(),
                                         vehicleDetail = draft.vehicleDetail.trim(),
                                         licensePlate = draft.licensePlate.trim().uppercase(),
+                                        passportNumber = draft.passportNumber.trim().uppercase().take(32),
                                         emergencyContact = draft.emergencyContact.trim()
                                     )
                                 )
@@ -503,6 +505,27 @@ fun CustomizeProfileScreen(
                 leadingIcon = { Icon(Icons.Rounded.Badge, contentDescription = null) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = draft.passportNumber,
+                onValueChange = {
+                    val sanitized = it.uppercase().take(32)
+                    draft = draft.copy(passportNumber = sanitized)
+                },
+                label = { Text("Nomor Passport (Opsional)") },
+                placeholder = { Text("Contoh: C1234567") },
+                leadingIcon = { Icon(Icons.Rounded.Shield, contentDescription = null) },
+                supportingText = {
+                    Text("Disimpan privat di akun Anda (tidak dibagikan ke peta publik).")
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Characters,
+                    imeAction = ImeAction.Next
+                ),
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth()
             )

@@ -164,6 +164,7 @@ const INITIAL_PROFILE: VehicleProfile = {
   vehicleType: 'MOBIL',
   vehicleDetail: '',
   licensePlate: '',
+  passportNumber: '',
   emergencyContact: '',
   avatarPreset: 'HELMET_TOURING',
 };

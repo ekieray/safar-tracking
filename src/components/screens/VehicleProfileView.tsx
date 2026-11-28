@@ -5,6 +5,7 @@ import {
   BadgeCheck,
   BadgeInfo,
   Bus,
+  FileText,
   Footprints,
   Hotel,
   ImagePlus,
@@ -315,6 +316,35 @@ export function VehicleProfileView({
               Masukkan nomor kloter, kamar, atau gelang jamaah yang valid
             </p>
           )}
+        </div>
+
+        {/* Nomor Passport */}
+        <div>
+          <label
+            htmlFor="passportNumber"
+            className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1.5"
+          >
+            Nomor Passport (Opsional)
+          </label>
+          <div className="relative">
+            <FileText className="w-4 h-4 text-[#4D6659] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              id="passportNumber"
+              type="text"
+              maxLength={32}
+              value={profile.passportNumber || ''}
+              onChange={(e) =>
+                onUpdateProfile({
+                  passportNumber: e.target.value.toUpperCase().slice(0, 32),
+                })
+              }
+              placeholder="Contoh: C1234567"
+              className="w-full min-h-[46px] pl-10 pr-3.5 rounded-[14px] bg-white dark:bg-[#0C1E17] border border-[#C6DACD] dark:border-[#1E3F31] focus:border-[#047857] text-sm font-mono uppercase outline-none transition-colors"
+            />
+          </div>
+          <p className="mt-1 text-xs text-[#4D6659] dark:text-[#9CC2AE]">
+            Disimpan privat di akun Anda untuk keperluan administrasi safar umroh.
+          </p>
         </div>
 
         {/* Kontak Darurat */}

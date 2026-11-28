@@ -413,12 +413,13 @@ fun ConvoyNavGraph(
             VehicleProfileScreen(
                 selectedRole = activeRole,
                 profile = uiState.vehicleProfile,
-                onUpdateProfile = { name, type, detail, plate, contact, preset, photoUri, clearPhoto ->
+                onUpdateProfile = { name, type, detail, plate, passport, contact, preset, photoUri, clearPhoto ->
                     viewModel.updateVehicleProfile(
                         fullName = name,
                         vehicleType = type,
                         vehicleDetail = detail,
                         licensePlate = plate,
+                        passportNumber = passport,
                         emergencyContact = contact,
                         avatarPreset = preset,
                         avatarPhotoUri = photoUri,

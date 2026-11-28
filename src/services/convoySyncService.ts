@@ -213,6 +213,7 @@ export async function saveUserPrivateProfile(
     vehicleType: profile.vehicleType,
     vehicleDetail: (profile.vehicleDetail.trim() || '').slice(0, 80),
     licensePlate: (profile.licensePlate.trim() || '').slice(0, 24),
+    passportNumber: (profile.passportNumber || '').trim().toUpperCase().slice(0, 32),
     emergencyContact: (profile.emergencyContact.trim() || '').slice(0, 40),
     avatarPreset: (profile.avatarPreset || 'HELMET_TOURING').slice(0, 40),
   };
@@ -261,6 +262,7 @@ export async function loadUserPrivateProfile(
       vehicleType: (data.vehicleType === 'MOTOR' ? 'MOTOR' : 'MOBIL') as VehicleType,
       vehicleDetail: String(data.vehicleDetail || ''),
       licensePlate: String(data.licensePlate || ''),
+      passportNumber: String(data.passportNumber || ''),
       emergencyContact: String(data.emergencyContact || ''),
       avatarPreset: (data.avatarPreset || 'HELMET_TOURING') as AvatarPreset,
       avatarPhotoUrl: photo,
@@ -1604,6 +1606,7 @@ export function subscribeToAdminMonitoring(callbacks: {
           vehicleType: (d.vehicleType === 'MOTOR' ? 'MOTOR' : 'MOBIL') as VehicleType,
           vehicleDetail: String(d.vehicleDetail || ''),
           licensePlate: String(d.licensePlate || ''),
+          passportNumber: String(d.passportNumber || ''),
           avatarPreset: (d.avatarPreset || 'HELMET_TOURING') as AvatarPreset,
           avatarPhotoUrl:
             typeof d.avatarPhotoUrl === 'string' && d.avatarPhotoUrl.length > 0
