@@ -2723,7 +2723,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
 
     fun isCurrentUserRoomCreator(): Boolean {
         val state = _uiState.value
-        if (state.authSession?.loginRole == AuthLoginRole.FAMILY) return false
+        if (state.isFamilyAccount) return false
         val room = state.activeRoom ?: return false
         val self = room.members.find { it.isCurrentUser }
         if (room.isSyncedRoom) {
