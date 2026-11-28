@@ -161,6 +161,11 @@ export function ManasikChatbotView({
         error?: string;
       };
       const rawBody = await response.text();
+      if (response.redirected || rawBody.trim().startsWith('<')) {
+        throw new Error(
+          'Sesi login AI Studio kedaluwarsa atau URL tidak mengarah ke backend Express. Silakan muat ulang halaman.'
+        );
+      }
       let data: ChatApiResponse | null = null;
       try {
         data = rawBody ? (JSON.parse(rawBody) as ChatApiResponse) : null;

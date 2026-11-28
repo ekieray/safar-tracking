@@ -557,6 +557,7 @@ service cloud.firestore {
         'announcementMessage',
         'allowGuestMode',
         'allowNewRooms',
+        'publicWebBaseUrl',
         'updatedByUid',
         'updatedAt'
       ]) &&
@@ -575,6 +576,11 @@ service cloud.firestore {
       data.announcementMessage is string && data.announcementMessage.size() <= 240 &&
       data.allowGuestMode is bool &&
       data.allowNewRooms is bool &&
+      (!('publicWebBaseUrl' in data) || (
+        data.publicWebBaseUrl is string &&
+        data.publicWebBaseUrl.size() <= 200 &&
+        (data.publicWebBaseUrl == '' || data.publicWebBaseUrl.matches('^https?://.*'))
+      )) &&
       data.updatedByUid is string && data.updatedByUid == request.auth.uid && data.updatedByUid.size() <= 128 &&
       data.updatedAt is timestamp;
     }

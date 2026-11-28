@@ -322,6 +322,7 @@
         "announcementMessage": { "type": "string", "minLength": 0, "maxLength": 240 },
         "allowGuestMode": { "type": "boolean" },
         "allowNewRooms": { "type": "boolean" },
+        "publicWebBaseUrl": { "type": "string", "minLength": 0, "maxLength": 200 },
         "updatedByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
         "updatedAt": { "type": "string", "format": "date-time" }
       },

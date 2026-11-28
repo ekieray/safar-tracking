@@ -294,6 +294,7 @@ export interface GlobalAppConfig {
   announcementMessage: string;
   allowGuestMode: boolean;
   allowNewRooms: boolean;
+  publicWebBaseUrl?: string;
   updatedByUid?: string;
   updatedAtLabel?: string;
 }

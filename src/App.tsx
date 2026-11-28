@@ -81,6 +81,7 @@ import {
   removeSyncedRoomActivity,
   resolveSyncedSos,
   revokeFamilyInviteLink,
+  saveGlobalAppConfig,
   saveLocalSession,
   saveManasikProgressLocal,
   saveManasikProgressToFirestore,
@@ -1332,6 +1333,7 @@ export default function App() {
   }, [pendingInviteRoomId, isMobileGoogleBridge, activeRoom, authUser, localUserName]);
 
   // Subscribe to Global App Config (/app_config/global)
+  const autoPublishedOriginRef = useRef<string | null>(null);
   useEffect(() => {
     const unsubConfig = subscribeToGlobalAppConfig((cfg) => {
       setGlobalConfig(cfg);
@@ -1346,6 +1348,29 @@ export default function App() {
     });
     return () => unsubConfig();
   }, []);
+
+  // Auto-register public Cloud Run web base URL into Global Config when verified Admin visits deployed URL
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!authUser || !isVerifiedAdminSession(authUser)) return;
+    const { origin, hostname } = window.location;
+    if (!origin.startsWith('https://')) return;
+    const isProxyOrLocal =
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname.startsWith('ais-dev-') ||
+      hostname.startsWith('ais-pre-');
+    if (isProxyOrLocal) return;
+    const currentStored = (globalConfig.publicWebBaseUrl || '').trim().replace(/\/+$/, '');
+    if (currentStored === origin || autoPublishedOriginRef.current === origin) return;
+    autoPublishedOriginRef.current = origin;
+    void saveGlobalAppConfig(authUser.uid, {
+      ...globalConfig,
+      publicWebBaseUrl: origin,
+    }).catch(() => {
+      autoPublishedOriginRef.current = null;
+    });
+  }, [authUser, globalConfig]);
 
   // Subscribe to Registered Tour Leader Eligibility (/tour_leader_hashes/{sha256(email)})
   useEffect(() => {

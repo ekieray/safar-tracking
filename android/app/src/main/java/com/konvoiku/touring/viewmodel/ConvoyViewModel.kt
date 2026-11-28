@@ -258,7 +258,8 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
             val savedCustomUrl = profilePrefs.getString("custom_web_base_url", null)
                 ?.trim()
                 ?.takeIf { it.isNotEmpty() }
-            val activeBase = syncRepo.resolveActiveWebBaseUrl(savedCustomUrl)
+            val configuredPublicUrl = _uiState.value.globalConfig.publicWebBaseUrl
+            val activeBase = syncRepo.resolveActiveWebBaseUrl(savedCustomUrl, configuredPublicUrl)
             _uiState.update { it.copy(activeWebBaseUrl = activeBase) }
         }
         if (gpsTracker.hasLocationPermission()) {
@@ -1006,7 +1007,8 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
             if (explicitCustom != null || savedCustomUrl != null || allowDevProxyFallback) {
                 val resolution = syncRepo.resolveWebBridgeUrl(
                     customBaseUrl = explicitCustom ?: savedCustomUrl,
-                    allowDevProxyFallback = allowDevProxyFallback
+                    allowDevProxyFallback = allowDevProxyFallback,
+                    configuredPublicUrl = _uiState.value.globalConfig.publicWebBaseUrl
                 )
                 if (resolution.baseUrl.isNotBlank()) {
                     resolvedBase = resolution.baseUrl
@@ -4653,6 +4655,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
     private fun subscribeToGlobalConfig() {
         configUnsubscribe?.invoke()
         configUnsubscribe = syncRepo.subscribeToGlobalAppConfig { cfg ->
+            val previousPublicUrl = _uiState.value.globalConfig.publicWebBaseUrl
             _uiState.update { state ->
                 val updatedRoute = if (state.activeRoom == null) {
                     state.routeConfig.copy(
@@ -4667,6 +4670,15 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                     globalConfig = cfg,
                     routeConfig = updatedRoute
                 )
+            }
+            val hasSavedCustom = !profilePrefs.getString("custom_web_base_url", null)
+                ?.trim()
+                .isNullOrEmpty()
+            if (!hasSavedCustom && cfg.publicWebBaseUrl != previousPublicUrl) {
+                viewModelScope.launch {
+                    val activeBase = syncRepo.resolveActiveWebBaseUrl(null, cfg.publicWebBaseUrl)
+                    _uiState.update { it.copy(activeWebBaseUrl = activeBase) }
+                }
             }
         }
     }
@@ -5354,7 +5366,8 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         if (trimmed.isEmpty()) {
             profilePrefs.edit().remove("custom_web_base_url").apply()
             viewModelScope.launch {
-                val resolved = syncRepo.resolveActiveWebBaseUrl(null)
+                val configuredPublicUrl = _uiState.value.globalConfig.publicWebBaseUrl
+                val resolved = syncRepo.resolveActiveWebBaseUrl(null, configuredPublicUrl)
                 _uiState.update {
                     it.copy(activeWebBaseUrl = resolved, manasikChatError = null)
                 }
@@ -5426,10 +5439,11 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
             val savedCustomUrl = profilePrefs.getString("custom_web_base_url", null)
                 ?.trim()
                 ?.takeIf { it.isNotEmpty() }
+            val configuredPublicUrl = _uiState.value.globalConfig.publicWebBaseUrl
             val resolvedBase = if (savedCustomUrl != null) {
                 syncRepo.normalizeHttpBaseUrl(savedCustomUrl) ?: state.activeWebBaseUrl
             } else {
-                syncRepo.resolveActiveWebBaseUrl(null)
+                syncRepo.resolveActiveWebBaseUrl(null, configuredPublicUrl)
             }
             if (resolvedBase != _uiState.value.activeWebBaseUrl) {
                 _uiState.update { it.copy(activeWebBaseUrl = resolvedBase) }
@@ -5442,7 +5456,8 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                 guideType = guideType,
                 completedCount = completedCount,
                 totalCount = totalCount,
-                currentLocationText = currentLoc
+                currentLocationText = currentLoc,
+                configuredPublicUrl = configuredPublicUrl
             )
             result.onSuccess { (reply, modelName) ->
                 val aiMsg = AssistantChatMessage(

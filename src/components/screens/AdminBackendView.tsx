@@ -1104,6 +1104,28 @@ export function AdminBackendView({
                     />
                   </label>
 
+                  <div className="pt-2 border-t border-[#D8E6DD] dark:border-[#1B3B2E] space-y-1.5">
+                    <label className="block text-xs font-semibold">
+                      URL Server Web Publik (Cloud Run / Android AI)
+                    </label>
+                    <input
+                      type="url"
+                      maxLength={200}
+                      value={configDraft.publicWebBaseUrl || ''}
+                      onChange={(e) =>
+                        setConfigDraft((prev) => ({
+                          ...prev,
+                          publicWebBaseUrl: e.target.value,
+                        }))
+                      }
+                      placeholder="https://safar-tracking-...run.app"
+                      className="w-full px-3 py-2 rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#D8E6DD] dark:border-[#1B3B2E] text-xs font-mono outline-none focus:border-[#047857]"
+                    />
+                    <p className="text-[11px] text-[#4D6659] dark:text-[#9CC2AE] leading-relaxed">
+                      Otomatis terisi saat Admin membuka versi Cloud Run publik (non-ais-pre/ais-dev). Digunakan APK Android agar Tanya Mutawwif AI (/api/gemini/chat) &amp; link undangan tidak terkena proxy login AI Studio.
+                    </p>
+                  </div>
+
                   <div className="pt-1 border-t border-[#D8E6DD] dark:border-[#1B3B2E] space-y-2.5">
                     <label className="flex items-center justify-between gap-3 cursor-pointer">
                       <div>

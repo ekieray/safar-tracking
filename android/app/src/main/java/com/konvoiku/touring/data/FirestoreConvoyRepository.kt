@@ -243,7 +243,8 @@ class FirestoreConvoyRepository {
 
     suspend fun resolveWebBridgeUrl(
         customBaseUrl: String? = null,
-        allowDevProxyFallback: Boolean = false
+        allowDevProxyFallback: Boolean = false,
+        configuredPublicUrl: String? = null
     ): WebBridgeResolution = withContext(Dispatchers.IO) {
         val customClean = customBaseUrl?.let { normalizeHttpBaseUrl(it) }
         if (!customBaseUrl.isNullOrBlank() && customClean == null) {
@@ -273,14 +274,14 @@ class FirestoreConvoyRepository {
                         baseUrl = "",
                         isPublishedLive = false,
                         isDevProxy = true,
-                        errorMessage = "URL ($customClean) mengarah ke Dev Preview AI Studio yang terkunci khusus akun pemilik ($ADMIN_EMAIL) dan akan error Google 403 di HP lain."
+                        errorMessage = "URL ($customClean) masih dilindungi proxy login AI Studio (applet-auth-bridge). Gunakan URL deploy Cloud Run publik (non-ais-pre/ais-dev)."
                     )
                 }
                 WebEndpointStatus.OUTDATED_BUILD -> WebBridgeResolution(
                     baseUrl = "",
                     isPublishedLive = false,
                     isDevProxy = false,
-                    errorMessage = "Web di $customClean masih versi lama (belum mendukung sinkronisasi login APK). Deploy ulang versi terbaru jika ingin memakai login browser."
+                    errorMessage = "Web di $customClean masih versi lama (belum mendukung sinkronisasi API/APK). Deploy ulang versi terbaru."
                 )
                 WebEndpointStatus.LIVE_DIRECT -> WebBridgeResolution(
                     baseUrl = customClean,
@@ -294,6 +295,16 @@ class FirestoreConvoyRepository {
                     errorMessage = "URL kustom ($customClean) tidak dapat dijangkau. Periksa alamat URL dan koneksi internet Anda."
                 )
             }
+        }
+
+        val configuredClean = configuredPublicUrl?.let { normalizeHttpBaseUrl(it) }
+        if (configuredClean != null && probeWebEndpoint(configuredClean) == WebEndpointStatus.LIVE_DIRECT) {
+            return@withContext WebBridgeResolution(
+                baseUrl = configuredClean,
+                isPublishedLive = true,
+                isDevProxy = false,
+                isSharedUnpublished = false
+            )
         }
 
         val sharedStatus = probeWebEndpoint(SHARED_BASE_URL)
@@ -328,13 +339,13 @@ class FirestoreConvoyRepository {
                 )
             }
             val webStatusText =
-                "Halaman Web Share publik (ais-pre) belum aktif (404) dan Dev Preview terkunci khusus pemilik ($ADMIN_EMAIL)."
+                "Link Share/Preview AI Studio (ais-pre/ais-dev) dilindungi proxy login Google (applet-auth-bridge)."
             return@withContext WebBridgeResolution(
                 baseUrl = "",
                 isPublishedLive = false,
                 isDevProxy = true,
                 isSharedUnpublished = sharedUnpublished,
-                errorMessage = "Login Google via browser belum bisa dipakai di HP lain. $webStatusText\n\nPilih salah satu (1x setup saja):\n• Tanpa deploy web: di Firebase Console ($FIREBASE_PROJECT_ID) → Authentication → Sign-in method, aktifkan Email/Password & Anonymous, atau tambah SHA-1 APK untuk tombol Google langsung.\n• Atau klik Deploy / Share → Publish 1x di AI Studio agar login browser aktif."
+                errorMessage = "Endpoint web publik belum dapat diakses langsung dari APK. $webStatusText\n\nSolusi:\n• Deploy web ke Cloud Run (izinkan unauthenticated/akses publik), lalu buka web Cloud Run sebagai Admin agar URL tersinkron otomatis ke APK."
             )
         }
 
@@ -343,17 +354,28 @@ class FirestoreConvoyRepository {
             isPublishedLive = false,
             isDevProxy = false,
             isSharedUnpublished = sharedStatus == WebEndpointStatus.NOT_FOUND,
-            errorMessage = "Halaman login browser publik belum aktif. Aktifkan Email/Password & Anonymous (atau SHA-1 APK) di Firebase Console agar semua HP bisa login tanpa deploy web, atau klik Deploy / Share → Publish di AI Studio."
+            errorMessage = "Server web publik belum aktif. Deploy web ke Cloud Run (akses publik) dan buka sekali sebagai Admin agar URL backend tersinkron otomatis."
         )
     }
 
-    suspend fun resolveActiveWebBaseUrl(customBaseUrl: String? = null): String {
-        val resolution = resolveWebBridgeUrl(customBaseUrl, allowDevProxyFallback = false)
-        return resolution.baseUrl.ifBlank { SHARED_BASE_URL }
+    suspend fun resolveActiveWebBaseUrl(
+        customBaseUrl: String? = null,
+        configuredPublicUrl: String? = null
+    ): String {
+        val resolution = resolveWebBridgeUrl(
+            customBaseUrl = customBaseUrl,
+            allowDevProxyFallback = false,
+            configuredPublicUrl = configuredPublicUrl
+        )
+        val configuredClean = configuredPublicUrl?.let { normalizeHttpBaseUrl(it) }
+        return resolution.baseUrl.ifBlank { configuredClean ?: SHARED_BASE_URL }
     }
 
-    suspend fun resolveActiveGoogleBridgeUrl(customBaseUrl: String? = null): String {
-        val base = resolveActiveWebBaseUrl(customBaseUrl)
+    suspend fun resolveActiveGoogleBridgeUrl(
+        customBaseUrl: String? = null,
+        configuredPublicUrl: String? = null
+    ): String {
+        val base = resolveActiveWebBaseUrl(customBaseUrl, configuredPublicUrl)
         return "$base/?mobile_auth=google"
     }
 
@@ -1726,6 +1748,7 @@ class FirestoreConvoyRepository {
                         announcementMessage = snap.getString("announcementMessage") ?: "",
                         allowGuestMode = snap.getBoolean("allowGuestMode") ?: true,
                         allowNewRooms = snap.getBoolean("allowNewRooms") ?: true,
+                        publicWebBaseUrl = snap.getString("publicWebBaseUrl")?.trim().orEmpty(),
                         updatedAtLabel = formatTimestamp(snap.getTimestamp("updatedAt"), "Baru saja")
                     )
                 )
@@ -1737,6 +1760,7 @@ class FirestoreConvoyRepository {
         val db = getFirestore()
             ?: return Result.failure(IllegalStateException("Firestore tidak tersedia."))
         return runCatching {
+            val cleanPublicUrl = normalizeHttpBaseUrl(config.publicWebBaseUrl)?.take(200) ?: ""
             val payload = hashMapOf(
                 "configId" to "global",
                 "defaultOffRouteToleranceMeters" to config.defaultOffRouteToleranceMeters.coerceIn(10, 5000),
@@ -1749,6 +1773,7 @@ class FirestoreConvoyRepository {
                 "announcementMessage" to config.announcementMessage.trim().take(240),
                 "allowGuestMode" to config.allowGuestMode,
                 "allowNewRooms" to config.allowNewRooms,
+                "publicWebBaseUrl" to cleanPublicUrl,
                 "updatedByUid" to uid,
                 "updatedAt" to FieldValue.serverTimestamp()
             )
@@ -2280,10 +2305,11 @@ class FirestoreConvoyRepository {
         guideType: String,
         completedCount: Int,
         totalCount: Int,
-        currentLocationText: String
+        currentLocationText: String,
+        configuredPublicUrl: String = ""
     ): Result<Pair<String, String>> = withContext(Dispatchers.IO) {
-        val base = webBaseUrl.trim().trimEnd('/').ifBlank { SHARED_BASE_URL }
-        val endpoint = "$base/api/gemini/chat"
+        val configuredClean = normalizeHttpBaseUrl(configuredPublicUrl)
+        val base = webBaseUrl.trim().trimEnd('/').ifBlank { configuredClean ?: SHARED_BASE_URL }
         runCatching {
             val historyArray = JSONArray()
             history.takeLast(20).forEach { entry ->
@@ -2328,15 +2354,16 @@ class FirestoreConvoyRepository {
                     val location = conn.getHeaderField("Location").orEmpty()
                     if (code in 300..399) {
                         if (location.contains("__cookie_check", ignoreCase = true) ||
+                            location.contains("applet-auth-bridge", ignoreCase = true) ||
                             location.contains("accounts.google.com", ignoreCase = true) ||
                             location.contains("aistudio", ignoreCase = true)
                         ) {
                             throw IllegalStateException(
-                                "URL ($targetBase) mengarah ke Dev Preview AI Studio yang terkunci login Google. Gunakan URL Web hasil Deploy / Share."
+                                "Server ($targetBase) dilindungi proxy login AI Studio (applet-auth-bridge) sehingga APK Android tidak dapat memanggil /api/gemini/chat langsung. Deploy web ke Cloud Run (akses publik / unauthenticated), lalu buka web Cloud Run sebagai Admin atau masukkan URL Cloud Run (*.run.app) di bawah / di Admin Backend."
                             )
                         }
                         throw IllegalStateException(
-                            "Server ($targetBase) mengalihkan request ($code). Pastikan URL menunjuk ke server web Safar Tracking yang aktif."
+                            "Server ($targetBase) mengalihkan request ($code). Pastikan URL menunjuk ke server Cloud Run Safar Tracking yang aktif."
                         )
                     }
                     val rawBody = (if (code in 200..299) conn.inputStream else conn.errorStream)
@@ -2346,16 +2373,16 @@ class FirestoreConvoyRepository {
 
                     if (code == 401 || code == 403 || rawBody.contains("accounts.google.com", ignoreCase = true)) {
                         throw IllegalStateException(
-                            "Server AI membutuhkan aplikasi web terpublish (Published Web URL). Pastikan URL backend web aktif."
+                            "Server AI ($targetBase) menolak akses tanpa cookie login. Pastikan web di-deploy ke Cloud Run dengan akses publik (Allow unauthenticated invocations)."
                         )
                     }
                     if (code == 404) {
                         val healthStatus = probeWebEndpoint(targetBase)
                         val detailMsg = when (healthStatus) {
                             WebEndpointStatus.NOT_FOUND ->
-                                "Server Web ($targetBase) belum aktif / belum di-Publish di AI Studio (HTTP 404). Klik Deploy / Share di AI Studio atau isi URL server web yang aktif di bawah."
+                                "Server Web ($targetBase) belum aktif (HTTP 404). Deploy web ke Cloud Run atau masukkan URL Cloud Run yang aktif di bawah."
                             WebEndpointStatus.DEV_PROXY_AUTH ->
-                                "URL ($targetBase) mengarah ke Dev Preview AI Studio yang memerlukan login Google pemilik. Gunakan URL hasil Deploy / Share."
+                                "Server ($targetBase) dilindungi proxy login AI Studio (applet-auth-bridge). Gunakan URL hasil deploy Cloud Run publik (non-ais-pre/ais-dev)."
                             WebEndpointStatus.OUTDATED_BUILD ->
                                 "Web di ($targetBase) belum menjalankan server backend Express (/api/gemini/chat). Pastikan aplikasi dijalankan lewat server full-stack (npm start)."
                             WebEndpointStatus.LIVE_DIRECT ->
@@ -2386,8 +2413,14 @@ class FirestoreConvoyRepository {
             try {
                 attemptCall(base)
             } catch (firstErr: Throwable) {
-                if (base != SHARED_BASE_URL && probeWebEndpoint(SHARED_BASE_URL) == WebEndpointStatus.LIVE_DIRECT) {
-                    attemptCall(SHARED_BASE_URL)
+                val fallbackCandidates = listOfNotNull(configuredClean, SHARED_BASE_URL)
+                    .distinct()
+                    .filter { it != base }
+                val liveFallback = fallbackCandidates.firstOrNull {
+                    probeWebEndpoint(it) == WebEndpointStatus.LIVE_DIRECT
+                }
+                if (liveFallback != null) {
+                    attemptCall(liveFallback)
                 } else {
                     throw firstErr
                 }

@@ -1435,7 +1435,21 @@ export const DEFAULT_GLOBAL_APP_CONFIG: GlobalAppConfig = {
   announcementMessage: '',
   allowGuestMode: true,
   allowNewRooms: true,
+  publicWebBaseUrl: '',
 };
+
+function sanitizePublicWebBaseUrl(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  const trimmed = raw.trim().replace(/\/+$/, '');
+  if (!trimmed) return '';
+  if (!/^https?:\/\/[^/\s]+/i.test(trimmed)) return '';
+  try {
+    const parsed = new URL(trimmed);
+    return `${parsed.protocol}//${parsed.host}`.slice(0, 200);
+  } catch {
+    return '';
+  }
+}
 
 export function subscribeToGlobalAppConfig(
   callback: (config: GlobalAppConfig) => void
@@ -1469,6 +1483,7 @@ export function subscribeToGlobalAppConfig(
         announcementMessage: String(d.announcementMessage || ''),
         allowGuestMode: Boolean(d.allowGuestMode ?? true),
         allowNewRooms: Boolean(d.allowNewRooms ?? true),
+        publicWebBaseUrl: sanitizePublicWebBaseUrl(d.publicWebBaseUrl),
         updatedByUid: typeof d.updatedByUid === 'string' ? d.updatedByUid : undefined,
         updatedAtLabel: toClockLabel(d.updatedAt, 'Baru saja'),
       });
@@ -1504,6 +1519,7 @@ export async function saveGlobalAppConfig(
       announcementMessage: (config.announcementMessage || '').trim().slice(0, 240),
       allowGuestMode: Boolean(config.allowGuestMode),
       allowNewRooms: Boolean(config.allowNewRooms),
+      publicWebBaseUrl: sanitizePublicWebBaseUrl(config.publicWebBaseUrl),
       updatedByUid: uid,
       updatedAt: serverTimestamp(),
     });

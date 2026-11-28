@@ -192,6 +192,9 @@ fun AdminBackendScreen(
     var draftAllowNewRooms by remember(globalConfig) {
         mutableStateOf(globalConfig.allowNewRooms)
     }
+    var draftPublicWebUrl by remember(globalConfig) {
+        mutableStateOf(globalConfig.publicWebBaseUrl)
+    }
 
     LaunchedEffect(globalConfig) {
         draftOffRoute = globalConfig.defaultOffRouteToleranceMeters.toString()
@@ -204,6 +207,7 @@ fun AdminBackendScreen(
         draftAnnouncementMsg = globalConfig.announcementMessage
         draftAllowGuest = globalConfig.allowGuestMode
         draftAllowNewRooms = globalConfig.allowNewRooms
+        draftPublicWebUrl = globalConfig.publicWebBaseUrl
     }
 
     val nowMs = System.currentTimeMillis()
@@ -284,7 +288,8 @@ fun AdminBackendScreen(
                                         announcementTitle = draftAnnouncementTitle,
                                         announcementMessage = draftAnnouncementMsg,
                                         allowGuestMode = draftAllowGuest,
-                                        allowNewRooms = draftAllowNewRooms
+                                        allowNewRooms = draftAllowNewRooms,
+                                        publicWebBaseUrl = draftPublicWebUrl.trim().trimEnd('/').take(200)
                                     )
                                 )
                             },
@@ -1409,6 +1414,22 @@ fun AdminBackendScreen(
                             shape = RoundedCornerShape(12.dp)
                         )
                     }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                    OutlinedTextField(
+                        value = draftPublicWebUrl,
+                        onValueChange = { draftPublicWebUrl = it },
+                        label = { Text("URL Server Web Publik (Cloud Run)") },
+                        placeholder = { Text("https://safar-tracking-...run.app") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    Text(
+                        text = "Digunakan APK Android untuk Tanya Mutawwif AI (/api/gemini/chat) & link undangan tanpa terkena proxy login AI Studio.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 16.sp
+                    )
                 }
             }
 

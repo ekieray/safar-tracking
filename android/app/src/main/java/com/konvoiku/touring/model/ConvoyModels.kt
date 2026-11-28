@@ -535,6 +535,7 @@ data class GlobalAppConfig(
     val announcementMessage: String = "",
     val allowGuestMode: Boolean = true,
     val allowNewRooms: Boolean = true,
+    val publicWebBaseUrl: String = "",
     val updatedAtLabel: String = ""
 )
 
