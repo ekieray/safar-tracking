@@ -667,6 +667,98 @@ service cloud.firestore {
       data.updatedAt is timestamp;
     }
 
+    function isValidFamilyInviteCode(code) {
+      return code is string && code.size() >= 8 && code.size() <= 32 && code.matches('^FAM-[A-Z0-9]{4,28}$');
+    }
+
+    function isValidFamilyLink(data, inviteCode) {
+      return data.keys().hasAll([
+        'inviteCode',
+        'roomId',
+        'roomTitle',
+        'targetUid',
+        'targetName',
+        'targetVehicleDetail',
+        'targetAvatarPreset',
+        'destinationName',
+        'active',
+        'claimedByUid',
+        'claimedByName',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'inviteCode',
+        'roomId',
+        'roomTitle',
+        'targetUid',
+        'targetName',
+        'targetVehicleDetail',
+        'targetAvatarPreset',
+        'destinationName',
+        'active',
+        'claimedByUid',
+        'claimedByName',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      isValidFamilyInviteCode(inviteCode) &&
+      data.inviteCode is string && data.inviteCode == inviteCode &&
+      isValidRoomId(data.roomId) &&
+      data.roomTitle is string && data.roomTitle.size() <= 100 &&
+      data.targetUid is string && data.targetUid.size() >= 1 && data.targetUid.size() <= 128 &&
+      data.targetName is string && data.targetName.size() >= 1 && data.targetName.size() <= 80 &&
+      data.targetVehicleDetail is string && data.targetVehicleDetail.size() <= 80 &&
+      data.targetAvatarPreset is string && data.targetAvatarPreset.size() >= 1 && data.targetAvatarPreset.size() <= 40 &&
+      data.destinationName is string && data.destinationName.size() <= 120 &&
+      data.active is bool &&
+      data.claimedByUid is string && data.claimedByUid.size() <= 128 &&
+      data.claimedByName is string && data.claimedByName.size() <= 80 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidFamilyGrant(data, familyUid) {
+      return data.keys().hasAll([
+        'familyUid',
+        'inviteCode',
+        'roomId',
+        'targetUid',
+        'targetName',
+        'active',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'familyUid',
+        'inviteCode',
+        'roomId',
+        'targetUid',
+        'targetName',
+        'active',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.familyUid is string && data.familyUid == familyUid && data.familyUid.size() >= 1 && data.familyUid.size() <= 128 &&
+      isValidFamilyInviteCode(data.inviteCode) &&
+      isValidRoomId(data.roomId) &&
+      data.targetUid is string && data.targetUid.size() >= 1 && data.targetUid.size() <= 128 &&
+      data.targetName is string && data.targetName.size() >= 1 && data.targetName.size() <= 80 &&
+      data.active is bool &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function hasActiveFamilyGrantFor(roomId, memberId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/family_grants/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/family_grants/$(request.auth.uid)).data.active == true &&
+        get(/databases/$(database)/documents/family_grants/$(request.auth.uid)).data.roomId == roomId &&
+        get(/databases/$(database)/documents/family_grants/$(request.auth.uid)).data.targetUid == memberId &&
+        exists(/databases/$(database)/documents/family_links/$(get(/databases/$(database)/documents/family_grants/$(request.auth.uid)).data.inviteCode)) &&
+        get(/databases/$(database)/documents/family_links/$(get(/databases/$(database)/documents/family_grants/$(request.auth.uid)).data.inviteCode)).data.active == true;
+    }
+
     // Owner-Only Private User Profile (PII isolated, plus Admin Backend read)
     match /users/{userId} {
       allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
@@ -787,6 +879,101 @@ service cloud.firestore {
       allow delete: if isValidSha256Hex(emailHash) && isAdmin();
     }
 
+    // Personal Family Invite Links issued by a single joined jamaah/leader
+    match /family_links/{inviteCode} {
+      allow get: if isSignedIn() && isValidFamilyInviteCode(inviteCode);
+      allow list: if isSignedIn() && (
+        resource.data.targetUid == request.auth.uid ||
+        resource.data.claimedByUid == request.auth.uid ||
+        isAdminEmail()
+      );
+      allow create: if isSignedIn() &&
+        isValidFamilyInviteCode(inviteCode) &&
+        isValidFamilyLink(incoming(), inviteCode) &&
+        incoming().targetUid == request.auth.uid &&
+        isRoomActive(incoming().roomId) &&
+        (isRoomMember(incoming().roomId) || isRoomLeader(incoming().roomId)) &&
+        incoming().active == true &&
+        incoming().claimedByUid == '' &&
+        incoming().claimedByName == '' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isSignedIn() &&
+        isValidFamilyInviteCode(inviteCode) &&
+        isValidFamilyLink(incoming(), inviteCode) &&
+        incoming().inviteCode == existing().inviteCode &&
+        incoming().roomId == existing().roomId &&
+        incoming().targetUid == existing().targetUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (
+            existing().targetUid == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'active',
+              'claimedByUid',
+              'claimedByName',
+              'roomTitle',
+              'destinationName',
+              'targetName',
+              'targetVehicleDetail',
+              'targetAvatarPreset',
+              'updatedAt'
+            ])
+          ) ||
+          (
+            existing().active == true &&
+            (existing().claimedByUid == '' || existing().claimedByUid == request.auth.uid) &&
+            incoming().claimedByUid == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'claimedByUid',
+              'claimedByName',
+              'updatedAt'
+            ])
+          )
+        );
+      allow delete: if isValidFamilyInviteCode(inviteCode) && (existing().targetUid == request.auth.uid || isAdmin());
+    }
+
+    // Redeemed Family Monitoring Grants (binds 1 family account to 1 targetUid in 1 room)
+    match /family_grants/{familyUid} {
+      allow get: if isValidId(familyUid) && (isOwner(familyUid) || isAdmin());
+      allow list: if isAdminEmail();
+      allow create: if isValidId(familyUid) && isOwner(familyUid) &&
+        isValidFamilyGrant(incoming(), familyUid) &&
+        incoming().active == true &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        existsAfter(/databases/$(database)/documents/family_links/$(incoming().inviteCode)) &&
+        getAfter(/databases/$(database)/documents/family_links/$(incoming().inviteCode)).data.active == true &&
+        getAfter(/databases/$(database)/documents/family_links/$(incoming().inviteCode)).data.claimedByUid == request.auth.uid &&
+        getAfter(/databases/$(database)/documents/family_links/$(incoming().inviteCode)).data.targetUid == incoming().targetUid &&
+        getAfter(/databases/$(database)/documents/family_links/$(incoming().inviteCode)).data.roomId == incoming().roomId;
+      allow update: if isValidId(familyUid) && isOwner(familyUid) &&
+        isValidFamilyGrant(incoming(), familyUid) &&
+        incoming().familyUid == existing().familyUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (
+            incoming().active == false &&
+            incoming().inviteCode == existing().inviteCode &&
+            incoming().roomId == existing().roomId &&
+            incoming().targetUid == existing().targetUid &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['active', 'updatedAt'])
+          ) ||
+          (
+            incoming().active == true &&
+            existsAfter(/databases/$(database)/documents/family_links/$(incoming().inviteCode)) &&
+            getAfter(/databases/$(database)/documents/family_links/$(incoming().inviteCode)).data.active == true &&
+            getAfter(/databases/$(database)/documents/family_links/$(incoming().inviteCode)).data.claimedByUid == request.auth.uid &&
+            getAfter(/databases/$(database)/documents/family_links/$(incoming().inviteCode)).data.targetUid == incoming().targetUid &&
+            getAfter(/databases/$(database)/documents/family_links/$(incoming().inviteCode)).data.roomId == incoming().roomId
+          )
+        );
+      allow delete: if isValidId(familyUid) && (isOwner(familyUid) || isAdmin());
+    }
+
     // Shared Convoy Rooms
     match /rooms/{roomId} {
       allow get: if isSignedIn() && isValidRoomId(roomId);
@@ -876,6 +1063,7 @@ service cloud.firestore {
                 ])
               ) ||
               (
+                isRoomMember(roomId) &&
                 incoming().diff(existing()).affectedKeys().hasOnly([
                   'sosActive',
                   'sosSenderUid',
@@ -898,7 +1086,13 @@ service cloud.firestore {
       allow delete: if isValidRoomId(roomId) && isAdmin();
 
       match /members/{memberId} {
-        allow get: if isSignedIn() && isValidRoomId(roomId) && isValidId(memberId) && (roomExists(roomId) || isAdmin());
+        allow get: if isSignedIn() && isValidRoomId(roomId) && isValidId(memberId) && (
+          request.auth.uid == memberId ||
+          isRoomMember(roomId) ||
+          isRoomLeader(roomId) ||
+          isAdmin() ||
+          hasActiveFamilyGrantFor(roomId, memberId)
+        );
         allow list: if isSignedIn() && isValidRoomId(roomId) && (resource.data.roomId == roomId || isAdminEmail());
         allow create: if isSignedIn() && isValidRoomId(roomId) && isValidId(memberId) &&
           isRoomActive(roomId) &&
@@ -996,7 +1190,13 @@ service cloud.firestore {
       }
 
       match /activityProgress/{memberId} {
-        allow get: if isSignedIn() && isValidRoomId(roomId) && isValidId(memberId) && (roomExists(roomId) || isAdmin());
+        allow get: if isSignedIn() && isValidRoomId(roomId) && isValidId(memberId) && (
+          request.auth.uid == memberId ||
+          isRoomMember(roomId) ||
+          isRoomLeader(roomId) ||
+          isAdmin() ||
+          hasActiveFamilyGrantFor(roomId, memberId)
+        );
         allow list: if isSignedIn() && isValidRoomId(roomId) && (resource.data.roomId == roomId || isAdminEmail());
         allow create: if isSignedIn() && isValidRoomId(roomId) && isValidId(memberId) &&
           isRoomActive(roomId) &&

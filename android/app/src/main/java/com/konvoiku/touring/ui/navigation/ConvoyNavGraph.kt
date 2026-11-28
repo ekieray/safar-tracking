@@ -31,6 +31,7 @@ import com.konvoiku.touring.model.UserRole
 import com.konvoiku.touring.ui.screens.AboutAppScreen
 import com.konvoiku.touring.ui.screens.AdminBackendScreen
 import com.konvoiku.touring.ui.screens.CustomizeProfileScreen
+import com.konvoiku.touring.ui.screens.FamilyMonitorScreen
 import com.konvoiku.touring.ui.screens.JoinTourScreen
 import com.konvoiku.touring.ui.screens.LiveTrackingMapScreen
 import com.konvoiku.touring.ui.screens.LoginScreen
@@ -52,6 +53,7 @@ sealed class ConvoyRoute(val route: String) {
     data object TourLeader : ConvoyRoute("tour_leader")
     data object JoinTour : ConvoyRoute("join_tour")
     data object LiveMap : ConvoyRoute("live_map")
+    data object FamilyMonitor : ConvoyRoute("family_monitor")
     data object TripHistory : ConvoyRoute("trip_history")
     data object TripDetail : ConvoyRoute("trip_detail")
     data object AboutApp : ConvoyRoute("about_app")
@@ -81,8 +83,20 @@ fun ConvoyNavGraph(
         }
     }
 
-    LaunchedEffect(uiState.isLoggedIn, uiState.pendingInviteRoomId) {
-        if (uiState.isLoggedIn && uiState.pendingInviteRoomId != null) {
+    LaunchedEffect(uiState.isLoggedIn, uiState.isFamilyAccount, currentNavRoute) {
+        if (uiState.isLoggedIn && uiState.isFamilyAccount && currentNavRoute != ConvoyRoute.FamilyMonitor.route) {
+            navController.navigate(ConvoyRoute.FamilyMonitor.route) {
+                popUpTo(0) { inclusive = true }
+            }
+        } else if (uiState.isLoggedIn && !uiState.isFamilyAccount && currentNavRoute == ConvoyRoute.FamilyMonitor.route) {
+            navController.navigate(ConvoyRoute.RoleSelection.route) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
+
+    LaunchedEffect(uiState.isLoggedIn, uiState.isFamilyAccount, uiState.pendingInviteRoomId) {
+        if (uiState.isLoggedIn && !uiState.isFamilyAccount && uiState.pendingInviteRoomId != null) {
             viewModel.consumePendingInviteNavigation()
             navController.navigate(ConvoyRoute.JoinTour.route) {
                 launchSingleTop = true
@@ -111,7 +125,11 @@ fun ConvoyNavGraph(
 
         NavHost(
             navController = navController,
-            startDestination = if (uiState.isLoggedIn) ConvoyRoute.RoleSelection.route else ConvoyRoute.Login.route,
+            startDestination = when {
+                !uiState.isLoggedIn -> ConvoyRoute.Login.route
+                uiState.isFamilyAccount -> ConvoyRoute.FamilyMonitor.route
+                else -> ConvoyRoute.RoleSelection.route
+            },
         enterTransition = {
             slideIntoContainer(
                 towards = AnimatedContentTransitionScope.SlideDirection.Left,
@@ -138,9 +156,14 @@ fun ConvoyNavGraph(
         }
     ) {
         composable(ConvoyRoute.Login.route) {
-            LaunchedEffect(uiState.isLoggedIn) {
+            LaunchedEffect(uiState.isLoggedIn, uiState.isFamilyAccount) {
                 if (uiState.isLoggedIn) {
-                    navController.navigate(ConvoyRoute.RoleSelection.route) {
+                    val dest = if (uiState.isFamilyAccount) {
+                        ConvoyRoute.FamilyMonitor.route
+                    } else {
+                        ConvoyRoute.RoleSelection.route
+                    }
+                    navController.navigate(dest) {
                         popUpTo(ConvoyRoute.Login.route) { inclusive = true }
                     }
                 }
@@ -148,6 +171,7 @@ fun ConvoyNavGraph(
             LoginScreen(
                 initialName = uiState.authUserName.ifBlank { uiState.vehicleProfile.fullName },
                 initialEmail = uiState.authUserEmail,
+                pendingFamilyInviteCode = uiState.pendingFamilyInviteCode,
                 isAuthLoading = uiState.isAuthLoading,
                 authError = uiState.authError,
                 authInfoMessage = uiState.authInfoMessage,
@@ -157,7 +181,12 @@ fun ConvoyNavGraph(
                 onClearAuthError = viewModel::clearAuthError,
                 onGoogleSignIn = { activity ->
                     viewModel.signInWithGoogle(activity) {
-                        navController.navigate(ConvoyRoute.RoleSelection.route) {
+                        val dest = if (viewModel.uiState.value.isFamilyAccount) {
+                            ConvoyRoute.FamilyMonitor.route
+                        } else {
+                            ConvoyRoute.RoleSelection.route
+                        }
+                        navController.navigate(dest) {
                             popUpTo(ConvoyRoute.Login.route) { inclusive = true }
                         }
                     }
@@ -173,7 +202,38 @@ fun ConvoyNavGraph(
                 },
                 onSubmitGoogleSyncToken = { raw ->
                     viewModel.importGoogleSyncInput(raw) {
-                        navController.navigate(ConvoyRoute.RoleSelection.route) {
+                        val dest = if (viewModel.uiState.value.isFamilyAccount) {
+                            ConvoyRoute.FamilyMonitor.route
+                        } else {
+                            ConvoyRoute.RoleSelection.route
+                        }
+                        navController.navigate(dest) {
+                            popUpTo(ConvoyRoute.Login.route) { inclusive = true }
+                        }
+                    }
+                },
+                onFamilyGoogleSignIn = { activity, inviteInput ->
+                    viewModel.signInWithGoogleForFamily(activity, inviteInput) {
+                        navController.navigate(ConvoyRoute.FamilyMonitor.route) {
+                            popUpTo(ConvoyRoute.Login.route) { inclusive = true }
+                        }
+                    }
+                },
+                onFamilyGoogleBrowserSync = { inviteInput ->
+                    viewModel.openGoogleBrowserSyncForFamily(appContext, inviteInput)
+                },
+                onFamilyCustomGoogleBrowserSync = { customUrl, inviteInput ->
+                    viewModel.openGoogleBrowserSyncForFamily(appContext, inviteInput, customUrl)
+                },
+                onFamilyEmailAuth = { isSignUp, fullName, email, password, inviteInput ->
+                    viewModel.signInOrUpEmailForFamily(
+                        isSignUp = isSignUp,
+                        fullName = fullName,
+                        email = email,
+                        password = password,
+                        inviteInput = inviteInput
+                    ) {
+                        navController.navigate(ConvoyRoute.FamilyMonitor.route) {
                             popUpTo(ConvoyRoute.Login.route) { inclusive = true }
                         }
                     }
@@ -188,7 +248,12 @@ fun ConvoyNavGraph(
                 onForgotPassword = viewModel::sendPasswordReset,
                 onEmailSignIn = { email, password ->
                     viewModel.signInWithEmail(email, password) {
-                        navController.navigate(ConvoyRoute.RoleSelection.route) {
+                        val dest = if (viewModel.uiState.value.isFamilyAccount) {
+                            ConvoyRoute.FamilyMonitor.route
+                        } else {
+                            ConvoyRoute.RoleSelection.route
+                        }
+                        navController.navigate(dest) {
                             popUpTo(ConvoyRoute.Login.route) { inclusive = true }
                         }
                     }
@@ -465,6 +530,7 @@ fun ConvoyNavGraph(
                 routeConfig = uiState.routeConfig,
                 stragglerAlert = uiState.stragglerAlert,
                 offRouteAlert = uiState.offRouteAlert,
+                missingPilgrimAlert = uiState.missingPilgrimAlert,
                 sosState = uiState.sosState,
                 messages = uiState.messages,
                 isRecordingVoice = uiState.isRecordingVoice,
@@ -479,6 +545,7 @@ fun ConvoyNavGraph(
                 canPingTomTomRouting = isEffectiveLeader,
                 isEffectiveLeader = isEffectiveLeader,
                 isLeaderTroubleSimActive = uiState.isLeaderTroubleSimActive,
+                isMissingPilgrimSimActive = uiState.isMissingPilgrimSimActive,
                 gpsStatus = uiState.gpsStatus,
                 gpsAccuracyMeters = uiState.gpsAccuracyMeters,
                 batterySaverMode = uiState.batterySaverMode,
@@ -490,6 +557,9 @@ fun ConvoyNavGraph(
                 roomActivities = uiState.roomActivities,
                 roomActivityProgress = uiState.roomActivityProgress,
                 currentUserUid = viewModel.currentUserUid(),
+                myFamilyLink = uiState.myFamilyLink,
+                isGeneratingFamilyLink = uiState.isGeneratingFamilyLink,
+                familyLinkError = uiState.familyLinkError,
                 onOpenManasik = { tab ->
                     navController.navigate(ConvoyRoute.ManasikGuide.createRoute(tab))
                 },
@@ -523,6 +593,10 @@ fun ConvoyNavGraph(
                 onToggleOffRouteSim = viewModel::toggleOffRouteSimulation,
                 onToggleStragglerSim = viewModel::toggleStragglerSimulation,
                 onToggleLeaderTroubleSim = viewModel::toggleLeaderTroubleSimulation,
+                onToggleMissingPilgrimSim = viewModel::toggleMissingPilgrimSimulation,
+                onGenerateFamilyLink = viewModel::generateMyFamilyLink,
+                onRegenerateFamilyLink = viewModel::regenerateMyFamilyLink,
+                onRevokeFamilyLink = viewModel::revokeMyFamilyLink,
                 onReclaimLeader = viewModel::reclaimLeaderAuthority,
                 onTriggerSos = viewModel::triggerSosEmergency,
                 onResolveSos = viewModel::resolveSosEmergency,
@@ -547,6 +621,20 @@ fun ConvoyNavGraph(
                     )
                 },
                 onRouteComputed = viewModel::updateComputedTomTomRoute
+            )
+        }
+
+        composable(ConvoyRoute.FamilyMonitor.route) {
+            FamilyMonitorScreen(
+                familyGrant = uiState.familyGrant,
+                snapshot = uiState.familyMonitorSnapshot,
+                errorMessage = uiState.familyMonitorError,
+                onLogout = {
+                    viewModel.logoutFamilyMonitor()
+                    navController.navigate(ConvoyRoute.Login.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
             )
         }
 

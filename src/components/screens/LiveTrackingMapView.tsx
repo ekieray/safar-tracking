@@ -57,10 +57,12 @@ import {
   ConvoyRouteConfig,
   DestinationEtaInfo,
   DestinationPreset,
+  FamilyLinkRecord,
   ManasikCheckInRecord,
   ManasikGuideType,
   ManasikProgressState,
   MemberConditionStatus,
+  MissingPilgrimAlertState,
   OffRouteAlertState,
   RoomActivityItem,
   RoomActivityMemberProgress,
@@ -82,6 +84,7 @@ import {
   searchGoogleAutocompleteSuggestions,
   selectGooglePlacePrediction,
 } from '../../services/googleMapsService';
+import { buildFamilyInviteLinks } from '../../services/convoySyncService';
 import { LatLngPoint } from '../../utils/geo';
 
 interface LiveTrackingMapViewProps {
@@ -185,6 +188,15 @@ interface LiveTrackingMapViewProps {
   onDismissBroadcast?: (id: string) => void;
   onSendPriorityBroadcast?: (title: string, message: string) => void;
   onClearPriorityBroadcast?: () => void;
+  missingPilgrimAlert?: MissingPilgrimAlertState;
+  isMissingPilgrimSimActive?: boolean;
+  onToggleMissingPilgrimSim?: () => void;
+  myFamilyLink?: FamilyLinkRecord | null;
+  isGeneratingFamilyLink?: boolean;
+  familyLinkError?: string | null;
+  onGenerateFamilyLink?: () => void;
+  onRegenerateFamilyLink?: () => void;
+  onRevokeFamilyLink?: () => void;
 }
 
 function getMarkerTitle(member: ConvoyMember): string {
@@ -433,6 +445,15 @@ export function LiveTrackingMapView({
   onDismissBroadcast,
   onSendPriorityBroadcast,
   onClearPriorityBroadcast,
+  missingPilgrimAlert,
+  isMissingPilgrimSimActive = false,
+  onToggleMissingPilgrimSim,
+  myFamilyLink = null,
+  isGeneratingFamilyLink = false,
+  familyLinkError = null,
+  onGenerateFamilyLink,
+  onRegenerateFamilyLink,
+  onRevokeFamilyLink,
 }: LiveTrackingMapViewProps) {
   const [isNavigationMode, setIsNavigationMode] = useState(true);
   const [isNavInfoHidden, setIsNavInfoHidden] = useState(true);
@@ -446,7 +467,7 @@ export function LiveTrackingMapView({
   const [showLeaderSettings, setShowLeaderSettings] = useState(false);
   const [showShareRoomModal, setShowShareRoomModal] = useState(false);
   const [shareCopiedType, setShareCopiedType] = useState<
-    'id' | 'web' | 'link' | null
+    'id' | 'web' | 'link' | 'fam_id' | 'fam_web' | 'fam_app' | null
   >(null);
   const placesLib = useMapsLibrary('places');
   const destSessionTokenRef = useRef<
@@ -535,7 +556,7 @@ export function LiveTrackingMapView({
 
   const handleCopyShare = async (
     text: string,
-    type: 'id' | 'web' | 'link'
+    type: 'id' | 'web' | 'link' | 'fam_id' | 'fam_web' | 'fam_app'
   ) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -616,6 +637,9 @@ export function LiveTrackingMapView({
     members.find((m) => m.id === activeRoom?.coLeaderUid) ||
     null;
   const sweeperMember = members.find((m) => m.isSweeper) || null;
+  const missingMemberIds = new Set(
+    (missingPilgrimAlert?.affectedMembers ?? []).map((m) => m.id)
+  );
   const effectiveActivityUid = currentMemberUid || currentUser?.id || '';
   const myCompletedActivitySet = new Set(
     effectiveActivityUid
@@ -855,21 +879,24 @@ export function LiveTrackingMapView({
           <div className="px-3.5 pb-2.5 flex items-center gap-2 overflow-x-auto no-scrollbar">
             {members.map((member) => {
               const selected = member.id === focusedMember?.id;
+              const isMissing = missingMemberIds.has(member.id);
               return (
                 <button
                   key={member.id}
                   type="button"
                   onClick={() => onSelectMember(member.id)}
                   className={`shrink-0 px-2.5 py-1.5 rounded-[14px] border flex items-center gap-2 text-left transition-colors cursor-pointer ${
-                    selected
-                      ? 'bg-[#ECFDF5] dark:bg-[#064E3B]/60 border-[#047857]'
-                      : member.isActingLeader
-                        ? 'bg-[#ECFDF5] dark:bg-[#065F46]/40 border-[#059669]'
-                        : member.isSweeper
-                          ? 'bg-[#FFFBEB] dark:bg-[#451A03]/40 border-[#D97706]'
-                          : member.isCoLeader
-                            ? 'bg-[#F0FDF4] dark:bg-[#14532D]/40 border-[#15803D]'
-                            : 'bg-[#F4F8F5] dark:bg-[#091812] border-[#D8E6DD] dark:border-[#1B3B2E]'
+                    isMissing
+                      ? 'bg-[#FEF2F2] dark:bg-[#450A0A]/80 border-[#DC2626]'
+                      : selected
+                        ? 'bg-[#ECFDF5] dark:bg-[#064E3B]/60 border-[#047857]'
+                        : member.isActingLeader
+                          ? 'bg-[#ECFDF5] dark:bg-[#065F46]/40 border-[#059669]'
+                          : member.isSweeper
+                            ? 'bg-[#FFFBEB] dark:bg-[#451A03]/40 border-[#D97706]'
+                            : member.isCoLeader
+                              ? 'bg-[#F0FDF4] dark:bg-[#14532D]/40 border-[#15803D]'
+                              : 'bg-[#F4F8F5] dark:bg-[#091812] border-[#D8E6DD] dark:border-[#1B3B2E]'
                   }`}
                 >
                   <ConvoyAvatar
@@ -878,15 +905,17 @@ export function LiveTrackingMapView({
                     name={member.fullName}
                     sizeClass="w-7 h-7"
                     ringClass={
-                      member.isActingLeader
-                        ? 'ring-2 ring-[#059669]'
-                        : member.isSweeper
-                          ? 'ring-2 ring-[#D97706]'
-                          : member.isCoLeader
-                            ? 'ring-2 ring-[#15803D]'
-                            : member.isCurrentUser
-                              ? 'ring-2 ring-[#B45309]'
-                              : 'ring-2 ring-white dark:ring-[#133025]'
+                      isMissing
+                        ? 'ring-2 ring-[#DC2626]'
+                        : member.isActingLeader
+                          ? 'ring-2 ring-[#059669]'
+                          : member.isSweeper
+                            ? 'ring-2 ring-[#D97706]'
+                            : member.isCoLeader
+                              ? 'ring-2 ring-[#15803D]'
+                              : member.isCurrentUser
+                                ? 'ring-2 ring-[#B45309]'
+                                : 'ring-2 ring-white dark:ring-[#133025]'
                     }
                   />
                   <div className="min-w-0">
@@ -894,6 +923,11 @@ export function LiveTrackingMapView({
                       <p className="text-[11px] font-semibold truncate max-w-[78px]">
                         {member.fullName}
                       </p>
+                      {isMissing && (
+                        <span className="px-1 py-0.2 rounded bg-[#DC2626] text-white text-[8px] font-bold">
+                          Hilang
+                        </span>
+                      )}
                       {member.isActingLeader && (
                         <span className="px-1 py-0.2 rounded bg-[#059669] text-white text-[8px] font-bold">
                           Plt
@@ -969,8 +1003,10 @@ export function LiveTrackingMapView({
             <div className="max-h-[168px] overflow-y-auto space-y-1.5">
               {members.map((member) => {
                 const selected = member.id === focusedMember?.id;
-                const condColor =
-                  member.conditionStatus === 'AMAN'
+                const isMissing = missingMemberIds.has(member.id);
+                const condColor = isMissing
+                  ? 'text-[#DC2626] dark:text-[#F87171]'
+                  : member.conditionStatus === 'AMAN'
                     ? 'text-[#047857] dark:text-[#34D399]'
                     : member.conditionStatus === 'ISTIRAHAT'
                       ? 'text-[#B45309] dark:text-[#FBBF24]'
@@ -984,9 +1020,11 @@ export function LiveTrackingMapView({
                       setParticipantsExpanded(false);
                     }}
                     className={`rounded-xl border px-3 py-2 flex items-center gap-2.5 cursor-pointer ${
-                      selected
-                        ? 'bg-[#ECFDF5] dark:bg-[#064E3B]/40 border-[#047857]'
-                        : 'bg-[#F4F8F5] dark:bg-[#091812] border-[#D8E6DD] dark:border-[#1B3B2E]'
+                      isMissing
+                        ? 'bg-[#FEF2F2] dark:bg-[#450A0A]/60 border-[#DC2626]'
+                        : selected
+                          ? 'bg-[#ECFDF5] dark:bg-[#064E3B]/40 border-[#047857]'
+                          : 'bg-[#F4F8F5] dark:bg-[#091812] border-[#D8E6DD] dark:border-[#1B3B2E]'
                     }`}
                   >
                     <ConvoyAvatar
@@ -995,9 +1033,11 @@ export function LiveTrackingMapView({
                       name={member.fullName}
                       sizeClass="w-9 h-9"
                       ringClass={
-                        member.isCurrentUser
-                          ? 'ring-2 ring-[#B45309]'
-                          : 'ring-2 ring-[#047857]'
+                        isMissing
+                          ? 'ring-2 ring-[#DC2626]'
+                          : member.isCurrentUser
+                            ? 'ring-2 ring-[#B45309]'
+                            : 'ring-2 ring-[#047857]'
                       }
                     />
 
@@ -1005,6 +1045,7 @@ export function LiveTrackingMapView({
                       <p className="text-xs font-semibold truncate">
                         {getMarkerTitle(member)}
                         {member.isCurrentUser ? ' (Anda)' : ''}
+                        {isMissing ? ' · Tidak Terdeteksi' : ''}
                       </p>
                       <p className="text-[11px] text-[#4D6659] dark:text-[#9CC2AE] truncate">
                         {member.isActingLeader
@@ -1087,6 +1128,33 @@ export function LiveTrackingMapView({
         )}
         </div>
       )}
+
+      {/* Missing Pilgrim Alert Banner */}
+      {missingPilgrimAlert?.isTriggered &&
+        missingPilgrimAlert.affectedMembers.length > 0 && (
+          <div
+            role="alert"
+            className="shrink-0 bg-[#991B1B] text-white px-3.5 py-2 flex items-center justify-between gap-2"
+          >
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-[#FDE68A]" />
+              <p className="text-[11px] font-semibold truncate">
+                JAMAAH TIDAK TERDETEKSI ·{' '}
+                {missingPilgrimAlert.affectedMembers.map((m) => m.fullName).join(', ')} (
+                {missingPilgrimAlert.staleSinceLabel})
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                onSelectMember(missingPilgrimAlert.affectedMembers[0].id)
+              }
+              className="px-2 py-1 rounded-lg bg-white text-[#991B1B] hover:bg-[#FEF2F2] text-[10px] font-bold shrink-0 cursor-pointer whitespace-nowrap"
+            >
+              Fokus Lokasi
+            </button>
+          </div>
+        )}
 
       {/* Off-Route Banner */}
       {offRouteAlert.isOffRoute && (
@@ -1644,11 +1712,14 @@ export function LiveTrackingMapView({
                   onClick={() => {
                     setShowSideInfoDrawer(false);
                     setShowShareRoomModal(true);
+                    if (activeRoom.isSyncedRoom && !myFamilyLink) {
+                      onGenerateFamilyLink?.();
+                    }
                   }}
                   className="w-full mt-1.5 min-h-[34px] px-2.5 rounded-xl bg-[#ECFDF5] dark:bg-[#064E3B]/40 border border-[#A7F3D0] dark:border-[#065F46] text-[#047857] dark:text-[#6EE7B7] text-[11px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Share2 className="w-3.5 h-3.5 shrink-0" />
-                  <span>Bagikan Link &amp; Kode ({activeRoom.roomId})</span>
+                  <span>Bagikan Grup &amp; Pantauan Keluarga</span>
                 </button>
               )}
 
@@ -1715,6 +1786,7 @@ export function LiveTrackingMapView({
               <div className="space-y-1.5">
                 {members.map((member) => {
                   const selected = member.id === focusedMember?.id;
+                  const isMissing = missingMemberIds.has(member.id);
                   const roleLabel = member.isActingLeader
                     ? 'Plt. Pembimbing'
                     : member.isCoLeader && member.isSweeper
@@ -1738,9 +1810,11 @@ export function LiveTrackingMapView({
                         onSelectMember(member.id);
                       }}
                       className={`rounded-xl border px-2.5 py-2 flex items-center gap-2 cursor-pointer transition-colors ${
-                        selected
-                          ? 'bg-[#ECFDF5] dark:bg-[#064E3B]/40 border-[#047857]'
-                          : 'bg-[#F4F8F5] dark:bg-[#091812] border-[#D8E6DD] dark:border-[#1B3B2E]'
+                        isMissing
+                          ? 'bg-[#FEF2F2] dark:bg-[#450A0A]/60 border-[#DC2626]'
+                          : selected
+                            ? 'bg-[#ECFDF5] dark:bg-[#064E3B]/40 border-[#047857]'
+                            : 'bg-[#F4F8F5] dark:bg-[#091812] border-[#D8E6DD] dark:border-[#1B3B2E]'
                       }`}
                     >
                       <ConvoyAvatar
@@ -1749,15 +1823,18 @@ export function LiveTrackingMapView({
                         name={member.fullName}
                         sizeClass="w-7 h-7"
                         ringClass={
-                          member.isCurrentUser
-                            ? 'ring-2 ring-[#B45309]'
-                            : 'ring-1 ring-[#047857]'
+                          isMissing
+                            ? 'ring-2 ring-[#DC2626]'
+                            : member.isCurrentUser
+                              ? 'ring-2 ring-[#B45309]'
+                              : 'ring-1 ring-[#047857]'
                         }
                       />
                       <div className="min-w-0 flex-1">
                         <p className="text-[11px] font-semibold truncate">
                           {member.fullName}
                           {member.isCurrentUser ? ' (Anda)' : ''}
+                          {isMissing ? ' · Hilang' : ''}
                         </p>
                         <p className="text-[10px] text-[#4D6659] dark:text-[#9CC2AE] truncate">
                           {roleLabel}
@@ -1863,6 +1940,20 @@ export function LiveTrackingMapView({
                     }`}
                   >
                     {isLeaderTroubleSimActive ? 'Kendala ✓' : 'Uji Kendala Mtw'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      touchSideDrawer();
+                      onToggleMissingPilgrimSim?.();
+                    }}
+                    className={`col-span-2 py-1.5 px-2 rounded-lg border text-[10px] font-semibold cursor-pointer ${
+                      isMissingPilgrimSimActive
+                        ? 'bg-[#991B1B] text-white border-[#7F1D1D]'
+                        : 'bg-[#F4F8F5] dark:bg-[#091812] border-[#D8E6DD] dark:border-[#1B3B2E]'
+                    }`}
+                  >
+                    {isMissingPilgrimSimActive ? 'Jamaah Hilang Aktif ✓' : 'Uji Jamaah Hilang'}
                   </button>
                 </div>
               </div>
@@ -2572,8 +2663,8 @@ export function LiveTrackingMapView({
 
       {/* Share Room Link & Code Modal */}
       {showShareRoomModal && activeRoom && (
-        <div className="absolute inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-center justify-center p-5">
-          <div className="w-full max-w-[336px] rounded-[24px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] p-5 space-y-4 shadow-2xl">
+        <div className="absolute inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-center justify-center p-4">
+          <div className="w-full max-w-[350px] max-h-[88%] overflow-y-auto rounded-[24px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] p-5 space-y-4 shadow-2xl">
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-10 h-10 rounded-xl bg-[#ECFDF5] dark:bg-[#064E3B]/50 text-[#047857] dark:text-[#6EE7B7] flex items-center justify-center shrink-0">
@@ -2581,7 +2672,7 @@ export function LiveTrackingMapView({
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-sm font-bold truncate">
-                    Bagikan Grup Rombongan
+                    Bagikan Grup &amp; Keluarga
                   </h3>
                   <p className="text-[11px] text-[#4D6659] dark:text-[#9CC2AE] truncate">
                     {activeRoom.roomTitle}
@@ -2601,7 +2692,7 @@ export function LiveTrackingMapView({
             <div className="rounded-2xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#D8E6DD] dark:border-[#1B3B2E] p-3 flex items-center justify-between gap-2">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-[#4D6659] dark:text-[#9CC2AE]">
-                  Kode Grup
+                  Kode Grup Rombongan
                 </p>
                 <p className="text-xl font-extrabold font-mono tracking-widest text-[#047857] dark:text-[#34D399]">
                   {activeRoom.roomId}
@@ -2679,11 +2770,139 @@ export function LiveTrackingMapView({
             <button
               type="button"
               onClick={handleNativeShareRoom}
-              className="w-full min-h-[44px] rounded-xl bg-[#B45309] hover:bg-[#92400E] text-white text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full min-h-[40px] rounded-xl bg-[#B45309] hover:bg-[#92400E] text-white text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
             >
               <Share2 className="w-4 h-4" />
               <span>Bagikan Undangan Rombongan</span>
             </button>
+
+            {/* Personal Family Monitoring Link Section */}
+            <div className="pt-3 border-t border-[#D8E6DD] dark:border-[#1B3B2E] space-y-2.5">
+              <div>
+                <p className="text-xs font-bold text-[#047857] dark:text-[#6EE7B7]">
+                  Pantauan Keluarga (Khusus Akun Anda)
+                </p>
+                <p className="text-[11px] text-[#4D6659] dark:text-[#9CC2AE] leading-snug mt-0.5">
+                  Bagikan link pribadi ini ke keluarga. Keluarga hanya dapat melihat posisi Anda dan
+                  daftar kegiatan ibadah tanpa akses edit.
+                </p>
+              </div>
+
+              {familyLinkError && (
+                <p className="text-[11px] text-[#B91C1C] dark:text-[#FCA5A5] bg-[#FEF2F2] dark:bg-[#450A0A] rounded-lg px-2.5 py-1.5">
+                  {familyLinkError}
+                </p>
+              )}
+
+              {!activeRoom.isSyncedRoom ? (
+                <div className="rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-dashed border-[#C6DACD] dark:border-[#1E3F31] p-2.5 text-[11px] text-[#4D6659] dark:text-[#9CC2AE]">
+                  Link pantauan keluarga aktif secara real-time saat bergabung menggunakan Room Cloud Sync (Google / Email).
+                </div>
+              ) : !myFamilyLink ? (
+                <button
+                  type="button"
+                  disabled={isGeneratingFamilyLink}
+                  onClick={() => onGenerateFamilyLink?.()}
+                  className="w-full min-h-[40px] rounded-xl bg-[#047857] hover:bg-[#065F46] disabled:opacity-60 text-white text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {isGeneratingFamilyLink ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Link2 className="w-4 h-4" />
+                  )}
+                  <span>
+                    {isGeneratingFamilyLink
+                      ? 'Membuat Link Keluarga...'
+                      : 'Buat Link & Kode Keluarga'}
+                  </span>
+                </button>
+              ) : (
+                (() => {
+                  const famLinks = buildFamilyInviteLinks(myFamilyLink.inviteCode);
+                  return (
+                    <div className="space-y-2">
+                      <div className="rounded-xl bg-[#ECFDF5] dark:bg-[#064E3B]/40 border border-[#A7F3D0] dark:border-[#059669] p-2.5 flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold text-[#065F46] dark:text-[#A7F3D0]">
+                            Kode Keluarga ·{' '}
+                            {myFamilyLink.claimedByUid
+                              ? `Dipantau ${myFamilyLink.claimedByName || 'Keluarga'}`
+                              : 'Belum terhubung'}
+                          </p>
+                          <p className="text-base font-extrabold font-mono tracking-wider text-[#047857] dark:text-[#6EE7B7]">
+                            {myFamilyLink.inviteCode}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyShare(myFamilyLink.inviteCode, 'fam_id')}
+                          className="px-2.5 py-1.5 rounded-lg bg-[#047857] text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer shrink-0"
+                        >
+                          {shareCopiedType === 'fam_id' ? (
+                            <Check className="w-3.5 h-3.5" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                          <span>{shareCopiedType === 'fam_id' ? 'OK' : 'Salin'}</span>
+                        </button>
+                      </div>
+
+                      <div className="rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#D8E6DD] dark:border-[#1B3B2E] p-2 flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold text-[#4D6659] dark:text-[#9CC2AE]">
+                            Link Web Keluarga
+                          </p>
+                          <p className="text-[10px] font-mono truncate">{famLinks.webLink}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyShare(famLinks.webLink, 'fam_web')}
+                          className="px-2 py-1 rounded-lg border border-[#CFE0D5] dark:border-[#1B3B2E] text-[10px] font-semibold cursor-pointer shrink-0"
+                        >
+                          {shareCopiedType === 'fam_web' ? 'OK' : 'Salin'}
+                        </button>
+                      </div>
+
+                      <div className="rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#D8E6DD] dark:border-[#1B3B2E] p-2 flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold text-[#4D6659] dark:text-[#9CC2AE]">
+                            Link APK Keluarga
+                          </p>
+                          <p className="text-[10px] font-mono truncate">{famLinks.appDeepLink}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyShare(famLinks.appDeepLink, 'fam_app')}
+                          className="px-2 py-1 rounded-lg border border-[#CFE0D5] dark:border-[#1B3B2E] text-[10px] font-semibold cursor-pointer shrink-0"
+                        >
+                          {shareCopiedType === 'fam_app' ? 'OK' : 'Salin'}
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          disabled={isGeneratingFamilyLink}
+                          onClick={() => onRegenerateFamilyLink?.()}
+                          className="min-h-[34px] px-2 rounded-lg border border-[#C6DACD] dark:border-[#1E3F31] text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          <span>Buat Kode Baru</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isGeneratingFamilyLink}
+                          onClick={() => onRevokeFamilyLink?.()}
+                          className="min-h-[34px] px-2 rounded-lg border border-[#FECACA] dark:border-[#991B1B] text-[#B91C1C] dark:text-[#FCA5A5] text-[11px] font-semibold cursor-pointer"
+                        >
+                          Putus Akses
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
+            </div>
           </div>
         </div>
       )}

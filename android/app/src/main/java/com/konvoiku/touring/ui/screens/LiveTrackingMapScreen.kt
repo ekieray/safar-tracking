@@ -160,11 +160,14 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.konvoiku.touring.data.TomTomApiService
 import com.konvoiku.touring.data.TomTomPlaceResult
 import com.konvoiku.touring.model.ChatMessageType
+import com.konvoiku.touring.model.ConnectionStatus
 import com.konvoiku.touring.model.ConvoyMember
 import com.konvoiku.touring.model.ConvoyRouteConfig
 import com.konvoiku.touring.model.DestinationEtaInfo
+import com.konvoiku.touring.model.FamilyLinkInfo
 import com.konvoiku.touring.model.GpsTrackingStatus
 import com.konvoiku.touring.model.MemberConditionStatus
+import com.konvoiku.touring.model.MissingPilgrimAlertState
 import com.konvoiku.touring.model.OffRouteAlertState
 import com.konvoiku.touring.model.RoomActivityItem
 import com.konvoiku.touring.model.RoomActivityMemberProgress
@@ -199,6 +202,7 @@ fun LiveTrackingMapScreen(
     routeConfig: ConvoyRouteConfig,
     stragglerAlert: StragglerAlertState,
     offRouteAlert: OffRouteAlertState,
+    missingPilgrimAlert: MissingPilgrimAlertState = MissingPilgrimAlertState(),
     sosState: SosEmergencyState,
     messages: List<RoomMessage>,
     isRecordingVoice: Boolean,
@@ -213,6 +217,7 @@ fun LiveTrackingMapScreen(
     canPingTomTomRouting: Boolean = role == UserRole.TOUR_LEADER,
     isEffectiveLeader: Boolean = role == UserRole.TOUR_LEADER,
     isLeaderTroubleSimActive: Boolean = false,
+    isMissingPilgrimSimActive: Boolean = false,
     gpsStatus: GpsTrackingStatus = GpsTrackingStatus.IDLE,
     gpsAccuracyMeters: Int = 20,
     batterySaverMode: Boolean = false,
@@ -224,6 +229,9 @@ fun LiveTrackingMapScreen(
     roomActivities: List<RoomActivityItem> = emptyList(),
     roomActivityProgress: Map<String, RoomActivityMemberProgress> = emptyMap(),
     currentUserUid: String = "",
+    myFamilyLink: FamilyLinkInfo? = null,
+    isGeneratingFamilyLink: Boolean = false,
+    familyLinkError: String? = null,
     onOpenManasik: (String) -> Unit = {},
     onOpenAssistant: () -> Unit = {},
     onToggleBatterySaverMode: () -> Unit = {},
@@ -249,6 +257,10 @@ fun LiveTrackingMapScreen(
     onToggleOffRouteSim: () -> Unit,
     onToggleStragglerSim: () -> Unit,
     onToggleLeaderTroubleSim: () -> Unit = {},
+    onToggleMissingPilgrimSim: () -> Unit = {},
+    onGenerateFamilyLink: () -> Unit = {},
+    onRegenerateFamilyLink: () -> Unit = {},
+    onRevokeFamilyLink: () -> Unit = {},
     onReclaimLeader: () -> Unit = {},
     onTriggerSos: () -> Unit,
     onResolveSos: () -> Unit,
@@ -446,6 +458,9 @@ fun LiveTrackingMapScreen(
     val myDoneActivityIds = myActivityProgress?.completedActivityIds.orEmpty().toSet()
     val totalActivitiesCount = roomActivities.size
     val myActivitiesDoneCount = roomActivities.count { it.id in myDoneActivityIds }
+    val missingMemberIds = remember(missingPilgrimAlert) {
+        missingPilgrimAlert.affectedMembers.map { it.id }.toSet()
+    }
 
     val initialLat = trackedMember?.mapPosition?.latitude ?: 21.4225
     val initialLng = trackedMember?.mapPosition?.longitude ?: 39.8262
@@ -566,8 +581,18 @@ fun LiveTrackingMapScreen(
         }
     }
 
-    LaunchedEffect(stragglerAlert.isTriggered, offRouteAlert.isOffRoute, sosState.isActive, currentSosKey, routeConfig.soundAlertEnabled) {
-        if (routeConfig.soundAlertEnabled && (stragglerAlert.isTriggered || offRouteAlert.isOffRoute || sosState.isActive)) {
+    LaunchedEffect(
+        stragglerAlert.isTriggered,
+        offRouteAlert.isOffRoute,
+        missingPilgrimAlert.isTriggered,
+        missingMemberIds.size,
+        sosState.isActive,
+        currentSosKey,
+        routeConfig.soundAlertEnabled
+    ) {
+        if (routeConfig.soundAlertEnabled &&
+            (stragglerAlert.isTriggered || offRouteAlert.isOffRoute || missingPilgrimAlert.isTriggered || sosState.isActive)
+        ) {
             runCatching {
                 val tone = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 90)
                 tone.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 400)
@@ -770,6 +795,7 @@ fun LiveTrackingMapScreen(
                                     TopParticipantChip(
                                         member = member,
                                         isSelected = member.id == focusedMember?.id,
+                                        isMissing = member.id in missingMemberIds || member.connectionStatus == ConnectionStatus.OFFLINE,
                                         onClick = {
                                             onSelectMember(member.id)
                                             isAutoFollowing = true
@@ -821,6 +847,7 @@ fun LiveTrackingMapScreen(
                                             etaInfo = memberEta,
                                             viewerIsLeader = isEffectiveLeader,
                                             isSelected = member.id == focusedMember?.id,
+                                            isMissing = member.id in missingMemberIds || member.connectionStatus == ConnectionStatus.OFFLINE,
                                             onAssignSweeper = { onAssignSweeper(member.id) },
                                             onClick = {
                                                 onSelectMember(member.id)
@@ -862,6 +889,68 @@ fun LiveTrackingMapScreen(
                             text = "KELUAR JALUR · Menyimpang ${offRouteAlert.deviationMeters} m dari rute resmi (batas ${offRouteAlert.toleranceMeters} m)",
                             style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         )
+                    }
+                }
+            }
+
+            if (missingPilgrimAlert.isTriggered && missingPilgrimAlert.affectedMembers.isNotEmpty()) {
+                val firstMissing = missingPilgrimAlert.affectedMembers.first()
+                val missingNames = missingPilgrimAlert.affectedMembers.joinToString(", ") { it.fullName }
+                Surface(
+                    color = Color(0xFF991B1B),
+                    contentColor = Color.White,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 9.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            Icons.Rounded.WifiOff,
+                            contentDescription = "Jamaah Tidak Terdeteksi",
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "JAMAAH TIDAK TERDETEKSI (${missingPilgrimAlert.affectedMembers.size})",
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            )
+                            Text(
+                                text = "$missingNames · Tidak terdeteksi >${missingPilgrimAlert.thresholdSeconds} dtk / offline",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp),
+                                color = Color.White.copy(alpha = 0.92f),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Surface(
+                            onClick = {
+                                onSelectMember(firstMissing.id)
+                                isAutoFollowing = true
+                                mapController.animateTo(
+                                    firstMissing.mapPosition.latitude,
+                                    firstMissing.mapPosition.longitude,
+                                    16.0
+                                )
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color.White.copy(alpha = 0.18f),
+                            contentColor = Color.White,
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.45f))
+                        ) {
+                            Text(
+                                text = "Fokus Lokasi",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -1452,6 +1541,11 @@ fun LiveTrackingMapScreen(
                                 onClick = onToggleLeaderTroubleSim,
                                 label = { Text("Uji Trouble Leader", fontSize = 11.sp) }
                             )
+                            FilterChip(
+                                selected = isMissingPilgrimSimActive,
+                                onClick = onToggleMissingPilgrimSim,
+                                label = { Text("Uji Jamaah Hilang", fontSize = 11.sp) }
+                            )
                         }
                     }
                 } else if (gpsStatus == GpsTrackingStatus.DENIED) {
@@ -1712,7 +1806,7 @@ fun LiveTrackingMapScreen(
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(18.dp)
                                 )
-                                if (sosState.isActive || offRouteAlert.isOffRoute || stragglerAlert.isTriggered || activeRoom?.leaderTroubleActive == true) {
+                                if (sosState.isActive || offRouteAlert.isOffRoute || stragglerAlert.isTriggered || missingPilgrimAlert.isTriggered || activeRoom?.leaderTroubleActive == true) {
                                     Box(
                                         modifier = Modifier
                                             .size(7.dp)
@@ -2346,6 +2440,7 @@ fun LiveTrackingMapScreen(
 
                                     members.forEach { member ->
                                         val isSel = member.id == focusedMember?.id
+                                        val isMissing = member.id in missingMemberIds || member.connectionStatus == ConnectionStatus.OFFLINE
                                         val roleLabel = when {
                                             member.isActingLeader && member.role != UserRole.TOUR_LEADER -> "Plt. Leader"
                                             member.isCoLeader && member.isSweeper -> if (member.isAutoSweeper) "Co-Leader & Sweeper (Auto)" else "Co-Leader & Sweeper"
@@ -2367,8 +2462,19 @@ fun LiveTrackingMapScreen(
                                                 )
                                             },
                                             shape = RoundedCornerShape(12.dp),
-                                            color = if (isSel) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.background,
-                                            border = BorderStroke(1.dp, if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
+                                            color = when {
+                                                isSel -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                                isMissing -> Color(0xFFFEF2F2)
+                                                else -> MaterialTheme.colorScheme.background
+                                            },
+                                            border = BorderStroke(
+                                                1.dp,
+                                                when {
+                                                    isSel -> MaterialTheme.colorScheme.primary
+                                                    isMissing -> Color(0xFFDC2626)
+                                                    else -> MaterialTheme.colorScheme.outline
+                                                }
+                                            ),
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
                                             Row(
@@ -2381,20 +2487,48 @@ fun LiveTrackingMapScreen(
                                                     photoUri = member.avatarPhotoUri,
                                                     displayName = member.fullName,
                                                     size = 28.dp,
-                                                    borderColor = if (member.isCurrentUser) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
+                                                    borderColor = when {
+                                                        isMissing -> Color(0xFFDC2626)
+                                                        member.isCurrentUser -> MaterialTheme.colorScheme.secondary
+                                                        else -> MaterialTheme.colorScheme.primary
+                                                    }
                                                 )
                                                 Column(modifier = Modifier.weight(1f)) {
-                                                    Text(
-                                                        text = if (member.isCurrentUser) "${member.fullName} (Anda)" else member.fullName,
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = if (member.isCurrentUser) "${member.fullName} (Anda)" else member.fullName,
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis,
+                                                            modifier = Modifier.weight(1f, fill = false)
+                                                        )
+                                                        if (isMissing) {
+                                                            Surface(
+                                                                shape = RoundedCornerShape(5.dp),
+                                                                color = Color(0xFFDC2626)
+                                                            ) {
+                                                                Text(
+                                                                    text = "TIDAK TERDETEKSI",
+                                                                    fontSize = 8.sp,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = Color.White,
+                                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                                )
+                                                            }
+                                                        }
+                                                    }
                                                     Text(
                                                         text = "$roleLabel$distText · ${member.conditionStatus.label}",
                                                         fontSize = 10.sp,
-                                                        color = if (member.isSweeper) Color(0xFFB45309) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        color = when {
+                                                            isMissing -> Color(0xFFB91C1C)
+                                                            member.isSweeper -> Color(0xFFB45309)
+                                                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                                        },
                                                         maxLines = 1,
                                                         overflow = TextOverflow.Ellipsis
                                                     )
@@ -2487,15 +2621,29 @@ fun LiveTrackingMapScreen(
                                                 modifier = Modifier.weight(1f)
                                             )
                                         }
-                                        FilterChip(
-                                            selected = isLeaderTroubleSimActive,
-                                            onClick = {
-                                                touchSideDrawer()
-                                                onToggleLeaderTroubleSim()
-                                            },
-                                            label = { Text("Uji Trouble HP Leader", fontSize = 10.sp) },
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            FilterChip(
+                                                selected = isLeaderTroubleSimActive,
+                                                onClick = {
+                                                    touchSideDrawer()
+                                                    onToggleLeaderTroubleSim()
+                                                },
+                                                label = { Text("Trouble Leader", fontSize = 10.sp, maxLines = 1) },
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            FilterChip(
+                                                selected = isMissingPilgrimSimActive,
+                                                onClick = {
+                                                    touchSideDrawer()
+                                                    onToggleMissingPilgrimSim()
+                                                },
+                                                label = { Text("Uji Jamaah Hilang", fontSize = 10.sp, maxLines = 1) },
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -2952,12 +3100,27 @@ fun LiveTrackingMapScreen(
 
     if (showShareRoomDialog && activeRoom != null) {
         val webShareLink = "${activeWebBaseUrl.trimEnd('/')}/?room=${Uri.encode(activeRoom.roomId)}"
+        val familyWebLink = myFamilyLink?.let {
+            "${activeWebBaseUrl.trimEnd('/')}/?family=${Uri.encode(it.inviteCode)}"
+        }.orEmpty()
+        val familyDeepLink = myFamilyLink?.let {
+            "safartracking://family/${it.inviteCode}"
+        }.orEmpty()
         AlertDialog(
             onDismissRequest = { showShareRoomDialog = false },
             icon = { Icon(Icons.Rounded.Share, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-            title = { Text("Bagikan Undangan Safar", fontWeight = FontWeight.Bold) },
+            title = { Text("Bagikan Undangan & Pantauan Keluarga", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "UNDANGAN ANGGOTA ROMBONGAN",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant,
@@ -3045,6 +3208,187 @@ fun LiveTrackingMapScreen(
                         }
                     }
 
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    // Personal Read-Only Family Monitoring Link Section
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFFECFDF5),
+                        border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Shield,
+                                    contentDescription = null,
+                                    tint = Color(0xFF047857),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Pantauan Keluarga (Khusus 1 Jamaah)",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF065F46)
+                                )
+                            }
+                            Text(
+                                text = "Keluarga di rumah hanya bisa memantau posisi live & checklist kegiatan Anda (baca-saja) melalui link khusus ini.",
+                                fontSize = 11.sp,
+                                lineHeight = 15.sp,
+                                color = Color(0xFF047857)
+                            )
+
+                            if (!activeRoom.isSyncedRoom) {
+                                Text(
+                                    text = "Tersedia saat menggunakan Room Cloud (terhubung ke Firebase).",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFFB45309)
+                                )
+                            } else if (myFamilyLink == null) {
+                                Button(
+                                    onClick = onGenerateFamilyLink,
+                                    enabled = !isGeneratingFamilyLink,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF047857),
+                                        contentColor = Color.White
+                                    )
+                                ) {
+                                    Text(
+                                        text = if (isGeneratingFamilyLink) "Membuat Link Keluarga..." else "Buat Link Pantauan Keluarga",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            } else {
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color.White,
+                                    border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column {
+                                            Text("KODE KELUARGA", fontSize = 9.sp, color = Color(0xFF047857))
+                                            Text(
+                                                text = myFamilyLink.inviteCode,
+                                                fontFamily = FontFamily.Monospace,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 15.sp,
+                                                color = Color(0xFF065F46)
+                                            )
+                                        }
+                                        TextButton(
+                                            onClick = {
+                                                clipboardManager.setText(AnnotatedString(myFamilyLink.inviteCode))
+                                                copiedShareHint = "Kode Keluarga ${myFamilyLink.inviteCode} disalin"
+                                            }
+                                        ) {
+                                            Icon(Icons.Rounded.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Salin", fontSize = 11.sp)
+                                        }
+                                    }
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color.White,
+                                    border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text("Link Web Keluarga", fontSize = 9.sp, color = Color(0xFF047857))
+                                            Text(familyWebLink, fontSize = 10.sp, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                clipboardManager.setText(AnnotatedString(familyWebLink))
+                                                copiedShareHint = "Link Web Keluarga disalin"
+                                            }
+                                        ) {
+                                            Icon(Icons.Rounded.ContentCopy, contentDescription = "Salin Link Web Keluarga", modifier = Modifier.size(15.dp))
+                                        }
+                                    }
+                                }
+
+                                Text(
+                                    text = if (myFamilyLink.claimedByName.isNotBlank()) {
+                                        "Terhubung ke akun keluarga: ${myFamilyLink.claimedByName}"
+                                    } else {
+                                        "Status: Belum diklaim oleh akun keluarga"
+                                    },
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF065F46)
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            val shareBody = "Pantau posisi & kegiatan safar ${myFamilyLink.targetName} secara langsung (baca-saja) di Safar Tracking:\nKode Keluarga: ${myFamilyLink.inviteCode}\nLink Web: $familyWebLink\nLink APK: $familyDeepLink"
+                                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "text/plain"
+                                                putExtra(Intent.EXTRA_SUBJECT, "Pantauan Keluarga ${myFamilyLink.targetName}")
+                                                putExtra(Intent.EXTRA_TEXT, shareBody)
+                                            }
+                                            context.startActivity(Intent.createChooser(sendIntent, "Bagikan ke Keluarga"))
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Text("Kirim", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                    }
+                                    OutlinedButton(
+                                        onClick = onRegenerateFamilyLink,
+                                        enabled = !isGeneratingFamilyLink,
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Text("Buat Ulang", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                    }
+                                    TextButton(
+                                        onClick = onRevokeFamilyLink,
+                                        enabled = !isGeneratingFamilyLink,
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
+                                    ) {
+                                        Text("Cabut", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFDC2626))
+                                    }
+                                }
+                            }
+
+                            if (!familyLinkError.isNullOrBlank()) {
+                                Text(
+                                    text = familyLinkError,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFB91C1C)
+                                )
+                            }
+                        }
+                    }
+
                     if (!copiedShareHint.isNullOrBlank()) {
                         Text(
                             text = copiedShareHint.orEmpty(),
@@ -3069,7 +3413,7 @@ fun LiveTrackingMapScreen(
                 ) {
                     Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Bagikan")
+                    Text("Bagikan Room")
                 }
             },
             dismissButton = {
@@ -3290,6 +3634,7 @@ fun LiveTrackingMapScreen(
 private fun TopParticipantChip(
     member: ConvoyMember,
     isSelected: Boolean,
+    isMissing: Boolean = false,
     onClick: () -> Unit
 ) {
     Surface(
@@ -3297,6 +3642,7 @@ private fun TopParticipantChip(
         shape = RoundedCornerShape(14.dp),
         color = when {
             isSelected -> MaterialTheme.colorScheme.primaryContainer
+            isMissing -> Color(0xFFFEE2E2)
             member.isSweeper -> Color(0xFFFFFBEB)
             else -> MaterialTheme.colorScheme.background
         },
@@ -3304,6 +3650,7 @@ private fun TopParticipantChip(
             width = 1.dp,
             color = when {
                 isSelected -> MaterialTheme.colorScheme.primary
+                isMissing -> Color(0xFFDC2626)
                 member.isSweeper -> Color(0xFFD97706)
                 else -> MaterialTheme.colorScheme.outline
             }
@@ -3320,6 +3667,7 @@ private fun TopParticipantChip(
                 displayName = member.fullName,
                 size = 30.dp,
                 borderColor = when {
+                    isMissing -> Color(0xFFDC2626)
                     member.isSweeper -> Color(0xFFD97706)
                     member.isCurrentUser -> MaterialTheme.colorScheme.secondary
                     else -> Color.White
@@ -3327,6 +3675,7 @@ private fun TopParticipantChip(
             )
             Column {
                 val roleBadge = when {
+                    isMissing -> "HILANG"
                     member.isActingLeader && member.role != UserRole.TOUR_LEADER -> "Plt.Ldr"
                     member.isCoLeader && member.isSweeper -> if (member.isAutoSweeper) "Co/Swp*" else "Co/Swp"
                     member.isCoLeader -> "Co-Ldr"
@@ -3349,6 +3698,7 @@ private fun TopParticipantChip(
                         Surface(
                             shape = RoundedCornerShape(6.dp),
                             color = when {
+                                isMissing -> Color(0xFFDC2626)
                                 member.isActingLeader && member.role != UserRole.TOUR_LEADER -> Color(0xFFEDE9FE)
                                 member.isSweeper -> Color(0xFFFEF3C7)
                                 member.isCoLeader -> Color(0xFFCCFBF1)
@@ -3360,6 +3710,7 @@ private fun TopParticipantChip(
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = when {
+                                    isMissing -> Color.White
                                     member.isActingLeader && member.role != UserRole.TOUR_LEADER -> Color(0xFF6D28D9)
                                     member.isSweeper -> Color(0xFFB45309)
                                     member.isCoLeader -> Color(0xFF0F766E)
@@ -3703,6 +4054,7 @@ private fun ParticipantExpandedRow(
     etaInfo: DestinationEtaInfo,
     viewerIsLeader: Boolean,
     isSelected: Boolean,
+    isMissing: Boolean = false,
     onAssignSweeper: () -> Unit,
     onClick: () -> Unit
 ) {
@@ -3718,9 +4070,16 @@ private fun ParticipantExpandedRow(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else MaterialTheme.colorScheme.background
+            containerColor = when {
+                isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                isMissing -> Color(0xFFFEF2F2)
+                else -> MaterialTheme.colorScheme.background
+            }
         ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        border = BorderStroke(
+            1.dp,
+            if (isMissing) Color(0xFFDC2626) else MaterialTheme.colorScheme.outline
+        )
     ) {
         Row(
             modifier = Modifier
@@ -3734,17 +4093,41 @@ private fun ParticipantExpandedRow(
                 photoUri = member.avatarPhotoUri,
                 displayName = member.fullName,
                 size = 38.dp,
-                borderColor = if (member.isCurrentUser) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
+                borderColor = when {
+                    isMissing -> Color(0xFFDC2626)
+                    member.isCurrentUser -> MaterialTheme.colorScheme.secondary
+                    else -> MaterialTheme.colorScheme.primary
+                }
             )
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (member.isCurrentUser) "${member.markerTitle} (Anda)" else member.markerTitle,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = if (member.isCurrentUser) "${member.markerTitle} (Anda)" else member.markerTitle,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (isMissing) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFFDC2626)
+                        ) {
+                            Text(
+                                text = "TIDAK TERDETEKSI",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                }
                 val roleLabel = when {
                     member.isActingLeader && member.role != UserRole.TOUR_LEADER -> "Plt. Leader (Co-Leader)"
                     member.isCoLeader && member.isSweeper -> if (member.isAutoSweeper) "Co-Leader & Sweeper (Auto)" else "Co-Leader & Sweeper"
@@ -3756,7 +4139,11 @@ private fun ParticipantExpandedRow(
                 Text(
                     text = "$roleLabel$distLabel · ${member.lastLocationText}",
                     fontSize = 11.sp,
-                    color = if (member.isSweeper) Color(0xFFB45309) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = when {
+                        isMissing -> Color(0xFFB91C1C)
+                        member.isSweeper -> Color(0xFFB45309)
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )

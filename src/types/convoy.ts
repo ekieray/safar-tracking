@@ -23,6 +23,7 @@ export type ScreenRoute =
   | 'trip_detail'
   | 'manasik_guide'
   | 'ai_assistant'
+  | 'family_monitor'
   | 'about_app';
 
 export type AvatarPreset =
@@ -416,4 +417,51 @@ export interface RoomActivityMemberProgress {
   completedActivityIds: string[];
   completedTimes: Record<string, string>;
 }
+
+export interface MissingPilgrimAlertState {
+  isTriggered: boolean;
+  affectedMembers: ConvoyMember[];
+  thresholdSeconds: number;
+  staleSinceLabel: string;
+}
+
+export interface FamilyLinkRecord {
+  inviteCode: string;
+  roomId: string;
+  roomTitle: string;
+  targetUid: string;
+  targetName: string;
+  targetVehicleDetail: string;
+  targetAvatarPreset: AvatarPreset;
+  destinationName: string;
+  active: boolean;
+  claimedByUid: string;
+  claimedByName: string;
+  createdAtLabel?: string;
+  updatedAtLabel?: string;
+}
+
+export interface FamilyGrantRecord {
+  familyUid: string;
+  inviteCode: string;
+  roomId: string;
+  targetUid: string;
+  targetName: string;
+  active: boolean;
+}
+
+export interface FamilyMonitorSnapshot {
+  linkActive: boolean;
+  roomStatus: 'ACTIVE' | 'FINISHED';
+  roomTitle: string;
+  destinationName: string;
+  destinationAddress: string;
+  targetMember: ConvoyMember | null;
+  routeConfig: ConvoyRouteConfig | null;
+  activities: RoomActivityItem[];
+  completedActivityIds: string[];
+  completedTimes: Record<string, string>;
+  lastSyncLabel: string;
+}
+
 

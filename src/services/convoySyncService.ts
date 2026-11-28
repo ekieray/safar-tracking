@@ -29,6 +29,9 @@ import {
   ConvoyMember,
   ConvoyRouteConfig,
   DestinationStop,
+  FamilyGrantRecord,
+  FamilyLinkRecord,
+  FamilyMonitorSnapshot,
   GlobalAppConfig,
   MemberConditionStatus,
   RegisteredTourLeader,
@@ -2226,6 +2229,585 @@ export async function saveMemberRoomActivityProgress(
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
+
+// --- Family Monitoring (Personal Invite Links, Grants & Single-Member Monitor) ---
+
+const FAMILY_CODE_REGEX = /FAM-[A-Z0-9]{4,28}/;
+
+export function extractFamilyInviteCode(rawInput: string): string | null {
+  const upper = rawInput.trim().toUpperCase();
+  if (!upper) return null;
+  const queryMatch = upper.match(/[?&]FAMILY=(FAM-[A-Z0-9]{4,28})/);
+  if (queryMatch?.[1]) return queryMatch[1].slice(0, 32);
+  const pathMatch = upper.match(/\/FAMILY\/(FAM-[A-Z0-9]{4,28})/);
+  if (pathMatch?.[1]) return pathMatch[1].slice(0, 32);
+  const directMatch = upper.match(FAMILY_CODE_REGEX);
+  return directMatch?.[0] ? directMatch[0].slice(0, 32) : null;
+}
+
+export function generateFamilyInviteCode(): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let suffix = '';
+  for (let i = 0; i < 6; i += 1) {
+    suffix += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return `FAM-${suffix}`;
+}
+
+export function buildFamilyInviteLinks(inviteCode: string): {
+  webLink: string;
+  appDeepLink: string;
+} {
+  const safeCode = extractFamilyInviteCode(inviteCode) || inviteCode.trim().toUpperCase();
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'https://safartracking.id';
+  return {
+    webLink: `${origin}/?family=${encodeURIComponent(safeCode)}`,
+    appDeepLink: `safartracking://family/${safeCode}`,
+  };
+}
+
+function mapDocToFamilyLink(
+  inviteCode: string,
+  d: Record<string, unknown>
+): FamilyLinkRecord {
+  return {
+    inviteCode: String(d.inviteCode || inviteCode),
+    roomId: String(d.roomId || ''),
+    roomTitle: String(d.roomTitle || 'Rombongan Safar'),
+    targetUid: String(d.targetUid || ''),
+    targetName: String(d.targetName || 'Jamaah'),
+    targetVehicleDetail: String(d.targetVehicleDetail || ''),
+    targetAvatarPreset: (d.targetAvatarPreset || 'HELMET_TOURING') as AvatarPreset,
+    destinationName: String(d.destinationName || ''),
+    active: Boolean(d.active),
+    claimedByUid: String(d.claimedByUid || ''),
+    claimedByName: String(d.claimedByName || ''),
+    createdAtLabel: toClockLabel(d.createdAt, 'Baru saja'),
+    updatedAtLabel: toClockLabel(d.updatedAt, 'Baru saja'),
+  };
+}
+
+export function subscribeToMyFamilyLink(
+  roomId: string,
+  targetUid: string,
+  onUpdate: (link: FamilyLinkRecord | null) => void
+): () => void {
+  if (!roomId || !targetUid) {
+    onUpdate(null);
+    return () => {};
+  }
+  const q = query(
+    collection(db, 'family_links'),
+    where('targetUid', '==', targetUid)
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      const matching = snap.docs
+        .map((docSnap) => ({
+          sortMs: toMillis(docSnap.data().updatedAt),
+          record: mapDocToFamilyLink(docSnap.id, docSnap.data()),
+        }))
+        .filter((item) => item.record.roomId === roomId && item.record.active)
+        .sort((a, b) => b.sortMs - a.sortMs);
+      onUpdate(matching[0]?.record ?? null);
+    },
+    (error) => {
+      console.warn('Gagal memantau link keluarga milik saya:', error);
+      onUpdate(null);
+    }
+  );
+}
+
+export async function createOrGetFamilyInviteLink(params: {
+  roomId: string;
+  roomTitle: string;
+  targetUid: string;
+  targetName: string;
+  targetVehicleDetail: string;
+  targetAvatarPreset: AvatarPreset;
+  destinationName: string;
+}): Promise<FamilyLinkRecord> {
+  const existingQ = query(
+    collection(db, 'family_links'),
+    where('targetUid', '==', params.targetUid)
+  );
+  const existingSnap = await getDocs(existingQ);
+  const activeExisting = existingSnap.docs
+    .map((docSnap) => mapDocToFamilyLink(docSnap.id, docSnap.data()))
+    .find((link) => link.roomId === params.roomId && link.active);
+
+  if (activeExisting) {
+    return activeExisting;
+  }
+
+  const inviteCode = generateFamilyInviteCode();
+  const path = `family_links/${inviteCode}`;
+  const payload = {
+    inviteCode,
+    roomId: params.roomId.slice(0, 32),
+    roomTitle: (params.roomTitle.trim() || 'Rombongan Safar').slice(0, 100),
+    targetUid: params.targetUid.slice(0, 128),
+    targetName: (params.targetName.trim() || 'Jamaah').slice(0, 80),
+    targetVehicleDetail: (params.targetVehicleDetail || '').slice(0, 80),
+    targetAvatarPreset: (params.targetAvatarPreset || 'HELMET_TOURING').slice(0, 40),
+    destinationName: (params.destinationName || '').slice(0, 120),
+    active: true,
+    claimedByUid: '',
+    claimedByName: '',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  try {
+    await setDoc(doc(db, 'family_links', inviteCode), payload);
+    return {
+      inviteCode,
+      roomId: payload.roomId,
+      roomTitle: payload.roomTitle,
+      targetUid: payload.targetUid,
+      targetName: payload.targetName,
+      targetVehicleDetail: payload.targetVehicleDetail,
+      targetAvatarPreset: payload.targetAvatarPreset as AvatarPreset,
+      destinationName: payload.destinationName,
+      active: true,
+      claimedByUid: '',
+      claimedByName: '',
+      createdAtLabel: 'Baru saja',
+      updatedAtLabel: 'Baru saja',
+    };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+  }
+}
+
+export async function regenerateFamilyInviteLink(params: {
+  previousInviteCode?: string;
+  roomId: string;
+  roomTitle: string;
+  targetUid: string;
+  targetName: string;
+  targetVehicleDetail: string;
+  targetAvatarPreset: AvatarPreset;
+  destinationName: string;
+}): Promise<FamilyLinkRecord> {
+  if (params.previousInviteCode) {
+    const cleanPrev = extractFamilyInviteCode(params.previousInviteCode);
+    if (cleanPrev) {
+      try {
+        await updateDoc(doc(db, 'family_links', cleanPrev), {
+          active: false,
+          updatedAt: serverTimestamp(),
+        });
+      } catch (error) {
+        console.warn('Gagal menonaktifkan kode keluarga lama:', error);
+      }
+    }
+  }
+
+  const inviteCode = generateFamilyInviteCode();
+  const path = `family_links/${inviteCode}`;
+  const payload = {
+    inviteCode,
+    roomId: params.roomId.slice(0, 32),
+    roomTitle: (params.roomTitle.trim() || 'Rombongan Safar').slice(0, 100),
+    targetUid: params.targetUid.slice(0, 128),
+    targetName: (params.targetName.trim() || 'Jamaah').slice(0, 80),
+    targetVehicleDetail: (params.targetVehicleDetail || '').slice(0, 80),
+    targetAvatarPreset: (params.targetAvatarPreset || 'HELMET_TOURING').slice(0, 40),
+    destinationName: (params.destinationName || '').slice(0, 120),
+    active: true,
+    claimedByUid: '',
+    claimedByName: '',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  try {
+    await setDoc(doc(db, 'family_links', inviteCode), payload);
+    return {
+      inviteCode,
+      roomId: payload.roomId,
+      roomTitle: payload.roomTitle,
+      targetUid: payload.targetUid,
+      targetName: payload.targetName,
+      targetVehicleDetail: payload.targetVehicleDetail,
+      targetAvatarPreset: payload.targetAvatarPreset as AvatarPreset,
+      destinationName: payload.destinationName,
+      active: true,
+      claimedByUid: '',
+      claimedByName: '',
+      createdAtLabel: 'Baru saja',
+      updatedAtLabel: 'Baru saja',
+    };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+  }
+}
+
+export async function revokeFamilyInviteLink(inviteCode: string): Promise<void> {
+  const clean = extractFamilyInviteCode(inviteCode);
+  if (!clean) return;
+  const path = `family_links/${clean}`;
+  try {
+    await updateDoc(doc(db, 'family_links', clean), {
+      active: false,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function redeemFamilyInviteLink(
+  rawCodeOrUrl: string,
+  familyUid: string,
+  familyName: string
+): Promise<FamilyGrantRecord> {
+  const inviteCode = extractFamilyInviteCode(rawCodeOrUrl);
+  if (!inviteCode) {
+    throw new Error(
+      'Kode atau link pantauan keluarga tidak valid. Gunakan link/kode berformat FAM-XXXXXX dari anggota rombongan.'
+    );
+  }
+
+  const linkRef = doc(db, 'family_links', inviteCode);
+  const linkSnap = await getDoc(linkRef);
+  if (!linkSnap.exists()) {
+    throw new Error(
+      `Kode pantauan keluarga "${inviteCode}" tidak ditemukan. Pastikan link berasal dari anggota rombongan yang aktif.`
+    );
+  }
+
+  const linkData = mapDocToFamilyLink(inviteCode, linkSnap.data());
+  if (!linkData.active) {
+    throw new Error(
+      `Link pantauan keluarga "${inviteCode}" sudah dinonaktifkan oleh anggota rombongan.`
+    );
+  }
+  if (linkData.claimedByUid && linkData.claimedByUid !== familyUid) {
+    throw new Error(
+      `Link ini sudah terhubung ke akun keluarga lain (${linkData.claimedByName || 'Terdaftar'}). Minta anggota rombongan membuat kode baru jika ingin mengganti perangkat.`
+    );
+  }
+
+  const grantRef = doc(db, 'family_grants', familyUid);
+  const grantSnap = await getDoc(grantRef);
+  const cleanFamilyName = (familyName.trim() || 'Keluarga Jamaah').slice(0, 80);
+
+  const batch = writeBatch(db);
+  batch.update(linkRef, {
+    claimedByUid: familyUid.slice(0, 128),
+    claimedByName: cleanFamilyName,
+    updatedAt: serverTimestamp(),
+  });
+
+  if (grantSnap.exists()) {
+    batch.update(grantRef, {
+      inviteCode,
+      roomId: linkData.roomId.slice(0, 32),
+      targetUid: linkData.targetUid.slice(0, 128),
+      targetName: linkData.targetName.slice(0, 80),
+      active: true,
+      updatedAt: serverTimestamp(),
+    });
+  } else {
+    batch.set(grantRef, {
+      familyUid: familyUid.slice(0, 128),
+      inviteCode,
+      roomId: linkData.roomId.slice(0, 32),
+      targetUid: linkData.targetUid.slice(0, 128),
+      targetName: linkData.targetName.slice(0, 80),
+      active: true,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  try {
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `family_grants/${familyUid}`);
+  }
+
+  return {
+    familyUid,
+    inviteCode,
+    roomId: linkData.roomId,
+    targetUid: linkData.targetUid,
+    targetName: linkData.targetName,
+    active: true,
+  };
+}
+
+export async function loadActiveFamilyGrant(
+  familyUid: string
+): Promise<FamilyGrantRecord | null> {
+  if (!familyUid) return null;
+  try {
+    const grantSnap = await getDoc(doc(db, 'family_grants', familyUid));
+    if (!grantSnap.exists()) return null;
+    const d = grantSnap.data();
+    if (d.active !== true) return null;
+    const inviteCode = String(d.inviteCode || '');
+    const roomId = String(d.roomId || '');
+    const targetUid = String(d.targetUid || '');
+    if (!inviteCode || !roomId || !targetUid) return null;
+
+    // Cross-check link active state
+    const linkSnap = await getDoc(doc(db, 'family_links', inviteCode));
+    if (!linkSnap.exists()) return null;
+    const ld = linkSnap.data();
+    if (ld.active !== true) return null;
+    if (ld.claimedByUid && ld.claimedByUid !== familyUid) return null;
+
+    return {
+      familyUid,
+      inviteCode,
+      roomId,
+      targetUid,
+      targetName: String(d.targetName || ld.targetName || 'Jamaah'),
+      active: true,
+    };
+  } catch (error) {
+    console.warn('Gagal memeriksa grant keluarga:', error);
+    return null;
+  }
+}
+
+export async function clearFamilyGrant(familyUid: string): Promise<void> {
+  if (!familyUid) return;
+  try {
+    const grantRef = doc(db, 'family_grants', familyUid);
+    const snap = await getDoc(grantRef);
+    if (snap.exists() && snap.data()?.active === true) {
+      await updateDoc(grantRef, {
+        active: false,
+        updatedAt: serverTimestamp(),
+      });
+    }
+  } catch (error) {
+    console.warn('Gagal menonaktifkan grant keluarga:', error);
+  }
+}
+
+export function subscribeToFamilyMonitor(
+  grant: FamilyGrantRecord,
+  callbacks: {
+    onSnapshot: (snapshot: FamilyMonitorSnapshot) => void;
+    onError: (msg: string) => void;
+  }
+): () => void {
+  let state: FamilyMonitorSnapshot = {
+    linkActive: true,
+    roomStatus: 'ACTIVE',
+    roomTitle: 'Rombongan Umroh',
+    destinationName: 'Tujuan Ziarah',
+    destinationAddress: '',
+    targetMember: null,
+    routeConfig: null,
+    activities: [],
+    completedActivityIds: [],
+    completedTimes: {},
+    lastSyncLabel: 'Menghubungkan...',
+  };
+
+  const emit = () => {
+    callbacks.onSnapshot({
+      ...state,
+      lastSyncLabel: new Date().toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    });
+  };
+
+  const unsubLink = onSnapshot(
+    doc(db, 'family_links', grant.inviteCode),
+    (snap) => {
+      if (!snap.exists()) {
+        state = { ...state, linkActive: false };
+        emit();
+        return;
+      }
+      const d = snap.data();
+      const stillValid =
+        d.active === true &&
+        (!d.claimedByUid || String(d.claimedByUid) === grant.familyUid);
+      state = {
+        ...state,
+        linkActive: stillValid,
+        roomTitle: String(d.roomTitle || state.roomTitle),
+        destinationName: String(d.destinationName || state.destinationName),
+      };
+      emit();
+    },
+    () => {
+      state = { ...state, linkActive: false };
+      emit();
+    }
+  );
+
+  const unsubRoom = onSnapshot(
+    doc(db, 'rooms', grant.roomId),
+    (snap) => {
+      if (!snap.exists()) {
+        state = { ...state, roomStatus: 'FINISHED' };
+        emit();
+        return;
+      }
+      const d = snap.data();
+      const decoded = decodePolyline(String(d.encodedPolyline || ''));
+      const waypoints: RoutePoint[] =
+        decoded.length >= 2
+          ? downsampleRoutePoints(decoded, 80)
+          : [
+              {
+                xFraction: 0.14,
+                yFraction: 0.86,
+                latitude: Number(d.originLat ?? 21.418),
+                longitude: Number(d.originLng ?? 39.8275),
+              },
+              {
+                xFraction: 0.86,
+                yFraction: 0.14,
+                latitude: Number(d.destLat ?? 21.4225),
+                longitude: Number(d.destLng ?? 39.8262),
+              },
+            ];
+      const nextRoute: ConvoyRouteConfig = {
+        originName: typeof d.originName === 'string' ? d.originName : undefined,
+        originAddress: typeof d.originAddress === 'string' ? d.originAddress : undefined,
+        destinationName: String(d.destinationName || 'Tujuan Ziarah'),
+        destinationAddress: String(d.destinationAddress || ''),
+        waypoints,
+        checkpoints: [],
+        totalRouteMeters: Number(d.totalRouteMeters || 12000),
+        estimatedDurationMillis: Number(d.estimatedDurationMillis || 0) || undefined,
+        offRouteToleranceMeters: Number(d.offRouteToleranceMeters || 75),
+        maxStragglerDistanceMeters: Number(d.maxStragglerDistanceMeters || 1000),
+        soundAlertEnabled: false,
+      };
+      state = {
+        ...state,
+        roomStatus: d.status === 'FINISHED' ? 'FINISHED' : 'ACTIVE',
+        roomTitle: String(d.roomTitle || state.roomTitle),
+        destinationName: nextRoute.destinationName,
+        destinationAddress: nextRoute.destinationAddress,
+        routeConfig: nextRoute,
+      };
+      emit();
+    },
+    (error) => {
+      callbacks.onError(`Gagal memuat info rombongan: ${error.message}`);
+    }
+  );
+
+  const unsubMember = onSnapshot(
+    doc(db, 'rooms', grant.roomId, 'members', grant.targetUid),
+    (docSnap) => {
+      if (!docSnap.exists()) {
+        state = { ...state, targetMember: null };
+        emit();
+        return;
+      }
+      const d = docSnap.data();
+      const member: ConvoyMember = {
+        id: String(d.uid || docSnap.id),
+        fullName: String(d.fullName || grant.targetName || 'Jamaah'),
+        vehicleType: (d.vehicleType === 'MOTOR' ? 'MOTOR' : 'MOBIL') as VehicleType,
+        vehicleDetail: String(d.vehicleDetail || ''),
+        licensePlate: String(d.licensePlate || ''),
+        emergencyContact: '',
+        role: (d.role === 'TOUR_LEADER' ? 'TOUR_LEADER' : 'MEMBER') as UserRole,
+        joinedAtLabel: toClockLabel(d.joinedAt, 'Aktif'),
+        isCurrentUser: true,
+        isSweeper: Boolean(d.isSweeper),
+        avatarPreset: (d.avatarPreset || 'HELMET_TOURING') as AvatarPreset,
+        conditionStatus: (d.conditionStatus || 'AMAN') as MemberConditionStatus,
+        connectionStatus: (d.connectionStatus || 'CONNECTED') as ConnectionStatus,
+        lastLocationText: String(d.lastLocationText || 'GPS Aktif'),
+        lastUpdatedLabel: toClockLabel(d.updatedAt, 'Baru saja'),
+        lastUpdatedMs: toMillis(d.updatedAt),
+        routeDistanceMeters: 0,
+        offRouteMeters: 0,
+        convoyOrderRank: 1,
+        mapPosition: {
+          routeProgress: Number(d.routeProgress ?? 0.05),
+          xFraction: Number(d.xFraction ?? 0.5),
+          yFraction: Number(d.yFraction ?? 0.5),
+          latitude: Number(d.latitude ?? 21.4225),
+          longitude: Number(d.longitude ?? 39.8262),
+          speedKmh: Number(d.speedKmh ?? 0),
+          heading: Number(d.heading ?? 0),
+          accuracyMeters: Number(d.accuracyMeters ?? 20),
+        },
+      };
+      state = { ...state, targetMember: member };
+      emit();
+    },
+    (error) => {
+      callbacks.onError(`Akses posisi jamaah dibatasi atau terputus: ${error.message}`);
+    }
+  );
+
+  const actQuery = query(
+    collection(db, 'rooms', grant.roomId, 'activities'),
+    where('roomId', '==', grant.roomId)
+  );
+  const unsubActivities = onSnapshot(
+    actQuery,
+    (snap) => {
+      const list: RoomActivityItem[] = snap.docs
+        .map((docSnap, idx) => {
+          const d = docSnap.data();
+          return {
+            id: String(d.id || docSnap.id),
+            title: String(d.title || 'Kegiatan Umroh'),
+            timeLabel: String(d.timeLabel || ''),
+            locationNote: String(d.locationNote || ''),
+            orderIndex: Number.isFinite(Number(d.orderIndex)) ? Number(d.orderIndex) : idx,
+            createdByUid: typeof d.createdByUid === 'string' ? d.createdByUid : '',
+          } satisfies RoomActivityItem;
+        })
+        .sort((a, b) => a.orderIndex - b.orderIndex);
+      state = { ...state, activities: list };
+      emit();
+    },
+    () => {}
+  );
+
+  const unsubProgress = onSnapshot(
+    doc(db, 'rooms', grant.roomId, 'activityProgress', grant.targetUid),
+    (docSnap) => {
+      if (!docSnap.exists()) {
+        state = { ...state, completedActivityIds: [], completedTimes: {} };
+        emit();
+        return;
+      }
+      const d = docSnap.data();
+      state = {
+        ...state,
+        completedActivityIds: sanitizeCompletedActivityIds(d.completedActivityIds),
+        completedTimes: parseActivityCompletedRecords(d.completedRecords),
+      };
+      emit();
+    },
+    () => {}
+  );
+
+  return () => {
+    unsubLink();
+    unsubRoom();
+    unsubMember();
+    unsubActivities();
+    unsubProgress();
+  };
+}
+
 
 
 

@@ -123,4 +123,36 @@ export const DIRTY_DOZEN_CASES: SecurityTestCase[] = [
     expected: 'PERMISSION_DENIED',
     payload: { completedActivityIds: ['act-1'] },
   },
+  {
+    id: 15,
+    name: 'External user self-issuing family grant without claiming active link',
+    collectionPath: 'family_grants/attacker-uid',
+    operation: 'create',
+    expected: 'PERMISSION_DENIED',
+    payload: { familyUid: 'attacker-uid', inviteCode: 'FAM-FAKE12', roomId: 'KNV-8492', targetUid: 'member-1', active: true },
+  },
+  {
+    id: 16,
+    name: 'Family monitor reading unrelated member location doc',
+    collectionPath: 'rooms/KNV-8492/members/member-2',
+    operation: 'get',
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    id: 17,
+    name: 'Family monitor editing target member checklist progress',
+    collectionPath: 'rooms/KNV-8492/activityProgress/member-1',
+    operation: 'update',
+    expected: 'PERMISSION_DENIED',
+    payload: { completedActivityIds: ['act-1'] },
+  },
+  {
+    id: 18,
+    name: 'External user hijacking already claimed family invite link',
+    collectionPath: 'family_links/FAM-ABC123',
+    operation: 'update',
+    expected: 'PERMISSION_DENIED',
+    payload: { claimedByUid: 'attacker-uid', claimedByName: 'Hijacker' },
+  },
 ];
+

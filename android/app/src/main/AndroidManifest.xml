@@ -104,6 +104,26 @@
                     android:host="auth"
                     android:scheme="safartracking" />
             </intent-filter>
+
+            <!-- Deep Link Pantauan Keluarga (safartracking://family/FAM-XXXXXX) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="family"
+                    android:scheme="safartracking" />
+            </intent-filter>
+
+            <!-- Deep Link Gabung Room (safartracking://join/UMR-XXXX) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="join"
+                    android:scheme="safartracking" />
+            </intent-filter>
         </activity>
 
         <provider

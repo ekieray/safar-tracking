@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react';
+import { useEffect, useState, FormEvent } from 'react';
 import {
   AlertCircle,
   ArrowRight,
@@ -6,6 +6,7 @@ import {
   Eye,
   EyeOff,
   Info,
+  Link2,
   Lock,
   Mail,
   MapPin,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import safarTrackingIcon from '../../assets/images/safar_tracking_icon_1795599322033.jpg';
 import { AuthProviderId, GlobalAppConfig } from '../../types/convoy';
+import { extractFamilyInviteCode } from '../../services/convoySyncService';
 import {
   TouringCanvasBackdrop,
   TouringHeroBanner,
@@ -33,6 +35,8 @@ interface LoginViewProps {
   initialName?: string;
   initialEmail?: string;
   globalConfig?: GlobalAppConfig;
+  pendingFamilyInviteCode?: string;
+  hasActiveFamilySession?: boolean;
   onGoogleSignIn: () => void;
   onFacebookSignIn: () => void;
   onInstagramSignIn: () => void;
@@ -41,6 +45,14 @@ interface LoginViewProps {
     fullName: string;
     email: string;
     password: string;
+  }) => void;
+  onFamilyGoogleSignIn?: (inviteInput: string) => void;
+  onFamilyEmailAuth?: (params: {
+    mode: 'signin' | 'signup';
+    fullName: string;
+    email: string;
+    password: string;
+    inviteInput: string;
   }) => void;
   onForgotPassword: (email: string) => void;
   onLocalLogin: (fullName: string, email: string) => void;
@@ -68,17 +80,25 @@ export function LoginView({
   initialName = '',
   initialEmail = '',
   globalConfig,
+  pendingFamilyInviteCode = '',
+  hasActiveFamilySession = false,
   onGoogleSignIn,
   onFacebookSignIn,
   onInstagramSignIn,
   onEmailAuth,
+  onFamilyGoogleSignIn,
+  onFamilyEmailAuth,
   onForgotPassword,
   onLocalLogin,
   onContinueSession,
   onOpenCustomizeProfile,
   onOpenAboutApp,
 }: LoginViewProps) {
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [authMode, setAuthMode] = useState<'signin' | 'signup' | 'family'>(
+    pendingFamilyInviteCode ? 'family' : 'signin'
+  );
+  const [familySubMode, setFamilySubMode] = useState<'signin' | 'signup'>('signup');
+  const [familyInviteInput, setFamilyInviteInput] = useState(pendingFamilyInviteCode);
   const [fullName, setFullName] = useState(initialName);
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
@@ -89,37 +109,82 @@ export function LoginView({
   const [quickName, setQuickName] = useState(initialName);
   const [quickEmail, setQuickEmail] = useState(initialEmail);
 
+  useEffect(() => {
+    if (pendingFamilyInviteCode) {
+      setAuthMode('family');
+      setFamilyInviteInput(pendingFamilyInviteCode);
+    }
+  }, [pendingFamilyInviteCode]);
+
   const hasActiveAccount = Boolean(authUserEmail || localUserName);
+  const effectiveEmailMode: 'signin' | 'signup' =
+    authMode === 'family' ? familySubMode : authMode;
 
   const handleEmailFormSubmit = (e: FormEvent) => {
     e.preventDefault();
     const cleanEmail = email.trim();
     const cleanName = fullName.trim();
 
-    if (authMode === 'signup' && cleanName.length < 2) {
-      setFormError('Masukkan nama lengkap jamaah (minimal 2 karakter).');
+    if (authMode === 'family') {
+      const code = extractFamilyInviteCode(familyInviteInput);
+      if (!code) {
+        setFormError(
+          'Masukkan link atau kode pantauan keluarga yang sah (format FAM-XXXXXX) dari anggota rombongan.'
+        );
+        return;
+      }
+    }
+
+    if (effectiveEmailMode === 'signup' && cleanName.length < 2) {
+      setFormError(
+        authMode === 'family'
+          ? 'Masukkan nama anggota keluarga (minimal 2 karakter).'
+          : 'Masukkan nama lengkap jamaah (minimal 2 karakter).'
+      );
       return;
     }
     if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
-      setFormError('Masukkan alamat email yang valid (contoh: jamaah@email.com).');
+      setFormError('Masukkan alamat email yang valid (contoh: keluarga@email.com).');
       return;
     }
     if (password.length < 6) {
       setFormError('Kata sandi minimal 6 karakter.');
       return;
     }
-    if (authMode === 'signup' && password !== confirmPassword) {
+    if (effectiveEmailMode === 'signup' && password !== confirmPassword) {
       setFormError('Konfirmasi kata sandi tidak cocok.');
       return;
     }
 
     setFormError(null);
+    if (authMode === 'family') {
+      onFamilyEmailAuth?.({
+        mode: familySubMode,
+        fullName: cleanName,
+        email: cleanEmail,
+        password,
+        inviteInput: familyInviteInput,
+      });
+      return;
+    }
     onEmailAuth({
-      mode: authMode,
+      mode: effectiveEmailMode,
       fullName: cleanName,
       email: cleanEmail,
       password,
     });
+  };
+
+  const handleFamilyGoogleClick = () => {
+    const code = extractFamilyInviteCode(familyInviteInput);
+    if (!code) {
+      setFormError(
+        'Tempel link atau masukkan kode keluarga (format FAM-XXXXXX) terlebih dahulu sebelum masuk.'
+      );
+      return;
+    }
+    setFormError(null);
+    onFamilyGoogleSignIn?.(code);
   };
 
   const handleQuickLocalSubmit = (e: FormEvent) => {
@@ -178,11 +243,17 @@ export function LoginView({
         <div className="relative z-10 space-y-4">
           <TouringHeroBanner
             title={
-              authMode === 'signup'
-                ? 'Daftar Akun Safar Tracking'
-                : 'Masuk ke Safar Tracking'
+              authMode === 'family'
+                ? 'Pantauan Keluarga Jamaah'
+                : authMode === 'signup'
+                  ? 'Daftar Akun Safar Tracking'
+                  : 'Masuk ke Safar Tracking'
             }
-            subtitle="Masuk atau daftar untuk sinkronisasi profil jamaah, identitas rombongan, dan pelacakan umroh di Tanah Suci secara real-time."
+            subtitle={
+              authMode === 'family'
+                ? 'Login khusus keluarga melalui link undangan pribadi jamaah untuk memantau posisi & progres ibadah secara read-only.'
+                : 'Masuk atau daftar untuk sinkronisasi profil jamaah, identitas rombongan, dan pelacakan umroh di Tanah Suci secara real-time.'
+            }
           />
 
           {/* Global Backend Maintenance Banner */}
@@ -232,43 +303,54 @@ export function LoginView({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={onOpenCustomizeProfile}
-                  className="min-h-[44px] px-3 py-2.5 rounded-[12px] border border-[#047857] dark:border-[#34D399] text-[#047857] dark:text-[#6EE7B7] text-xs font-semibold hover:bg-[#ECFDF5] dark:hover:bg-[#064E3B]/40 transition-colors cursor-pointer whitespace-nowrap"
-                >
-                  Atur Profil
-                </button>
+              {hasActiveFamilySession ? (
                 <button
                   type="button"
                   onClick={onContinueSession}
-                  className="min-h-[44px] px-3 py-2.5 rounded-[12px] bg-[#047857] hover:bg-[#065F46] text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+                  className="w-full min-h-[44px] px-3 py-2.5 rounded-[12px] bg-[#047857] hover:bg-[#065F46] text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
                 >
-                  <span>Dashboard</span>
+                  <span>Buka Pantauan Keluarga</span>
                   <ArrowRight className="w-3.5 h-3.5 shrink-0" />
                 </button>
-              </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={onOpenCustomizeProfile}
+                    className="min-h-[44px] px-3 py-2.5 rounded-[12px] border border-[#047857] dark:border-[#34D399] text-[#047857] dark:text-[#6EE7B7] text-xs font-semibold hover:bg-[#ECFDF5] dark:hover:bg-[#064E3B]/40 transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    Atur Profil
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onContinueSession}
+                    className="min-h-[44px] px-3 py-2.5 rounded-[12px] bg-[#047857] hover:bg-[#065F46] text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    <span>Dashboard</span>
+                    <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Main Auth Card: Sign In / Sign Up Switcher + Social Providers + Email/Password */}
+          {/* Main Auth Card: Sign In / Sign Up / Family Link Switcher */}
           <div className="rounded-[22px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] p-4 shadow-xs space-y-4">
-            {/* Segmented Control: Sign In vs Sign Up */}
-            <div className="grid grid-cols-2 p-1 rounded-[14px] bg-[#F4F8F5] dark:bg-[#091812] border border-[#D8E6DD] dark:border-[#1E3F31]">
+            {/* Segmented Control: Sign In vs Sign Up vs Keluarga (Link) */}
+            <div className="grid grid-cols-3 p-1 rounded-[14px] bg-[#F4F8F5] dark:bg-[#091812] border border-[#D8E6DD] dark:border-[#1E3F31] gap-1">
               <button
                 type="button"
                 onClick={() => {
                   setAuthMode('signin');
                   setFormError(null);
                 }}
-                className={`min-h-[40px] rounded-[10px] text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                className={`min-h-[40px] rounded-[10px] text-[11px] sm:text-xs font-bold transition-all cursor-pointer whitespace-nowrap px-1 ${
                   authMode === 'signin'
                     ? 'bg-white dark:bg-[#0C1E17] text-[#047857] dark:text-[#6EE7B7] shadow-xs'
                     : 'text-[#4D6659] dark:text-[#9CC2AE]'
                 }`}
               >
-                Masuk (Sign In)
+                Masuk
               </button>
               <button
                 type="button"
@@ -276,14 +358,29 @@ export function LoginView({
                   setAuthMode('signup');
                   setFormError(null);
                 }}
-                className={`min-h-[40px] rounded-[10px] text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                className={`min-h-[40px] rounded-[10px] text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer whitespace-nowrap px-1 ${
                   authMode === 'signup'
                     ? 'bg-white dark:bg-[#0C1E17] text-[#B45309] dark:text-[#FCD34D] shadow-xs'
                     : 'text-[#4D6659] dark:text-[#9CC2AE]'
                 }`}
               >
                 <UserPlus className="w-3.5 h-3.5 shrink-0" />
-                <span>Daftar (Sign Up)</span>
+                <span>Daftar</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('family');
+                  setFormError(null);
+                }}
+                className={`min-h-[40px] rounded-[10px] text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer whitespace-nowrap px-1 ${
+                  authMode === 'family'
+                    ? 'bg-white dark:bg-[#0C1E17] text-[#047857] dark:text-[#6EE7B7] shadow-xs'
+                    : 'text-[#4D6659] dark:text-[#9CC2AE]'
+                }`}
+              >
+                <Link2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Keluarga</span>
               </button>
             </div>
 
@@ -307,19 +404,81 @@ export function LoginView({
               </div>
             )}
 
+            {authMode === 'family' && (
+              <div className="space-y-3 rounded-2xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#C6DACD] dark:border-[#1E3F31] p-3.5">
+                <div className="flex items-start gap-2.5 text-xs text-[#065F46] dark:text-[#A7F3D0]">
+                  <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-[#047857] dark:text-[#34D399]" />
+                  <p className="leading-relaxed">
+                    Akses pantauan keluarga <span className="font-bold">wajib menggunakan link atau kode pribadi</span> dari
+                    1 anggota rombongan. Keluarga hanya dapat melihat posisi &amp; progres ibadah anggota tersebut.
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="family-invite-input"
+                    className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1"
+                  >
+                    Link atau Kode Keluarga (FAM-XXXXXX)
+                  </label>
+                  <div className="relative">
+                    <Link2 className="w-4 h-4 text-[#047857] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      id="family-invite-input"
+                      type="text"
+                      value={familyInviteInput}
+                      onChange={(e) => {
+                        setFamilyInviteInput(e.target.value);
+                        setFormError(null);
+                      }}
+                      placeholder="Tempel link (?family=FAM-...) atau FAM-XXXXXX"
+                      className="w-full min-h-[44px] pl-10 pr-3.5 py-2 rounded-xl bg-white dark:bg-[#0C1E17] border border-[#047857]/50 dark:border-[#10B981]/40 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#047857]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setFamilySubMode('signup')}
+                    className={`min-h-[36px] rounded-lg text-[11px] font-bold cursor-pointer border ${
+                      familySubMode === 'signup'
+                        ? 'bg-[#047857] text-white border-[#047857]'
+                        : 'bg-white dark:bg-[#0C1E17] text-[#4D6659] dark:text-[#9CC2AE] border-[#C6DACD] dark:border-[#1E3F31]'
+                    }`}
+                  >
+                    Daftar Keluarga Baru
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFamilySubMode('signin')}
+                    className={`min-h-[36px] rounded-lg text-[11px] font-bold cursor-pointer border ${
+                      familySubMode === 'signup'
+                        ? 'bg-white dark:bg-[#0C1E17] text-[#4D6659] dark:text-[#9CC2AE] border-[#C6DACD] dark:border-[#1E3F31]'
+                        : 'bg-[#047857] text-white border-[#047857]'
+                    }`}
+                  >
+                    Sudah Punya Akun
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Social Sign Up / Sign In Providers */}
             <div className="space-y-2">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-[#4D6659] dark:text-[#9CC2AE]">
-                {authMode === 'signup'
-                  ? 'Daftar Cepat dengan Akun Sosial'
-                  : 'Masuk Cepat dengan Akun Sosial'}
+                {authMode === 'family'
+                  ? 'Aktifkan Pantauan dengan Google'
+                  : authMode === 'signup'
+                    ? 'Daftar Cepat dengan Akun Sosial'
+                    : 'Masuk Cepat dengan Akun Sosial'}
               </p>
 
               {/* Google */}
               <button
                 type="button"
                 disabled={isSigningIn}
-                onClick={onGoogleSignIn}
+                onClick={authMode === 'family' ? handleFamilyGoogleClick : onGoogleSignIn}
                 className="w-full min-h-[46px] px-4 py-2.5 rounded-[13px] bg-[#047857] hover:bg-[#065F46] disabled:opacity-60 active:scale-[0.98] text-white text-xs sm:text-sm font-semibold flex items-center justify-center gap-2.5 transition-all cursor-pointer"
               >
                 <svg
@@ -335,76 +494,81 @@ export function LoginView({
                 <span>
                   {isSigningIn
                     ? 'Memverifikasi...'
-                    : authMode === 'signup'
-                      ? 'Daftar dengan Google'
-                      : 'Masuk dengan Google'}
+                    : authMode === 'family'
+                      ? 'Masuk / Daftar Keluarga dengan Google'
+                      : authMode === 'signup'
+                        ? 'Daftar dengan Google'
+                        : 'Masuk dengan Google'}
                 </span>
               </button>
 
-              {/* Facebook & Instagram 2-Column Row */}
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  disabled={isSigningIn}
-                  onClick={onFacebookSignIn}
-                  className="min-h-[44px] px-3 py-2.5 rounded-[13px] bg-[#1877F2] hover:bg-[#1565D8] disabled:opacity-60 active:scale-[0.98] text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
-                >
-                  <svg
-                    aria-hidden="true"
-                    className="w-4 h-4 shrink-0"
-                    viewBox="0 0 24 24"
+              {authMode !== 'family' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    disabled={isSigningIn}
+                    onClick={onFacebookSignIn}
+                    className="min-h-[44px] px-3 py-2.5 rounded-[13px] bg-[#1877F2] hover:bg-[#1565D8] disabled:opacity-60 active:scale-[0.98] text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
                   >
-                    <path
-                      fill="#FFFFFF"
-                      d="M14 13.5h2.5l1-4H14v-2c0-1.03 0-2 2-2h1.5V2.14c-.326-.043-1.557-.14-2.857-.14C11.928 2 10 3.657 10 6.7v2.8H7v4h3V22h4v-8.5Z"
-                    />
-                  </svg>
-                  <span>Facebook</span>
-                </button>
+                    <svg
+                      aria-hidden="true"
+                      className="w-4 h-4 shrink-0"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        fill="#FFFFFF"
+                        d="M14 13.5h2.5l1-4H14v-2c0-1.03 0-2 2-2h1.5V2.14c-.326-.043-1.557-.14-2.857-.14C11.928 2 10 3.657 10 6.7v2.8H7v4h3V22h4v-8.5Z"
+                      />
+                    </svg>
+                    <span>Facebook</span>
+                  </button>
 
-                <button
-                  type="button"
-                  disabled={isSigningIn}
-                  onClick={onInstagramSignIn}
-                  className="min-h-[44px] px-3 py-2.5 rounded-[13px] bg-gradient-to-r from-[#833AB4] via-[#E1306C] to-[#F77737] hover:opacity-95 disabled:opacity-60 active:scale-[0.98] text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
-                >
-                  <svg
-                    aria-hidden="true"
-                    className="w-4 h-4 shrink-0"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#FFFFFF"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+                  <button
+                    type="button"
+                    disabled={isSigningIn}
+                    onClick={onInstagramSignIn}
+                    className="min-h-[44px] px-3 py-2.5 rounded-[13px] bg-gradient-to-r from-[#833AB4] via-[#E1306C] to-[#F77737] hover:opacity-95 disabled:opacity-60 active:scale-[0.98] text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
                   >
-                    <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
-                    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-                    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
-                  </svg>
-                  <span>Instagram</span>
-                </button>
-              </div>
+                    <svg
+                      aria-hidden="true"
+                      className="w-4 h-4 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#FFFFFF"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+                      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                      <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+                    </svg>
+                    <span>Instagram</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Divider */}
             <div className="flex items-center gap-3">
               <div className="h-px flex-1 bg-[#D8E6DD] dark:bg-[#1B3B2E]" />
               <span className="text-[11px] font-semibold uppercase tracking-wider text-[#4D6659] dark:text-[#9CC2AE]">
-                atau sinkronisasi email
+                {authMode === 'family' ? 'atau email keluarga' : 'atau sinkronisasi email'}
               </span>
               <div className="h-px flex-1 bg-[#D8E6DD] dark:bg-[#1B3B2E]" />
             </div>
 
             {/* Email & Password Form */}
             <form onSubmit={handleEmailFormSubmit} className="space-y-3">
-              {authMode === 'signup' && (
+              {effectiveEmailMode === 'signup' && (
                 <div>
                   <label
                     htmlFor="auth-fullname"
                     className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1"
                   >
-                    Nama Lengkap Jamaah / Pembimbing
+                    {authMode === 'family'
+                      ? 'Nama Anggota Keluarga'
+                      : 'Nama Lengkap Jamaah / Pembimbing'}
                   </label>
                   <div className="relative">
                     <UserIcon className="w-4 h-4 text-[#4D6659] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -416,7 +580,11 @@ export function LoginView({
                         setFullName(e.target.value);
                         setFormError(null);
                       }}
-                      placeholder="Contoh: H. Ahmad Fauzi"
+                      placeholder={
+                        authMode === 'family'
+                          ? 'Contoh: Ibu Siti (Istri / Anak)'
+                          : 'Contoh: H. Ahmad Fauzi'
+                      }
                       className="w-full min-h-[44px] pl-10 pr-3.5 py-2 rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#C6DACD] dark:border-[#1E3F31] text-sm focus:outline-none focus:ring-2 focus:ring-[#B45309]"
                     />
                   </div>
@@ -454,7 +622,7 @@ export function LoginView({
                   >
                     Kata Sandi
                   </label>
-                  {authMode === 'signin' && (
+                  {effectiveEmailMode === 'signin' && (
                     <button
                       type="button"
                       onClick={handleResetClick}
@@ -492,7 +660,7 @@ export function LoginView({
                 </div>
               </div>
 
-              {authMode === 'signup' && (
+              {effectiveEmailMode === 'signup' && (
                 <div>
                   <label
                     htmlFor="auth-confirm-password"
@@ -525,17 +693,21 @@ export function LoginView({
                 <span>
                   {isSigningIn
                     ? 'Memproses Akun...'
-                    : authMode === 'signup'
-                      ? 'Daftar & Sinkronkan Profil'
-                      : 'Masuk dengan Email'}
+                    : authMode === 'family'
+                      ? familySubMode === 'signup'
+                        ? 'Daftar & Aktifkan Pantauan Keluarga'
+                        : 'Masuk & Buka Pantauan Keluarga'
+                      : authMode === 'signup'
+                        ? 'Daftar & Sinkronkan Profil'
+                        : 'Masuk dengan Email'}
                 </span>
                 <ArrowRight className="w-4 h-4 shrink-0" />
               </button>
             </form>
           </div>
 
-          {/* Collapsible Local Quick Entry */}
-          {globalConfig?.allowGuestMode !== false ? (
+          {/* Collapsible Local Quick Entry (Hidden in Family mode) */}
+          {authMode !== 'family' && (globalConfig?.allowGuestMode !== false ? (
             <div className="rounded-[18px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] p-3.5 space-y-3">
               <button
                 type="button"
@@ -584,7 +756,7 @@ export function LoginView({
             <div className="rounded-[18px] bg-[#F4F8F5] dark:bg-[#0C1E17] border border-dashed border-[#C6DACD] dark:border-[#1E3F31] p-3.5 text-[11px] text-[#4D6659] dark:text-[#9CC2AE]">
               Mode Tamu dinonaktifkan sementara oleh Admin Backend. Silakan masuk menggunakan Google, Facebook, atau Email.
             </div>
-          )}
+          ))}
 
           {/* Key Features Overview */}
           <div className="rounded-[18px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] p-3.5 space-y-2">

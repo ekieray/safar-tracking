@@ -713,6 +713,52 @@ data class TourRoom(
     val priorityBroadcast: PriorityBroadcast? = null
 )
 
+data class MissingPilgrimAlertState(
+    val isTriggered: Boolean = false,
+    val affectedMembers: List<ConvoyMember> = emptyList(),
+    val thresholdSeconds: Int = 75,
+    val staleSinceLabel: String = ""
+)
+
+data class FamilyLinkInfo(
+    val inviteCode: String,
+    val roomId: String,
+    val roomTitle: String,
+    val targetUid: String,
+    val targetName: String,
+    val targetVehicleDetail: String = "",
+    val targetAvatarPreset: AvatarPreset = AvatarPreset.HELMET_TOURING,
+    val destinationName: String = "",
+    val active: Boolean = true,
+    val claimedByUid: String = "",
+    val claimedByName: String = "",
+    val createdAtLabel: String = "Baru saja",
+    val updatedAtLabel: String = "Baru saja"
+)
+
+data class FamilyGrantInfo(
+    val familyUid: String,
+    val inviteCode: String,
+    val roomId: String,
+    val targetUid: String,
+    val targetName: String,
+    val active: Boolean = true
+)
+
+data class FamilyMonitorSnapshot(
+    val linkActive: Boolean = true,
+    val roomStatus: String = "ACTIVE",
+    val roomTitle: String = "Rombongan Umroh",
+    val destinationName: String = "Tujuan Ziarah",
+    val destinationAddress: String = "",
+    val targetMember: ConvoyMember? = null,
+    val routeConfig: ConvoyRouteConfig? = null,
+    val activities: List<RoomActivityItem> = emptyList(),
+    val completedActivityIds: List<String> = emptyList(),
+    val completedTimes: Map<String, String> = emptyMap(),
+    val lastSyncLabel: String = "Menghubungkan..."
+)
+
 data class ConvoyUiState(
     val selectedRole: UserRole? = null,
     val vehicleProfile: VehicleProfile = VehicleProfile(),
@@ -724,6 +770,7 @@ data class ConvoyUiState(
     val routeConfig: ConvoyRouteConfig = ConvoyRouteConfig(),
     val stragglerAlert: StragglerAlertState = StragglerAlertState(),
     val offRouteAlert: OffRouteAlertState = OffRouteAlertState(),
+    val missingPilgrimAlert: MissingPilgrimAlertState = MissingPilgrimAlertState(),
     val sosState: SosEmergencyState = SosEmergencyState(),
     val messages: List<RoomMessage> = emptyList(),
     val isRecordingVoice: Boolean = false,
@@ -736,6 +783,7 @@ data class ConvoyUiState(
     val isOffRouteSimActive: Boolean = false,
     val isStragglerSimActive: Boolean = false,
     val isLeaderTroubleSimActive: Boolean = false,
+    val isMissingPilgrimSimActive: Boolean = false,
     val tripHistory: List<TripHistoryRecord> = emptyList(),
     val selectedTripId: String? = null,
     val lastCompletedTrip: TripHistoryRecord? = null,
@@ -778,6 +826,13 @@ data class ConvoyUiState(
     val isSavingTourLeader: Boolean = false,
     val tourLeaderFeedback: String? = null,
     val pendingInviteRoomId: String? = null,
+    val pendingFamilyInviteCode: String = "",
+    val myFamilyLink: FamilyLinkInfo? = null,
+    val isGeneratingFamilyLink: Boolean = false,
+    val familyLinkError: String? = null,
+    val familyGrant: FamilyGrantInfo? = null,
+    val familyMonitorSnapshot: FamilyMonitorSnapshot? = null,
+    val familyMonitorError: String? = null,
     val roomSetupError: String? = null,
     val isCreatingRoom: Boolean = false,
     val isJoiningRoom: Boolean = false,
@@ -788,4 +843,8 @@ data class ConvoyUiState(
     val roomActivities: List<RoomActivityItem> = emptyList(),
     val roomActivityProgress: Map<String, RoomActivityMemberProgress> = emptyMap(),
     val activeWebBaseUrl: String = "https://ais-pre-3puhws3li7lokxfmbtgyz4-588877716211.asia-southeast1.run.app"
-)
+) {
+    val isFamilyAccount: Boolean
+        get() = familyGrant?.active == true
+}
+

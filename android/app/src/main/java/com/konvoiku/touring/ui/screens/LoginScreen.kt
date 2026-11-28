@@ -35,6 +35,7 @@ import androidx.compose.material.icons.rounded.Campaign
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.Navigation
@@ -51,6 +52,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -105,6 +107,7 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 fun LoginScreen(
     initialName: String = "",
     initialEmail: String = "",
+    pendingFamilyInviteCode: String = "",
     isAuthLoading: Boolean = false,
     authError: String? = null,
     authInfoMessage: String? = null,
@@ -117,6 +120,16 @@ fun LoginScreen(
     onOpenCustomGoogleBrowserSync: (String) -> Unit = {},
     onOpenOwnerDevPreviewSync: () -> Unit = {},
     onSubmitGoogleSyncToken: (String) -> Unit = {},
+    onFamilyGoogleSignIn: (Activity?, String) -> Unit = { _, _ -> },
+    onFamilyGoogleBrowserSync: (String) -> Unit = {},
+    onFamilyCustomGoogleBrowserSync: (String, String) -> Unit = { _, _ -> },
+    onFamilyEmailAuth: (
+        isSignUp: Boolean,
+        fullName: String,
+        email: String,
+        password: String,
+        inviteCodeOrLink: String
+    ) -> Unit = { _, _, _, _, _ -> },
     onFacebookSignIn: (Activity?) -> Unit = {},
     onForgotPassword: (String) -> Unit = {},
     onEmailSignIn: (email: String, password: String) -> Unit = { _, _ -> },
@@ -132,6 +145,13 @@ fun LoginScreen(
 ) {
     val context = LocalContext.current
     var isSignUpMode by remember { mutableStateOf(false) }
+    var isFamilyMode by remember(pendingFamilyInviteCode) {
+        mutableStateOf(pendingFamilyInviteCode.isNotBlank())
+    }
+    var isFamilySignUp by remember { mutableStateOf(true) }
+    var familyInviteInput by remember(pendingFamilyInviteCode) {
+        mutableStateOf(pendingFamilyInviteCode)
+    }
     var fullName by remember(initialName) { mutableStateOf(initialName) }
     var email by remember(initialEmail) { mutableStateOf(initialEmail) }
     var password by remember { mutableStateOf("") }
@@ -150,6 +170,7 @@ fun LoginScreen(
     var socialDialogError by remember { mutableStateOf<String?>(null) }
 
     val combinedError = localError ?: authError
+    val activeEmailSignUp = if (isFamilyMode) isFamilySignUp else isSignUpMode
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -207,8 +228,16 @@ fun LoginScreen(
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 TouringHeroAtmosphereHeader(
-                    title = if (isSignUpMode) "Daftar Akun Safar Tracking" else "Masuk ke Safar Tracking",
-                    subtitle = "Masuk atau daftar dengan email, Google, Facebook, atau Instagram untuk menyinkronkan profil jamaah Anda."
+                    title = when {
+                        isFamilyMode -> "Pantauan Keluarga Jamaah"
+                        isSignUpMode -> "Daftar Akun Safar Tracking"
+                        else -> "Masuk ke Safar Tracking"
+                    },
+                    subtitle = if (isFamilyMode) {
+                        "Masuk atau daftar khusus menggunakan kode/link undangan dari 1 anggota rombongan (mode pantau baca-saja)."
+                    } else {
+                        "Masuk atau daftar dengan email, Google, Facebook, atau Instagram untuk menyinkronkan profil jamaah Anda."
+                    }
                 )
 
                 if (globalConfig.maintenanceMode) {
@@ -317,50 +346,141 @@ fun LoginScreen(
                             }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = if (isSignUpMode) "Daftar Akun Baru" else "Masuk Akun Jamaah",
+                                    text = when {
+                                        isFamilyMode -> "Pantauan Keluarga (Read-Only)"
+                                        isSignUpMode -> "Daftar Akun Baru"
+                                        else -> "Masuk Akun Jamaah"
+                                    },
                                     style = MaterialTheme.typography.titleLarge,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "Profil jamaah, rombongan & progres manasik tersinkronisasi otomatis via email.",
+                                    text = if (isFamilyMode) {
+                                        "Hanya memantau posisi live & checklist kegiatan 1 jamaah pemberi link."
+                                    } else {
+                                        "Profil jamaah, rombongan & progres manasik tersinkronisasi otomatis via email."
+                                    },
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
 
-                        // Switcher Masuk (Sign In) / Daftar (Sign Up)
+                        // Switcher Masuk / Daftar / Keluarga
                         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                             SegmentedButton(
-                                selected = !isSignUpMode,
+                                selected = !isFamilyMode && !isSignUpMode,
                                 onClick = {
+                                    isFamilyMode = false
                                     isSignUpMode = false
                                     localError = null
                                     onClearAuthError()
                                 },
-                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)
                             ) {
-                                Text("Masuk (Sign In)", fontWeight = FontWeight.SemiBold)
+                                Text("Masuk", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1)
                             }
                             SegmentedButton(
-                                selected = isSignUpMode,
+                                selected = !isFamilyMode && isSignUpMode,
                                 onClick = {
+                                    isFamilyMode = false
                                     isSignUpMode = true
                                     localError = null
                                     onClearAuthError()
                                 },
-                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
                             ) {
-                                Text("Daftar (Sign Up)", fontWeight = FontWeight.SemiBold)
+                                Text("Daftar", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1)
+                            }
+                            SegmentedButton(
+                                selected = isFamilyMode,
+                                onClick = {
+                                    isFamilyMode = true
+                                    localError = null
+                                    onClearAuthError()
+                                },
+                                shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
+                            ) {
+                                Text("Keluarga", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, maxLines = 1)
+                            }
+                        }
+
+                        if (isFamilyMode) {
+                            Surface(
+                                color = Color(0xFFECFDF5),
+                                shape = RoundedCornerShape(14.dp),
+                                border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = "Akses Pantauan Keluarga Terkunci",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF065F46)
+                                    )
+                                    Text(
+                                        text = "Pendaftaran & login keluarga hanya dapat dilakukan melalui link atau kode khusus (FAM-XXXXXX) yang dibagikan oleh anggota rombongan.",
+                                        fontSize = 11.sp,
+                                        lineHeight = 15.sp,
+                                        color = Color(0xFF047857)
+                                    )
+                                }
+                            }
+
+                            OutlinedTextField(
+                                value = familyInviteInput,
+                                onValueChange = {
+                                    familyInviteInput = it
+                                    localError = null
+                                    onClearAuthError()
+                                },
+                                label = { Text("Kode atau Link Undangan Keluarga") },
+                                placeholder = { Text("Tempel link atau kode FAM-XXXXXX") },
+                                leadingIcon = {
+                                    Icon(Icons.Rounded.Link, contentDescription = null)
+                                },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp)
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                FilterChip(
+                                    selected = !isFamilySignUp,
+                                    onClick = {
+                                        isFamilySignUp = false
+                                        localError = null
+                                        onClearAuthError()
+                                    },
+                                    label = { Text("Masuk Akun Keluarga", fontSize = 11.sp, maxLines = 1) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                FilterChip(
+                                    selected = isFamilySignUp,
+                                    onClick = {
+                                        isFamilySignUp = true
+                                        localError = null
+                                        onClearAuthError()
+                                    },
+                                    label = { Text("Daftar Keluarga Baru", fontSize = 11.sp, maxLines = 1) },
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
                         }
 
                         // Opsi Daftar / Masuk Cepat via Google, Facebook, Instagram
                         Text(
-                            text = if (isSignUpMode) {
-                                "Daftar Cepat dengan Media Sosial"
-                            } else {
-                                "Masuk Cepat dengan Media Sosial"
+                            text = when {
+                                isFamilyMode -> "Masuk Cepat Keluarga dengan Google"
+                                isSignUpMode -> "Daftar Cepat dengan Media Sosial"
+                                else -> "Masuk Cepat dengan Media Sosial"
                             },
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -370,13 +490,25 @@ fun LoginScreen(
                             SocialAuthProviderButton(
                                 badgeText = "G",
                                 badgeColor = Color(0xFFEA4335),
-                                label = if (isSignUpMode) "Daftar dengan Akun Google" else "Masuk dengan Akun Google",
+                                label = when {
+                                    isFamilyMode -> "Lanjutkan dengan Akun Google (Keluarga)"
+                                    isSignUpMode -> "Daftar dengan Akun Google"
+                                    else -> "Masuk dengan Akun Google"
+                                },
                                 borderColor = MaterialTheme.colorScheme.outline,
                                 enabled = !isAuthLoading,
                                 onClick = {
                                     localError = null
                                     onClearAuthError()
-                                    onGoogleSignIn(context.findActivity())
+                                    if (isFamilyMode) {
+                                        if (familyInviteInput.isBlank()) {
+                                            localError = "Masukkan link atau kode undangan keluarga (FAM-XXXXXX) terlebih dahulu."
+                                            return@SocialAuthProviderButton
+                                        }
+                                        onFamilyGoogleSignIn(context.findActivity(), familyInviteInput.trim())
+                                    } else {
+                                        onGoogleSignIn(context.findActivity())
+                                    }
                                 }
                             )
 
@@ -384,10 +516,22 @@ fun LoginScreen(
                                 onClick = {
                                     localError = null
                                     onClearAuthError()
-                                    if (customBridgeUrl.isNotBlank()) {
-                                        onOpenCustomGoogleBrowserSync(customBridgeUrl)
+                                    if (isFamilyMode) {
+                                        if (familyInviteInput.isBlank()) {
+                                            localError = "Masukkan link atau kode undangan keluarga (FAM-XXXXXX) terlebih dahulu."
+                                            return@OutlinedButton
+                                        }
+                                        if (customBridgeUrl.isNotBlank()) {
+                                            onFamilyCustomGoogleBrowserSync(familyInviteInput.trim(), customBridgeUrl)
+                                        } else {
+                                            onFamilyGoogleBrowserSync(familyInviteInput.trim())
+                                        }
                                     } else {
-                                        onOpenGoogleBrowserSync()
+                                        if (customBridgeUrl.isNotBlank()) {
+                                            onOpenCustomGoogleBrowserSync(customBridgeUrl)
+                                        } else {
+                                            onOpenGoogleBrowserSync()
+                                        }
                                     }
                                 },
                                 enabled = !isAuthLoading,
@@ -482,33 +626,35 @@ fun LoginScreen(
                                 }
                             }
 
-                            SocialAuthProviderButton(
-                                badgeText = "f",
-                                badgeColor = Color(0xFF1877F2),
-                                label = if (isSignUpMode) "Daftar dengan Facebook" else "Masuk dengan Facebook",
-                                borderColor = Color(0xFF1877F2).copy(alpha = 0.45f),
-                                enabled = !isAuthLoading,
-                                onClick = {
-                                    localError = null
-                                    onClearAuthError()
-                                    onFacebookSignIn(context.findActivity())
-                                }
-                            )
+                            if (!isFamilyMode) {
+                                SocialAuthProviderButton(
+                                    badgeText = "f",
+                                    badgeColor = Color(0xFF1877F2),
+                                    label = if (isSignUpMode) "Daftar dengan Facebook" else "Masuk dengan Facebook",
+                                    borderColor = Color(0xFF1877F2).copy(alpha = 0.45f),
+                                    enabled = !isAuthLoading,
+                                    onClick = {
+                                        localError = null
+                                        onClearAuthError()
+                                        onFacebookSignIn(context.findActivity())
+                                    }
+                                )
 
-                            SocialAuthProviderButton(
-                                badgeText = "IG",
-                                badgeColor = Color(0xFFD62976),
-                                label = if (isSignUpMode) "Daftar dengan Instagram" else "Masuk dengan Instagram",
-                                borderColor = Color(0xFFD62976).copy(alpha = 0.45f),
-                                enabled = !isAuthLoading,
-                                onClick = {
-                                    socialNameInput = fullName
-                                    socialEmailInput = email
-                                    socialInstagramHandle = ""
-                                    socialDialogError = null
-                                    pendingSocialProvider = AuthProviderType.INSTAGRAM
-                                }
-                            )
+                                SocialAuthProviderButton(
+                                    badgeText = "IG",
+                                    badgeColor = Color(0xFFD62976),
+                                    label = if (isSignUpMode) "Daftar dengan Instagram" else "Masuk dengan Instagram",
+                                    borderColor = Color(0xFFD62976).copy(alpha = 0.45f),
+                                    enabled = !isAuthLoading,
+                                    onClick = {
+                                        socialNameInput = fullName
+                                        socialEmailInput = email
+                                        socialInstagramHandle = ""
+                                        socialDialogError = null
+                                        pendingSocialProvider = AuthProviderType.INSTAGRAM
+                                    }
+                                )
+                            }
                         }
 
                         Row(
@@ -518,14 +664,19 @@ fun LoginScreen(
                         ) {
                             HorizontalDivider(modifier = Modifier.weight(1f))
                             Text(
-                                text = if (isSignUpMode) "atau daftar pakai email" else "atau masuk pakai email",
+                                text = when {
+                                    isFamilyMode && activeEmailSignUp -> "atau daftar keluarga pakai email"
+                                    isFamilyMode -> "atau masuk keluarga pakai email"
+                                    isSignUpMode -> "atau daftar pakai email"
+                                    else -> "atau masuk pakai email"
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             HorizontalDivider(modifier = Modifier.weight(1f))
                         }
 
-                        if (isSignUpMode) {
+                        if (activeEmailSignUp) {
                             OutlinedTextField(
                                 value = fullName,
                                 onValueChange = {
@@ -533,7 +684,9 @@ fun LoginScreen(
                                     localError = null
                                     onClearAuthError()
                                 },
-                                label = { Text("Nama Lengkap Jamaah") },
+                                label = {
+                                    Text(if (isFamilyMode) "Nama Lengkap Keluarga" else "Nama Lengkap Jamaah")
+                                },
                                 placeholder = { Text("Contoh: Ahmad Fauzi") },
                                 leadingIcon = {
                                     Icon(Icons.Rounded.Person, contentDescription = null)
@@ -555,7 +708,7 @@ fun LoginScreen(
                                 localError = null
                                 onClearAuthError()
                             },
-                            label = { Text("Email Jamaah") },
+                            label = { Text(if (isFamilyMode) "Email Keluarga" else "Email Jamaah") },
                             placeholder = { Text("nama@email.com") },
                             leadingIcon = {
                                 Icon(Icons.Rounded.Email, contentDescription = null)
@@ -601,13 +754,13 @@ fun LoginScreen(
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Password,
-                                imeAction = if (isSignUpMode) ImeAction.Next else ImeAction.Done
+                                imeAction = if (activeEmailSignUp) ImeAction.Next else ImeAction.Done
                             ),
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp)
                         )
 
-                        if (isSignUpMode) {
+                        if (activeEmailSignUp) {
                             OutlinedTextField(
                                 value = confirmPassword,
                                 onValueChange = {
@@ -634,7 +787,7 @@ fun LoginScreen(
                             )
                         }
 
-                        if (!isSignUpMode) {
+                        if (!activeEmailSignUp) {
                             Box(
                                 modifier = Modifier.fillMaxWidth(),
                                 contentAlignment = Alignment.CenterEnd
@@ -735,6 +888,10 @@ fun LoginScreen(
                             onClick = {
                                 val cleanEmail = email.trim()
                                 val cleanName = fullName.trim()
+                                if (isFamilyMode && familyInviteInput.trim().isBlank()) {
+                                    localError = "Masukkan link atau kode undangan keluarga (FAM-XXXXXX) dari anggota rombongan."
+                                    return@Button
+                                }
                                 if (!cleanEmail.contains("@") || !cleanEmail.contains(".")) {
                                     localError = "Masukkan alamat email yang valid."
                                     return@Button
@@ -743,19 +900,32 @@ fun LoginScreen(
                                     localError = "Kata sandi minimal 6 karakter."
                                     return@Button
                                 }
-                                if (isSignUpMode) {
+                                if (activeEmailSignUp) {
                                     if (cleanName.length < 2) {
-                                        localError = "Masukkan nama lengkap jamaah (minimal 2 karakter)."
+                                        localError = if (isFamilyMode) {
+                                            "Masukkan nama lengkap keluarga (minimal 2 karakter)."
+                                        } else {
+                                            "Masukkan nama lengkap jamaah (minimal 2 karakter)."
+                                        }
                                         return@Button
                                     }
                                     if (password != confirmPassword) {
                                         localError = "Konfirmasi kata sandi tidak cocok."
                                         return@Button
                                     }
-                                    localError = null
+                                }
+                                localError = null
+                                if (isFamilyMode) {
+                                    onFamilyEmailAuth(
+                                        isFamilySignUp,
+                                        cleanName,
+                                        cleanEmail,
+                                        password,
+                                        familyInviteInput.trim()
+                                    )
+                                } else if (isSignUpMode) {
                                     onEmailSignUp(cleanName, cleanEmail, password)
                                 } else {
-                                    localError = null
                                     onEmailSignIn(cleanEmail, password)
                                 }
                             },
@@ -779,7 +949,12 @@ fun LoginScreen(
                                 Text("Memproses...", fontWeight = FontWeight.SemiBold)
                             } else {
                                 Text(
-                                    text = if (isSignUpMode) "Daftar & Sinkronkan Profil" else "Masuk dengan Email",
+                                    text = when {
+                                        isFamilyMode && isFamilySignUp -> "Daftar & Pantau Jamaah"
+                                        isFamilyMode -> "Masuk & Pantau Jamaah"
+                                        isSignUpMode -> "Daftar & Sinkronkan Profil"
+                                        else -> "Masuk dengan Email"
+                                    },
                                     fontWeight = FontWeight.SemiBold,
                                     textAlign = TextAlign.Center
                                 )
@@ -792,34 +967,36 @@ fun LoginScreen(
                             }
                         }
 
-                        if (globalConfig.allowGuestMode) {
-                            OutlinedButton(
-                                onClick = {
-                                    val guestName = fullName.trim().ifBlank { "Jamaah Tamu" }
-                                    val guestEmail = email.trim().ifBlank { "tamu@safartracking.id" }
-                                    onLoginSuccess(guestName, guestEmail, true)
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .defaultMinSize(minHeight = 46.dp),
-                                shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                            ) {
+                        if (!isFamilyMode) {
+                            if (globalConfig.allowGuestMode) {
+                                OutlinedButton(
+                                    onClick = {
+                                        val guestName = fullName.trim().ifBlank { "Jamaah Tamu" }
+                                        val guestEmail = email.trim().ifBlank { "tamu@safartracking.id" }
+                                        onLoginSuccess(guestName, guestEmail, true)
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .defaultMinSize(minHeight = 46.dp),
+                                    shape = RoundedCornerShape(14.dp),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                                ) {
+                                    Text(
+                                        text = "Masuk Cepat sebagai Tamu (Mode Lokal)",
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            } else {
                                 Text(
-                                    text = "Masuk Cepat sebagai Tamu (Mode Lokal)",
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    textAlign = TextAlign.Center
+                                    text = "Mode Tamu dinonaktifkan sementara oleh Admin Backend.",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
                                 )
                             }
-                        } else {
-                            Text(
-                                text = "Mode Tamu dinonaktifkan sementara oleh Admin Backend.",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            )
                         }
                     }
                 }

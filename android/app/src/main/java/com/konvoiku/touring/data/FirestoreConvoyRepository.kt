@@ -25,6 +25,9 @@ import com.konvoiku.touring.model.ConnectionStatus
 import com.konvoiku.touring.model.ConvoyMember
 import com.konvoiku.touring.model.ConvoyRouteConfig
 import com.konvoiku.touring.model.DestinationStop
+import com.konvoiku.touring.model.FamilyGrantInfo
+import com.konvoiku.touring.model.FamilyLinkInfo
+import com.konvoiku.touring.model.FamilyMonitorSnapshot
 import com.konvoiku.touring.model.GlobalAppConfig
 import com.konvoiku.touring.model.ManasikCheckInRecord
 import com.konvoiku.touring.model.ManasikGuideProgress
@@ -39,6 +42,7 @@ import com.konvoiku.touring.model.RoomActivityItem
 import com.konvoiku.touring.model.RoomActivityMemberProgress
 import com.konvoiku.touring.model.RoomMessage
 import com.konvoiku.touring.model.RouteInstruction
+import com.konvoiku.touring.model.RoutePoint
 import com.konvoiku.touring.model.RoutePreference
 import com.konvoiku.touring.model.SosEmergencyState
 import com.konvoiku.touring.model.TripHistoryRecord
@@ -2347,6 +2351,603 @@ class FirestoreConvoyRepository {
                 conn.disconnect()
             }
         }
+    }
+
+    // --- Family Monitoring (Personal Invite Links, Grants & Single-Member Monitor) ---
+
+    fun extractFamilyInviteCode(rawInput: String): String? {
+        val upper = rawInput.trim().uppercase(Locale.ROOT)
+        if (upper.isEmpty()) return null
+        Regex("[?&]FAMILY=(FAM-[A-Z0-9]{4,28})")
+            .find(upper)?.groupValues?.getOrNull(1)?.let { return it.take(32) }
+        Regex("/FAMILY/(FAM-[A-Z0-9]{4,28})")
+            .find(upper)?.groupValues?.getOrNull(1)?.let { return it.take(32) }
+        return Regex("FAM-[A-Z0-9]{4,28}")
+            .find(upper)?.value?.take(32)
+    }
+
+    fun generateFamilyInviteCode(): String {
+        val alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        val suffix = (1..6).map { alphabet[(Math.random() * alphabet.length).toInt().coerceIn(0, alphabet.lastIndex)] }.joinToString("")
+        return "FAM-$suffix"
+    }
+
+    fun buildFamilyInviteLinks(inviteCode: String, webBaseUrl: String = SHARED_BASE_URL): Pair<String, String> {
+        val safeCode = extractFamilyInviteCode(inviteCode) ?: inviteCode.trim().uppercase(Locale.ROOT)
+        val base = webBaseUrl.trim().trimEnd('/').ifBlank { SHARED_BASE_URL }
+        val webLink = "$base/?family=${Uri.encode(safeCode)}"
+        val deepLink = "safartracking://family/$safeCode"
+        return webLink to deepLink
+    }
+
+    private fun mapDocToFamilyLink(
+        inviteCode: String,
+        getField: (String) -> Any?,
+        createdTs: Timestamp?,
+        updatedTs: Timestamp?
+    ): FamilyLinkInfo {
+        val presetName = (getField("targetAvatarPreset") as? String)?.trim().orEmpty()
+        val preset = runCatching { AvatarPreset.valueOf(presetName) }.getOrDefault(AvatarPreset.HELMET_TOURING)
+        return FamilyLinkInfo(
+            inviteCode = ((getField("inviteCode") as? String)?.ifBlank { inviteCode }) ?: inviteCode,
+            roomId = (getField("roomId") as? String).orEmpty(),
+            roomTitle = ((getField("roomTitle") as? String)?.ifBlank { "Rombongan Safar" }) ?: "Rombongan Safar",
+            targetUid = (getField("targetUid") as? String).orEmpty(),
+            targetName = ((getField("targetName") as? String)?.ifBlank { "Jamaah" }) ?: "Jamaah",
+            targetVehicleDetail = (getField("targetVehicleDetail") as? String).orEmpty(),
+            targetAvatarPreset = preset,
+            destinationName = (getField("destinationName") as? String).orEmpty(),
+            active = getField("active") as? Boolean ?: false,
+            claimedByUid = (getField("claimedByUid") as? String).orEmpty(),
+            claimedByName = (getField("claimedByName") as? String).orEmpty(),
+            createdAtLabel = formatTimestamp(createdTs, "Baru saja"),
+            updatedAtLabel = formatTimestamp(updatedTs, "Baru saja")
+        )
+    }
+
+    fun subscribeToMyFamilyLink(
+        roomId: String,
+        targetUid: String,
+        onUpdate: (FamilyLinkInfo?) -> Unit
+    ): () -> Unit {
+        val db = getFirestore()
+        val cleanRoomId = normalizeRoomId(roomId)
+        if (db == null || cleanRoomId.isBlank() || targetUid.isBlank()) {
+            onUpdate(null)
+            return {}
+        }
+        val reg = db.collection("family_links")
+            .whereEqualTo("targetUid", targetUid)
+            .addSnapshotListener { snap, _ ->
+                if (snap == null) {
+                    onUpdate(null)
+                    return@addSnapshotListener
+                }
+                val matching = snap.documents
+                    .map { doc ->
+                        val sortMs = doc.getTimestamp("updatedAt")?.toDate()?.time ?: 0L
+                        val info = mapDocToFamilyLink(
+                            inviteCode = doc.id,
+                            getField = { key -> doc.get(key) },
+                            createdTs = doc.getTimestamp("createdAt"),
+                            updatedTs = doc.getTimestamp("updatedAt")
+                        )
+                        sortMs to info
+                    }
+                    .filter { (_, info) -> info.roomId == cleanRoomId && info.active }
+                    .sortedByDescending { (ms, _) -> ms }
+                onUpdate(matching.firstOrNull()?.second)
+            }
+        return { reg.remove() }
+    }
+
+    suspend fun createOrGetFamilyInviteLink(
+        roomId: String,
+        roomTitle: String,
+        targetUid: String,
+        targetName: String,
+        targetVehicleDetail: String,
+        targetAvatarPreset: AvatarPreset,
+        destinationName: String
+    ): Result<FamilyLinkInfo> {
+        val db = getFirestore()
+            ?: return Result.failure(IllegalStateException("Firestore tidak tersedia."))
+        val cleanRoomId = normalizeRoomId(roomId)
+        if (cleanRoomId.isBlank() || targetUid.isBlank()) {
+            return Result.failure(IllegalArgumentException("Data room atau akun jamaah tidak valid."))
+        }
+        return runCatching {
+            val existingSnap = db.collection("family_links")
+                .whereEqualTo("targetUid", targetUid)
+                .get()
+                .await()
+            val activeExisting = existingSnap.documents
+                .map { doc ->
+                    mapDocToFamilyLink(
+                        inviteCode = doc.id,
+                        getField = { key -> doc.get(key) },
+                        createdTs = doc.getTimestamp("createdAt"),
+                        updatedTs = doc.getTimestamp("updatedAt")
+                    )
+                }
+                .firstOrNull { it.roomId == cleanRoomId && it.active }
+            if (activeExisting != null) {
+                return@runCatching activeExisting
+            }
+
+            val inviteCode = generateFamilyInviteCode()
+            val safeRoomTitle = roomTitle.trim().ifBlank { "Rombongan Safar" }.take(100)
+            val safeTargetUid = targetUid.take(128)
+            val safeTargetName = targetName.trim().ifBlank { "Jamaah" }.take(80)
+            val safeVehicle = targetVehicleDetail.trim().take(80)
+            val safePreset = targetAvatarPreset.name.take(40)
+            val safeDest = destinationName.trim().take(120)
+
+            val payload = hashMapOf<String, Any>(
+                "inviteCode" to inviteCode,
+                "roomId" to cleanRoomId.take(32),
+                "roomTitle" to safeRoomTitle,
+                "targetUid" to safeTargetUid,
+                "targetName" to safeTargetName,
+                "targetVehicleDetail" to safeVehicle,
+                "targetAvatarPreset" to safePreset,
+                "destinationName" to safeDest,
+                "active" to true,
+                "claimedByUid" to "",
+                "claimedByName" to "",
+                "createdAt" to FieldValue.serverTimestamp(),
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+            db.collection("family_links").document(inviteCode).set(payload).await()
+            FamilyLinkInfo(
+                inviteCode = inviteCode,
+                roomId = cleanRoomId.take(32),
+                roomTitle = safeRoomTitle,
+                targetUid = safeTargetUid,
+                targetName = safeTargetName,
+                targetVehicleDetail = safeVehicle,
+                targetAvatarPreset = targetAvatarPreset,
+                destinationName = safeDest,
+                active = true,
+                claimedByUid = "",
+                claimedByName = "",
+                createdAtLabel = "Baru saja",
+                updatedAtLabel = "Baru saja"
+            )
+        }
+    }
+
+    suspend fun regenerateFamilyInviteLink(
+        previousInviteCode: String?,
+        roomId: String,
+        roomTitle: String,
+        targetUid: String,
+        targetName: String,
+        targetVehicleDetail: String,
+        targetAvatarPreset: AvatarPreset,
+        destinationName: String
+    ): Result<FamilyLinkInfo> {
+        val db = getFirestore()
+            ?: return Result.failure(IllegalStateException("Firestore tidak tersedia."))
+        val cleanRoomId = normalizeRoomId(roomId)
+        return runCatching {
+            val cleanPrev = previousInviteCode?.let { extractFamilyInviteCode(it) }
+            if (!cleanPrev.isNullOrBlank()) {
+                runCatching {
+                    db.collection("family_links").document(cleanPrev)
+                        .update(
+                            mapOf(
+                                "active" to false,
+                                "updatedAt" to FieldValue.serverTimestamp()
+                            )
+                        ).await()
+                }
+            }
+            val inviteCode = generateFamilyInviteCode()
+            val safeRoomTitle = roomTitle.trim().ifBlank { "Rombongan Safar" }.take(100)
+            val safeTargetUid = targetUid.take(128)
+            val safeTargetName = targetName.trim().ifBlank { "Jamaah" }.take(80)
+            val safeVehicle = targetVehicleDetail.trim().take(80)
+            val safePreset = targetAvatarPreset.name.take(40)
+            val safeDest = destinationName.trim().take(120)
+
+            val payload = hashMapOf<String, Any>(
+                "inviteCode" to inviteCode,
+                "roomId" to cleanRoomId.take(32),
+                "roomTitle" to safeRoomTitle,
+                "targetUid" to safeTargetUid,
+                "targetName" to safeTargetName,
+                "targetVehicleDetail" to safeVehicle,
+                "targetAvatarPreset" to safePreset,
+                "destinationName" to safeDest,
+                "active" to true,
+                "claimedByUid" to "",
+                "claimedByName" to "",
+                "createdAt" to FieldValue.serverTimestamp(),
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+            db.collection("family_links").document(inviteCode).set(payload).await()
+            FamilyLinkInfo(
+                inviteCode = inviteCode,
+                roomId = cleanRoomId.take(32),
+                roomTitle = safeRoomTitle,
+                targetUid = safeTargetUid,
+                targetName = safeTargetName,
+                targetVehicleDetail = safeVehicle,
+                targetAvatarPreset = targetAvatarPreset,
+                destinationName = safeDest,
+                active = true,
+                claimedByUid = "",
+                claimedByName = "",
+                createdAtLabel = "Baru saja",
+                updatedAtLabel = "Baru saja"
+            )
+        }
+    }
+
+    suspend fun revokeFamilyInviteLink(inviteCode: String): Result<Unit> {
+        val db = getFirestore()
+            ?: return Result.failure(IllegalStateException("Firestore tidak tersedia."))
+        val clean = extractFamilyInviteCode(inviteCode)
+            ?: return Result.failure(IllegalArgumentException("Kode undangan keluarga tidak valid."))
+        return runCatching {
+            db.collection("family_links").document(clean)
+                .update(
+                    mapOf(
+                        "active" to false,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+            Unit
+        }
+    }
+
+    suspend fun redeemFamilyInviteLink(
+        rawCodeOrUrl: String,
+        familyUid: String,
+        familyName: String
+    ): Result<FamilyGrantInfo> {
+        val db = getFirestore()
+            ?: return Result.failure(IllegalStateException("Firestore tidak tersedia."))
+        val inviteCode = extractFamilyInviteCode(rawCodeOrUrl)
+            ?: return Result.failure(
+                IllegalArgumentException(
+                    "Kode atau link pantauan keluarga tidak valid. Gunakan link/kode berformat FAM-XXXXXX dari anggota rombongan."
+                )
+            )
+        return runCatching {
+            val linkRef = db.collection("family_links").document(inviteCode)
+            val linkSnap = linkRef.get().await()
+            if (!linkSnap.exists()) {
+                throw IllegalStateException(
+                    "Kode pantauan keluarga \"$inviteCode\" tidak ditemukan. Pastikan link berasal dari anggota rombongan yang aktif."
+                )
+            }
+            val linkData = mapDocToFamilyLink(
+                inviteCode = inviteCode,
+                getField = { key -> linkSnap.get(key) },
+                createdTs = linkSnap.getTimestamp("createdAt"),
+                updatedTs = linkSnap.getTimestamp("updatedAt")
+            )
+            if (!linkData.active) {
+                throw IllegalStateException(
+                    "Link pantauan keluarga \"$inviteCode\" sudah dinonaktifkan oleh anggota rombongan."
+                )
+            }
+            if (linkData.claimedByUid.isNotBlank() && linkData.claimedByUid != familyUid) {
+                val claimedLabel = linkData.claimedByName.ifBlank { "Terdaftar" }
+                throw IllegalStateException(
+                    "Link ini sudah terhubung ke akun keluarga lain ($claimedLabel). Minta anggota rombongan membuat kode baru jika ingin mengganti perangkat."
+                )
+            }
+
+            val grantRef = db.collection("family_grants").document(familyUid)
+            val grantSnap = grantRef.get().await()
+            val cleanFamilyName = familyName.trim().ifBlank { "Keluarga Jamaah" }.take(80)
+
+            val batch = db.batch()
+            batch.update(
+                linkRef,
+                mapOf(
+                    "claimedByUid" to familyUid.take(128),
+                    "claimedByName" to cleanFamilyName,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            )
+            if (grantSnap.exists()) {
+                batch.update(
+                    grantRef,
+                    mapOf(
+                        "inviteCode" to inviteCode,
+                        "roomId" to linkData.roomId.take(32),
+                        "targetUid" to linkData.targetUid.take(128),
+                        "targetName" to linkData.targetName.take(80),
+                        "active" to true,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+            } else {
+                batch.set(
+                    grantRef,
+                    mapOf(
+                        "familyUid" to familyUid.take(128),
+                        "inviteCode" to inviteCode,
+                        "roomId" to linkData.roomId.take(32),
+                        "targetUid" to linkData.targetUid.take(128),
+                        "targetName" to linkData.targetName.take(80),
+                        "active" to true,
+                        "createdAt" to FieldValue.serverTimestamp(),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+            }
+            batch.commit().await()
+            FamilyGrantInfo(
+                familyUid = familyUid,
+                inviteCode = inviteCode,
+                roomId = linkData.roomId,
+                targetUid = linkData.targetUid,
+                targetName = linkData.targetName,
+                active = true
+            )
+        }
+    }
+
+    suspend fun loadActiveFamilyGrant(familyUid: String): FamilyGrantInfo? {
+        val db = getFirestore() ?: return null
+        if (familyUid.isBlank()) return null
+        return runCatching {
+            val grantSnap = db.collection("family_grants").document(familyUid).get().await()
+            if (!grantSnap.exists()) return@runCatching null
+            if (grantSnap.getBoolean("active") != true) return@runCatching null
+            val inviteCode = grantSnap.getString("inviteCode").orEmpty()
+            val roomId = grantSnap.getString("roomId").orEmpty()
+            val targetUid = grantSnap.getString("targetUid").orEmpty()
+            if (inviteCode.isBlank() || roomId.isBlank() || targetUid.isBlank()) return@runCatching null
+
+            val linkSnap = db.collection("family_links").document(inviteCode).get().await()
+            if (!linkSnap.exists()) return@runCatching null
+            if (linkSnap.getBoolean("active") != true) return@runCatching null
+            val claimedByUid = linkSnap.getString("claimedByUid").orEmpty()
+            if (claimedByUid.isNotBlank() && claimedByUid != familyUid) return@runCatching null
+
+            FamilyGrantInfo(
+                familyUid = familyUid,
+                inviteCode = inviteCode,
+                roomId = roomId,
+                targetUid = targetUid,
+                targetName = grantSnap.getString("targetName")
+                    ?.ifBlank { linkSnap.getString("targetName").orEmpty() }
+                    ?.ifBlank { "Jamaah" } ?: "Jamaah",
+                active = true
+            )
+        }.getOrNull()
+    }
+
+    suspend fun clearFamilyGrant(familyUid: String) {
+        val db = getFirestore() ?: return
+        if (familyUid.isBlank()) return
+        runCatching {
+            val grantRef = db.collection("family_grants").document(familyUid)
+            val snap = grantRef.get().await()
+            if (snap.exists() && snap.getBoolean("active") == true) {
+                grantRef.update(
+                    mapOf(
+                        "active" to false,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+            }
+        }
+    }
+
+    fun subscribeToFamilyMonitor(
+        grant: FamilyGrantInfo,
+        onSnapshotUpdate: (FamilyMonitorSnapshot) -> Unit,
+        onError: (String) -> Unit
+    ): () -> Unit {
+        val db = getFirestore() ?: return {}
+        val cleanRoomId = normalizeRoomId(grant.roomId)
+        val lock = Any()
+        var snapshotState = FamilyMonitorSnapshot()
+
+        fun emit() {
+            val clock = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+            val copy = synchronized(lock) {
+                snapshotState = snapshotState.copy(lastSyncLabel = clock)
+                snapshotState
+            }
+            onSnapshotUpdate(copy)
+        }
+
+        val regs = mutableListOf<ListenerRegistration>()
+
+        regs += db.collection("family_links").document(grant.inviteCode)
+            .addSnapshotListener { snap, _ ->
+                synchronized(lock) {
+                    if (snap == null || !snap.exists()) {
+                        snapshotState = snapshotState.copy(linkActive = false)
+                    } else {
+                        val claimed = snap.getString("claimedByUid").orEmpty()
+                        val stillValid = (snap.getBoolean("active") == true) &&
+                            (claimed.isEmpty() || claimed == grant.familyUid)
+                        snapshotState = snapshotState.copy(
+                            linkActive = stillValid,
+                            roomTitle = snap.getString("roomTitle")?.ifBlank { snapshotState.roomTitle } ?: snapshotState.roomTitle,
+                            destinationName = snap.getString("destinationName")?.ifBlank { snapshotState.destinationName } ?: snapshotState.destinationName
+                        )
+                    }
+                }
+                emit()
+            }
+
+        regs += db.collection("rooms").document(cleanRoomId)
+            .addSnapshotListener { snap, err ->
+                if (err != null) {
+                    onError("Gagal memuat info rombongan: ${err.localizedMessage ?: "akses ditolak"}")
+                    return@addSnapshotListener
+                }
+                synchronized(lock) {
+                    if (snap == null || !snap.exists()) {
+                        snapshotState = snapshotState.copy(roomStatus = "FINISHED")
+                    } else {
+                        val decoded = GeoUtils.decodePolyline(snap.getString("encodedPolyline").orEmpty())
+                        val originLat = snap.getDouble("originLat") ?: 21.4180
+                        val originLng = snap.getDouble("originLng") ?: 39.8275
+                        val destLat = snap.getDouble("destLat") ?: 21.4225
+                        val destLng = snap.getDouble("destLng") ?: 39.8262
+                        val waypoints = if (decoded.size >= 2) {
+                            GeoUtils.toRoutePoints(decoded)
+                        } else {
+                            listOf(
+                                RoutePoint(0.14f, 0.86f, originLat, originLng),
+                                RoutePoint(0.86f, 0.14f, destLat, destLng)
+                            )
+                        }
+                        val destName = snap.getString("destinationName")?.ifBlank { "Tujuan Ziarah" } ?: "Tujuan Ziarah"
+                        val destAddr = snap.getString("destinationAddress").orEmpty()
+                        val cfg = ConvoyRouteConfig(
+                            originName = snap.getString("originName")?.ifBlank { "Titik Keberangkatan" } ?: "Titik Keberangkatan",
+                            originAddress = snap.getString("originAddress").orEmpty(),
+                            originLockedByLeader = true,
+                            destinationName = destName,
+                            destinationAddress = destAddr,
+                            estimatedDurationMillis = (snap.getLong("estimatedDurationMillis") ?: 0L).coerceAtLeast(0L),
+                            waypoints = waypoints,
+                            checkpoints = emptyList(),
+                            totalRouteMeters = (snap.getLong("totalRouteMeters") ?: 12000L).toInt(),
+                            offRouteToleranceMeters = (snap.getLong("offRouteToleranceMeters") ?: 75L).toInt(),
+                            maxStragglerDistanceMeters = (snap.getLong("maxStragglerDistanceMeters") ?: 1000L).toInt(),
+                            soundAlertEnabled = false
+                        )
+                        snapshotState = snapshotState.copy(
+                            roomStatus = if (snap.getString("status") == "FINISHED") "FINISHED" else "ACTIVE",
+                            roomTitle = snap.getString("roomTitle")?.ifBlank { snapshotState.roomTitle } ?: snapshotState.roomTitle,
+                            destinationName = destName,
+                            destinationAddress = destAddr,
+                            routeConfig = cfg
+                        )
+                    }
+                }
+                emit()
+            }
+
+        regs += db.collection("rooms").document(cleanRoomId)
+            .collection("members").document(grant.targetUid)
+            .addSnapshotListener { doc, err ->
+                if (err != null) {
+                    onError("Akses posisi jamaah dibatasi atau terputus: ${err.localizedMessage ?: "akses ditolak"}")
+                    return@addSnapshotListener
+                }
+                synchronized(lock) {
+                    if (doc == null || !doc.exists()) {
+                        snapshotState = snapshotState.copy(targetMember = null)
+                    } else {
+                        val updatedTs = doc.getTimestamp("updatedAt")
+                        val member = ConvoyMember(
+                            id = doc.getString("uid") ?: doc.id,
+                            fullName = doc.getString("fullName") ?: grant.targetName.ifBlank { "Jamaah" },
+                            vehicleType = runCatching {
+                                VehicleType.valueOf(doc.getString("vehicleType") ?: "MOBIL")
+                            }.getOrDefault(VehicleType.MOBIL),
+                            vehicleDetail = doc.getString("vehicleDetail").orEmpty(),
+                            licensePlate = doc.getString("licensePlate").orEmpty(),
+                            emergencyContact = "",
+                            role = runCatching {
+                                UserRole.valueOf(doc.getString("role") ?: "MEMBER")
+                            }.getOrDefault(UserRole.MEMBER),
+                            joinedAtLabel = formatTimestamp(doc.getTimestamp("joinedAt"), "Aktif"),
+                            isCurrentUser = true,
+                            isSweeper = doc.getBoolean("isSweeper") ?: false,
+                            lastUpdatedEpochMs = updatedTs?.toDate()?.time ?: 0L,
+                            avatarPreset = runCatching {
+                                AvatarPreset.valueOf(doc.getString("avatarPreset") ?: "HELMET_TOURING")
+                            }.getOrDefault(AvatarPreset.HELMET_TOURING),
+                            conditionStatus = runCatching {
+                                MemberConditionStatus.valueOf(doc.getString("conditionStatus") ?: "AMAN")
+                            }.getOrDefault(MemberConditionStatus.AMAN),
+                            connectionStatus = runCatching {
+                                ConnectionStatus.valueOf(doc.getString("connectionStatus") ?: "CONNECTED")
+                            }.getOrDefault(ConnectionStatus.CONNECTED),
+                            lastLocationText = doc.getString("lastLocationText") ?: "GPS Aktif",
+                            lastUpdatedLabel = formatTimestamp(updatedTs, "Baru saja"),
+                            convoyOrderRank = 1,
+                            mapPosition = MapPosition(
+                                routeProgress = (doc.getDouble("routeProgress") ?: 0.05).toFloat(),
+                                xFraction = (doc.getDouble("xFraction") ?: 0.5).toFloat(),
+                                yFraction = (doc.getDouble("yFraction") ?: 0.5).toFloat(),
+                                latitude = doc.getDouble("latitude") ?: 21.4225,
+                                longitude = doc.getDouble("longitude") ?: 39.8262,
+                                speedKmh = (doc.getLong("speedKmh") ?: 0L).toInt(),
+                                heading = (doc.getLong("heading") ?: 0L).toInt(),
+                                accuracyMeters = (doc.getLong("accuracyMeters") ?: 20L).toInt()
+                            )
+                        )
+                        snapshotState = snapshotState.copy(targetMember = member)
+                    }
+                }
+                emit()
+            }
+
+        regs += db.collection("rooms").document(cleanRoomId)
+            .collection("activities")
+            .whereEqualTo("roomId", cleanRoomId)
+            .addSnapshotListener { snap, _ ->
+                if (snap == null) return@addSnapshotListener
+                val list = snap.documents.mapIndexed { idx, doc ->
+                    RoomActivityItem(
+                        id = doc.getString("id") ?: doc.id,
+                        title = doc.getString("title") ?: "Kegiatan Umroh",
+                        timeLabel = doc.getString("timeLabel").orEmpty(),
+                        locationNote = doc.getString("locationNote").orEmpty(),
+                        orderIndex = (doc.getLong("orderIndex") ?: idx.toLong()).toInt(),
+                        createdByUid = doc.getString("createdByUid").orEmpty(),
+                        createdAtMs = doc.getTimestamp("createdAt")?.toDate()?.time ?: 0L,
+                        updatedAtMs = doc.getTimestamp("updatedAt")?.toDate()?.time ?: 0L
+                    )
+                }.sortedWith(compareBy<RoomActivityItem> { it.orderIndex }.thenBy { it.createdAtMs })
+                synchronized(lock) {
+                    snapshotState = snapshotState.copy(activities = list)
+                }
+                emit()
+            }
+
+        regs += db.collection("rooms").document(cleanRoomId)
+            .collection("activityProgress").document(grant.targetUid)
+            .addSnapshotListener { doc, _ ->
+                synchronized(lock) {
+                    if (doc == null || !doc.exists()) {
+                        snapshotState = snapshotState.copy(
+                            completedActivityIds = emptyList(),
+                            completedTimes = emptyMap()
+                        )
+                    } else {
+                        val completedIds = (doc.get("completedActivityIds") as? List<*>)
+                            ?.mapNotNull { it as? String }
+                            ?.filter { it.isNotBlank() }
+                            .orEmpty()
+                        val recordMap = linkedMapOf<String, String>()
+                        val rawRecords = (doc.get("completedRecords") as? List<*>)
+                            ?.mapNotNull { it as? String }
+                            .orEmpty()
+                        rawRecords.forEach { rec ->
+                            val parts = rec.split("|", limit = 2)
+                            val actId = parts.getOrNull(0)?.trim().orEmpty()
+                            val time = parts.getOrNull(1)?.trim().orEmpty()
+                            if (actId.isNotEmpty() && time.isNotEmpty()) {
+                                recordMap[actId] = time
+                            }
+                        }
+                        snapshotState = snapshotState.copy(
+                            completedActivityIds = completedIds,
+                            completedTimes = recordMap
+                        )
+                    }
+                }
+                emit()
+            }
+
+        return { regs.forEach { it.remove() } }
     }
 
     private fun formatTimestamp(ts: Timestamp?, fallback: String): String {

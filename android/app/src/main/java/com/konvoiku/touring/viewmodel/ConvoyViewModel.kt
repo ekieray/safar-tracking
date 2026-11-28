@@ -40,6 +40,7 @@ import com.konvoiku.touring.model.ConvoyMember
 import com.konvoiku.touring.model.ConvoyRouteConfig
 import com.konvoiku.touring.model.ConvoyUiState
 import com.konvoiku.touring.model.DestinationStop
+import com.konvoiku.touring.model.FamilyGrantInfo
 import com.konvoiku.touring.model.GlobalAppConfig
 import com.konvoiku.touring.model.GpsTrackingStatus
 import com.konvoiku.touring.model.ManasikCheckInRecord
@@ -49,6 +50,7 @@ import com.konvoiku.touring.model.ManasikProgressState
 import com.konvoiku.touring.model.ManasikStepItem
 import com.konvoiku.touring.model.MapPosition
 import com.konvoiku.touring.model.MemberConditionStatus
+import com.konvoiku.touring.model.MissingPilgrimAlertState
 import com.konvoiku.touring.model.OffRouteAlertState
 import com.konvoiku.touring.model.PriorityBroadcast
 import com.konvoiku.touring.model.RestCheckpoint
@@ -110,6 +112,8 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
     private var gpsJob: Job? = null
     private var presenceJob: Job? = null
     private var roomUnsubscribe: (() -> Unit)? = null
+    private var familyLinkUnsubscribe: (() -> Unit)? = null
+    private var familyMonitorUnsubscribe: (() -> Unit)? = null
     private var configUnsubscribe: (() -> Unit)? = null
     private var adminMonitorUnsubscribe: (() -> Unit)? = null
     private var adminTourLeadersUnsubscribe: (() -> Unit)? = null
@@ -123,6 +127,11 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
     private var lastSyncedCoLeaderUid = ""
     private var lastFailoverAttemptMs = 0L
     private var lastNotifiedBroadcastId = ""
+    private var lastNotifiedMissingSig = ""
+    private var pendingFamilyRedemptionCode: String? = null
+    private var pendingFamilyRedemptionName: String? = null
+    @Volatile
+    private var isHandlingFamilyEmailFlow = false
     private var isFlushingOfflineQueue = false
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private val offlineQueueLock = Any()
@@ -132,6 +141,8 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         private const val KEY_OFFLINE_QUEUE = "safar_offline_sync_queue_v1"
         private const val KEY_GEMINI_CHAT_HISTORY = "safar_gemini_chat_history_v1"
         private const val BROADCAST_CHANNEL_ID = "safar_priority_broadcast"
+        private const val MISSING_CHANNEL_ID = "safar_missing_pilgrim"
+        const val MISSING_PILGRIM_THRESHOLD_MS = 75_000L
     }
 
     private data class SimTemplate(
@@ -261,6 +272,8 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         localBrowserAuthServer.stop()
         authUnsubscribe?.invoke()
         roomUnsubscribe?.invoke()
+        familyLinkUnsubscribe?.invoke()
+        familyMonitorUnsubscribe?.invoke()
         configUnsubscribe?.invoke()
         adminMonitorUnsubscribe?.invoke()
         presenceJob?.cancel()
@@ -509,6 +522,13 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                         }
                     }
                 }
+                val latestRoom = _uiState.value.activeRoom
+                if (latestRoom != null && latestRoom.isSyncedRoom) {
+                    val missingAlert = evaluateMissingPilgrimAlert(latestRoom, System.currentTimeMillis())
+                    if (missingAlert != _uiState.value.missingPilgrimAlert) {
+                        _uiState.update { it.copy(missingPilgrimAlert = missingAlert) }
+                    }
+                }
             }
         }
     }
@@ -619,6 +639,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         user: FirebaseUser,
         fallbackProvider: AuthProviderType
     ) {
+        if (isHandlingFamilyEmailFlow) return
         val uid = user.uid
         val detectedProvider = detectProvider(user).let { detected ->
             if (detected == AuthProviderType.LOCAL) fallbackProvider else detected
@@ -626,6 +647,78 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         val cleanEmail = normalizeEmail(user.email.orEmpty())
         val displayName = user.displayName.orEmpty().trim()
         val photoUrl = user.photoUrl?.toString()?.takeIf { it.isNotBlank() }
+
+        val pendingCode = pendingFamilyRedemptionCode?.takeIf { it.isNotBlank() }
+        if (pendingCode != null) {
+            val redeemedName = pendingFamilyRedemptionName?.takeIf { it.isNotBlank() }
+                ?: displayName.ifBlank { cleanEmail.substringBefore("@") }.ifBlank { "Keluarga Jamaah" }
+            pendingFamilyRedemptionCode = null
+            pendingFamilyRedemptionName = null
+            val grantResult = syncRepo.redeemFamilyInviteLink(pendingCode, uid, redeemedName)
+            if (grantResult.isSuccess) {
+                val grant = grantResult.getOrThrow()
+                saveActiveSession(redeemedName, cleanEmail, detectedProvider, isGuest = false)
+                _uiState.update { state ->
+                    state.copy(
+                        isCloudSyncConnected = syncRepo.isAvailable(),
+                        isLoggedIn = true,
+                        authUserName = redeemedName,
+                        authUserEmail = cleanEmail,
+                        authProvider = detectedProvider,
+                        isGuestMode = false,
+                        isAuthLoading = false,
+                        authError = null,
+                        showGoogleBrowserFallback = false,
+                        showOwnerDevPreviewFallback = false,
+                        pendingFamilyInviteCode = "",
+                        familyGrant = grant,
+                        familyMonitorError = null
+                    )
+                }
+                attachFamilyMonitorSubscription(grant)
+            } else {
+                syncRepo.signOutAuth()
+                clearActiveSession()
+                _uiState.update { state ->
+                    state.copy(
+                        isLoggedIn = false,
+                        isAuthLoading = false,
+                        familyGrant = null,
+                        familyMonitorSnapshot = null,
+                        authError = grantResult.exceptionOrNull()?.message
+                            ?: "Gagal mengaktifkan tautan pantauan keluarga."
+                    )
+                }
+            }
+            return
+        }
+
+        val existingFamilyGrant = syncRepo.loadActiveFamilyGrant(uid)
+        if (existingFamilyGrant != null) {
+            val famName = displayName.ifBlank { cleanEmail.substringBefore("@") }.ifBlank { "Keluarga Jamaah" }
+            saveActiveSession(famName, cleanEmail, detectedProvider, isGuest = false)
+            _uiState.update { state ->
+                state.copy(
+                    isCloudSyncConnected = syncRepo.isAvailable(),
+                    isLoggedIn = true,
+                    authUserName = famName,
+                    authUserEmail = cleanEmail,
+                    authProvider = detectedProvider,
+                    isGuestMode = false,
+                    isAuthLoading = false,
+                    authError = null,
+                    showGoogleBrowserFallback = false,
+                    showOwnerDevPreviewFallback = false,
+                    familyGrant = existingFamilyGrant,
+                    familyMonitorError = null
+                )
+            }
+            attachFamilyMonitorSubscription(existingFamilyGrant)
+            return
+        }
+
+        familyMonitorUnsubscribe?.invoke()
+        familyMonitorUnsubscribe = null
 
         val cloudProfile = syncRepo.loadUserPrivateProfile(uid)
         val localProfile = loadProfileByEmail(
@@ -682,6 +775,8 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                 authError = null,
                 showGoogleBrowserFallback = false,
                 showOwnerDevPreviewFallback = false,
+                familyGrant = null,
+                familyMonitorSnapshot = null,
                 vehicleProfile = merged,
                 manasikProgress = mergedManasik
             )
@@ -1078,6 +1173,21 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                 }
             }
         } else {
+            val familyCode = syncRepo.extractFamilyInviteCode(dataUri.toString())
+            val isFamilyInvite = !familyCode.isNullOrBlank() && (
+                ((dataUri.scheme == "safartracking" || dataUri.scheme == "konvoiku") && dataUri.host == "family") ||
+                    (dataUri.scheme == "https" && !dataUri.getQueryParameter("family").isNullOrBlank())
+                )
+            if (isFamilyInvite) {
+                _uiState.update {
+                    it.copy(
+                        pendingFamilyInviteCode = familyCode.orEmpty(),
+                        authError = null
+                    )
+                }
+                return
+            }
+
             val roomCode = extractRoomId(dataUri.toString())
             val isRoomInvite = roomCode.length >= 4 && (
                 ((dataUri.scheme == "safartracking" || dataUri.scheme == "konvoiku") && dataUri.host == "join") ||
@@ -1105,6 +1215,299 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         val pending = _uiState.value.pendingInviteRoomId ?: return null
         _uiState.update { it.copy(pendingInviteRoomId = null) }
         return pending
+    }
+
+    // --- Family Monitoring Actions ---
+
+    private fun attachFamilyMonitorSubscription(grant: FamilyGrantInfo) {
+        familyMonitorUnsubscribe?.invoke()
+        familyMonitorUnsubscribe = syncRepo.subscribeToFamilyMonitor(
+            grant = grant,
+            onSnapshotUpdate = { snap ->
+                _uiState.update { it.copy(familyMonitorSnapshot = snap, familyMonitorError = null) }
+            },
+            onError = { errMsg ->
+                _uiState.update { it.copy(familyMonitorError = errMsg) }
+            }
+        )
+    }
+
+    fun signInWithGoogleForFamily(
+        activity: Activity?,
+        inviteInput: String,
+        onSuccess: () -> Unit = {}
+    ) {
+        val cleanCode = syncRepo.extractFamilyInviteCode(inviteInput)
+        if (cleanCode.isNullOrBlank()) {
+            _uiState.update {
+                it.copy(
+                    authError = "Masukkan kode atau link pantauan keluarga yang valid (contoh: FAM-XXXXXX)."
+                )
+            }
+            return
+        }
+        pendingFamilyRedemptionCode = cleanCode
+        pendingFamilyRedemptionName = null
+        signInWithGoogle(activity) {
+            if (_uiState.value.isFamilyAccount) {
+                onSuccess()
+            }
+        }
+    }
+
+    fun openGoogleBrowserSyncForFamily(
+        context: Context,
+        inviteInput: String,
+        customBaseUrl: String? = null,
+        allowDevProxyFallback: Boolean = false
+    ) {
+        val cleanCode = syncRepo.extractFamilyInviteCode(inviteInput)
+        if (cleanCode.isNullOrBlank()) {
+            _uiState.update {
+                it.copy(
+                    authError = "Masukkan kode atau link pantauan keluarga yang valid (contoh: FAM-XXXXXX) sebelum masuk Google."
+                )
+            }
+            return
+        }
+        pendingFamilyRedemptionCode = cleanCode
+        pendingFamilyRedemptionName = null
+        openGoogleBrowserSync(context, customBaseUrl, allowDevProxyFallback)
+    }
+
+    fun signInOrUpEmailForFamily(
+        isSignUp: Boolean,
+        fullName: String,
+        email: String,
+        password: String,
+        inviteInput: String,
+        onSuccess: () -> Unit = {}
+    ) {
+        val cleanCode = syncRepo.extractFamilyInviteCode(inviteInput)
+        if (cleanCode.isNullOrBlank()) {
+            _uiState.update {
+                it.copy(authError = "Masukkan kode atau link pantauan keluarga yang valid (contoh: FAM-XXXXXX).")
+            }
+            return
+        }
+        val cleanName = fullName.trim()
+        val cleanEmail = normalizeEmail(email)
+        if (isSignUp && cleanName.length < 2) {
+            _uiState.update { it.copy(authError = "Nama lengkap keluarga minimal 2 karakter.") }
+            return
+        }
+        if (!cleanEmail.contains("@") || !cleanEmail.contains(".")) {
+            _uiState.update { it.copy(authError = "Format email tidak valid.") }
+            return
+        }
+        if (password.length < 6) {
+            _uiState.update { it.copy(authError = "Kata sandi minimal 6 karakter.") }
+            return
+        }
+
+        viewModelScope.launch {
+            isHandlingFamilyEmailFlow = true
+            _uiState.update {
+                it.copy(
+                    isAuthLoading = true,
+                    authError = null,
+                    authInfoMessage = null
+                )
+            }
+            try {
+                val authRes = if (isSignUp) {
+                    syncRepo.signUpWithEmail(cleanName, cleanEmail, password)
+                } else {
+                    syncRepo.signInWithEmail(cleanEmail, password)
+                }
+                if (authRes.isFailure) {
+                    _uiState.update {
+                        it.copy(
+                            isAuthLoading = false,
+                            authError = mapAuthError(authRes.exceptionOrNull())
+                        )
+                    }
+                    return@launch
+                }
+                val uid = authRes.getOrThrow()
+                val displayName = cleanName.ifBlank {
+                    syncRepo.currentUser()?.displayName?.trim().orEmpty()
+                }.ifBlank { cleanEmail.substringBefore("@") }.ifBlank { "Keluarga Jamaah" }
+
+                val grantRes = syncRepo.redeemFamilyInviteLink(cleanCode, uid, displayName)
+                if (grantRes.isSuccess) {
+                    val grant = grantRes.getOrThrow()
+                    pendingFamilyRedemptionCode = null
+                    pendingFamilyRedemptionName = null
+                    saveActiveSession(displayName, cleanEmail, AuthProviderType.EMAIL, isGuest = false)
+                    _uiState.update { state ->
+                        state.copy(
+                            isCloudSyncConnected = syncRepo.isAvailable(),
+                            isLoggedIn = true,
+                            authUserName = displayName,
+                            authUserEmail = cleanEmail,
+                            authProvider = AuthProviderType.EMAIL,
+                            isGuestMode = false,
+                            isAuthLoading = false,
+                            authError = null,
+                            pendingFamilyInviteCode = "",
+                            familyGrant = grant,
+                            familyMonitorError = null
+                        )
+                    }
+                    attachFamilyMonitorSubscription(grant)
+                    withContext(Dispatchers.Main) {
+                        onSuccess()
+                    }
+                } else {
+                    syncRepo.signOutAuth()
+                    clearActiveSession()
+                    _uiState.update { state ->
+                        state.copy(
+                            isLoggedIn = false,
+                            isAuthLoading = false,
+                            familyGrant = null,
+                            familyMonitorSnapshot = null,
+                            authError = grantRes.exceptionOrNull()?.message
+                                ?: "Kode atau link pantauan keluarga tidak valid."
+                        )
+                    }
+                }
+            } finally {
+                isHandlingFamilyEmailFlow = false
+            }
+        }
+    }
+
+    fun logoutFamilyMonitor() {
+        logoutUser()
+    }
+
+    private fun attachFamilyLinkSubscription(roomId: String, uid: String) {
+        familyLinkUnsubscribe?.invoke()
+        familyLinkUnsubscribe = syncRepo.subscribeToMyFamilyLink(roomId, uid) { link ->
+            _uiState.update { it.copy(myFamilyLink = link) }
+        }
+    }
+
+    fun generateMyFamilyLink() {
+        val state = _uiState.value
+        val room = state.activeRoom ?: return
+        if (!room.isSyncedRoom) {
+            _uiState.update {
+                it.copy(
+                    familyLinkError = "Link pantauan keluarga hanya tersedia pada Room Cloud (terkoneksi Firebase)."
+                )
+            }
+            return
+        }
+        val uid = syncRepo.currentUid()
+        if (uid.isNullOrBlank()) {
+            _uiState.update {
+                it.copy(familyLinkError = "Sesi akun cloud tidak ditemukan. Masuk terlebih dahulu.")
+            }
+            return
+        }
+        val self = room.members.firstOrNull { it.id == uid || it.isCurrentUser }
+        val targetName = self?.fullName?.ifBlank { state.vehicleProfile.fullName }
+            ?: state.vehicleProfile.fullName.ifBlank { state.authUserName }.ifBlank { "Jamaah" }
+        val targetVehicle = self?.vehicleDetail?.ifBlank { state.vehicleProfile.displayVehicleLabel }
+            ?: state.vehicleProfile.displayVehicleLabel
+        val preset = self?.avatarPreset ?: state.vehicleProfile.avatarPreset
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isGeneratingFamilyLink = true, familyLinkError = null) }
+            val res = syncRepo.createOrGetFamilyInviteLink(
+                roomId = room.roomId,
+                roomTitle = room.roomTitle,
+                targetUid = uid,
+                targetName = targetName,
+                targetVehicleDetail = targetVehicle,
+                targetAvatarPreset = preset,
+                destinationName = state.routeConfig.destinationName
+            )
+            _uiState.update { cur ->
+                if (res.isSuccess) {
+                    cur.copy(
+                        isGeneratingFamilyLink = false,
+                        myFamilyLink = res.getOrThrow(),
+                        familyLinkError = null
+                    )
+                } else {
+                    cur.copy(
+                        isGeneratingFamilyLink = false,
+                        familyLinkError = res.exceptionOrNull()?.message
+                            ?: "Gagal membuat link pantauan keluarga."
+                    )
+                }
+            }
+        }
+    }
+
+    fun regenerateMyFamilyLink() {
+        val state = _uiState.value
+        val room = state.activeRoom ?: return
+        if (!room.isSyncedRoom) return
+        val uid = syncRepo.currentUid() ?: return
+        val self = room.members.firstOrNull { it.id == uid || it.isCurrentUser }
+        val targetName = self?.fullName?.ifBlank { state.vehicleProfile.fullName }
+            ?: state.vehicleProfile.fullName.ifBlank { state.authUserName }.ifBlank { "Jamaah" }
+        val targetVehicle = self?.vehicleDetail?.ifBlank { state.vehicleProfile.displayVehicleLabel }
+            ?: state.vehicleProfile.displayVehicleLabel
+        val preset = self?.avatarPreset ?: state.vehicleProfile.avatarPreset
+        val previousCode = state.myFamilyLink?.inviteCode
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isGeneratingFamilyLink = true, familyLinkError = null) }
+            val res = syncRepo.regenerateFamilyInviteLink(
+                previousInviteCode = previousCode,
+                roomId = room.roomId,
+                roomTitle = room.roomTitle,
+                targetUid = uid,
+                targetName = targetName,
+                targetVehicleDetail = targetVehicle,
+                targetAvatarPreset = preset,
+                destinationName = state.routeConfig.destinationName
+            )
+            _uiState.update { cur ->
+                if (res.isSuccess) {
+                    cur.copy(
+                        isGeneratingFamilyLink = false,
+                        myFamilyLink = res.getOrThrow(),
+                        familyLinkError = null
+                    )
+                } else {
+                    cur.copy(
+                        isGeneratingFamilyLink = false,
+                        familyLinkError = res.exceptionOrNull()?.message
+                            ?: "Gagal memperbarui kode pantauan keluarga."
+                    )
+                }
+            }
+        }
+    }
+
+    fun revokeMyFamilyLink() {
+        val link = _uiState.value.myFamilyLink ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isGeneratingFamilyLink = true, familyLinkError = null) }
+            val res = syncRepo.revokeFamilyInviteLink(link.inviteCode)
+            _uiState.update { cur ->
+                if (res.isSuccess) {
+                    cur.copy(
+                        isGeneratingFamilyLink = false,
+                        myFamilyLink = null,
+                        familyLinkError = null
+                    )
+                } else {
+                    cur.copy(
+                        isGeneratingFamilyLink = false,
+                        familyLinkError = res.exceptionOrNull()?.message
+                            ?: "Gagal menonaktifkan link keluarga."
+                    )
+                }
+            }
+        }
     }
 
     fun clearRoomSetupError() {
@@ -1258,6 +1661,30 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
             val result = syncRepo.signInWithEmail(cleanEmail, password)
             if (result.isSuccess) {
                 val uid = result.getOrThrow()
+                val existingFamilyGrant = syncRepo.loadActiveFamilyGrant(uid)
+                if (existingFamilyGrant != null) {
+                    val famName = syncRepo.currentUser()?.displayName?.trim()
+                        ?.ifBlank { cleanEmail.substringBefore("@") }
+                        ?: cleanEmail.substringBefore("@").ifBlank { "Keluarga Jamaah" }
+                    saveActiveSession(famName, cleanEmail, AuthProviderType.EMAIL, isGuest = false)
+                    _uiState.update { state ->
+                        state.copy(
+                            isLoggedIn = true,
+                            authUserName = famName,
+                            authUserEmail = cleanEmail,
+                            authProvider = AuthProviderType.EMAIL,
+                            isGuestMode = false,
+                            isAuthLoading = false,
+                            authError = null,
+                            familyGrant = existingFamilyGrant,
+                            familyMonitorError = null
+                        )
+                    }
+                    attachFamilyMonitorSubscription(existingFamilyGrant)
+                    onSuccess()
+                    return@launch
+                }
+
                 val cloudProfile = syncRepo.loadUserPrivateProfile(uid)
                 val localProfile = loadProfileByEmail(cleanEmail)
                 val baseProfile = when {
@@ -1282,6 +1709,8 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                         isGuestMode = false,
                         isAuthLoading = false,
                         authError = null,
+                        familyGrant = null,
+                        familyMonitorSnapshot = null,
                         vehicleProfile = syncedProfile
                     )
                 }
@@ -1478,15 +1907,32 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun logoutUser() {
+        val activeGrantUid = if (_uiState.value.familyGrant?.active == true) {
+            syncRepo.currentUid()
+        } else null
         roomUnsubscribe?.invoke()
         roomUnsubscribe = null
+        familyLinkUnsubscribe?.invoke()
+        familyLinkUnsubscribe = null
+        familyMonitorUnsubscribe?.invoke()
+        familyMonitorUnsubscribe = null
+        pendingFamilyRedemptionCode = null
+        pendingFamilyRedemptionName = null
+        lastNotifiedMissingSig = ""
         recordedTrackPoints.clear()
         lastComputedRouteSig = ""
         voiceTimerJob?.cancel()
         releaseVoiceRecorder(deleteFile = true)
         stopVoicePlayback()
         stopAdminMonitoring()
-        syncRepo.signOutAuth()
+        if (activeGrantUid != null) {
+            viewModelScope.launch {
+                syncRepo.clearFamilyGrant(activeGrantUid)
+                syncRepo.signOutAuth()
+            }
+        } else {
+            syncRepo.signOutAuth()
+        }
         clearActiveSession()
         _uiState.update { state ->
             state.copy(
@@ -1512,6 +1958,14 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                 selectedRole = null,
                 lastCompletedTrip = null,
                 sosState = SosEmergencyState(),
+                missingPilgrimAlert = MissingPilgrimAlertState(),
+                isMissingPilgrimSimActive = false,
+                myFamilyLink = null,
+                isGeneratingFamilyLink = false,
+                familyLinkError = null,
+                familyGrant = null,
+                familyMonitorSnapshot = null,
+                familyMonitorError = null,
                 messages = emptyList(),
                 roomActivities = emptyList(),
                 roomActivityProgress = emptyMap(),
@@ -1936,6 +2390,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                 _uiState.update { it.copy(roomActivityProgress = progressMap) }
             }
         )
+        attachFamilyLinkSubscription(roomId, uid)
     }
 
     fun simulateMemberJoin() {
@@ -3573,6 +4028,70 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         recomputeAndCommitRoom(updated)
     }
 
+    fun toggleMissingPilgrimSimulation() {
+        val state = _uiState.value
+        val room = state.activeRoom ?: return
+        if (room.isSyncedRoom) return
+        val nextActive = !state.isMissingPilgrimSimActive
+        val targetId = room.members.firstOrNull { !it.isCurrentUser && it.id.contains("peer-2") }?.id
+            ?: room.members.firstOrNull { !it.isCurrentUser && it.id.contains("sim-1") }?.id
+            ?: room.members.lastOrNull { !it.isCurrentUser }?.id
+            ?: return
+
+        val updated = room.members.map { member ->
+            if (member.id == targetId) {
+                if (nextActive) {
+                    member.copy(
+                        connectionStatus = ConnectionStatus.OFFLINE,
+                        lastLocationText = "Terakhir: Area Ajyad (Sinyal terputus >75 dtk)",
+                        lastUpdatedLabel = "2 mnt lalu",
+                        mapPosition = member.mapPosition.copy(speedKmh = 0)
+                    )
+                } else {
+                    member.copy(
+                        connectionStatus = ConnectionStatus.CONNECTED,
+                        lastLocationText = landmarkForProgress(member.mapPosition.routeProgress),
+                        lastUpdatedLabel = "Baru saja",
+                        mapPosition = member.mapPosition.copy(speedKmh = 5)
+                    )
+                }
+            } else member
+        }
+        _uiState.update { it.copy(isMissingPilgrimSimActive = nextActive) }
+        recomputeAndCommitRoom(updated)
+    }
+
+    private fun evaluateMissingPilgrimAlert(
+        room: TourRoom,
+        nowMs: Long = System.currentTimeMillis()
+    ): MissingPilgrimAlertState {
+        val affected = room.members.filter { member ->
+            val isOffline = member.connectionStatus == ConnectionStatus.OFFLINE
+            val isStale = room.isSyncedRoom &&
+                member.lastUpdatedEpochMs > 0L &&
+                (nowMs - member.lastUpdatedEpochMs >= MISSING_PILGRIM_THRESHOLD_MS)
+            isOffline || isStale
+        }
+        if (affected.isEmpty()) {
+            lastNotifiedMissingSig = ""
+            return MissingPilgrimAlertState()
+        }
+        val sig = affected.map { it.id }.sorted().joinToString(",")
+        if (sig != lastNotifiedMissingSig) {
+            lastNotifiedMissingSig = sig
+            postMissingPilgrimNotification(affected)
+        }
+        val oldestStaleLabel = affected.firstNotNullOfOrNull { m ->
+            m.lastUpdatedLabel.takeIf { it.isNotBlank() }
+        }.orEmpty()
+        return MissingPilgrimAlertState(
+            isTriggered = true,
+            affectedMembers = affected,
+            thresholdSeconds = (MISSING_PILGRIM_THRESHOLD_MS / 1000L).toInt(),
+            staleSinceLabel = oldestStaleLabel
+        )
+    }
+
     private fun syncMembersToUpdatedRoute() {
         val state = _uiState.value
         val room = state.activeRoom ?: return
@@ -3702,17 +4221,21 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
             StragglerAlertState(maxAllowedMeters = route.maxStragglerDistanceMeters)
         }
 
+        val nextRoom = room.copy(
+            members = rankedMembers,
+            leaderUid = resolvedLeaderId,
+            coLeaderUid = effectiveCoLeaderUid,
+            actingLeaderUid = effectiveActingUid,
+            leaderTroubleActive = isTroubleActive
+        )
+        val missingAlert = evaluateMissingPilgrimAlert(nextRoom)
+
         _uiState.update {
             it.copy(
-                activeRoom = room.copy(
-                    members = rankedMembers,
-                    leaderUid = resolvedLeaderId,
-                    coLeaderUid = effectiveCoLeaderUid,
-                    actingLeaderUid = effectiveActingUid,
-                    leaderTroubleActive = isTroubleActive
-                ),
+                activeRoom = nextRoom,
                 offRouteAlert = offRouteAlert,
-                stragglerAlert = stragglerAlert
+                stragglerAlert = stragglerAlert,
+                missingPilgrimAlert = missingAlert
             )
         }
     }
@@ -3918,6 +4441,10 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
             participants = participants
         )
 
+        familyLinkUnsubscribe?.invoke()
+        familyLinkUnsubscribe = null
+        lastNotifiedMissingSig = ""
+
         _uiState.update {
             it.copy(
                 tripHistory = listOf(record) + it.tripHistory,
@@ -3927,9 +4454,13 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                 roomActivities = emptyList(),
                 roomActivityProgress = emptyMap(),
                 sosState = SosEmergencyState(),
+                missingPilgrimAlert = MissingPilgrimAlertState(),
                 isOffRouteSimActive = false,
                 isStragglerSimActive = false,
                 isLeaderTroubleSimActive = false,
+                isMissingPilgrimSimActive = false,
+                myFamilyLink = null,
+                familyLinkError = null,
                 pendingAutoFinishTripId = if (autoEndedByLeader) record.id else null,
                 autoFinishedTripNotice = if (autoEndedByLeader) {
                     "Ketua Rombongan telah mengakhiri perjalanan. Catatan safar Anda otomatis tersimpan ke riwayat."
@@ -5191,6 +5722,47 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                 .setAutoCancel(true)
                 .build()
             nm.notify(broadcast.id.hashCode(), notif)
+        }
+    }
+
+    private fun postMissingPilgrimNotification(affected: List<ConvoyMember>) {
+        if (affected.isEmpty()) return
+        val ctx = getApplication<Application>().applicationContext
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(
+                ctx,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) return
+        }
+        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        runCatching {
+            val existing = nm.getNotificationChannel(MISSING_CHANNEL_ID)
+            if (existing == null) {
+                val channel = NotificationChannel(
+                    MISSING_CHANNEL_ID,
+                    "Peringatan Jamaah Tidak Terdeteksi",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Peringatan saat sinyal atau lokasi jamaah tidak terdeteksi melebihi batas waktu."
+                    enableVibration(true)
+                }
+                nm.createNotificationChannel(channel)
+            }
+            val names = affected.joinToString(", ") { it.fullName }
+            val notif = NotificationCompat.Builder(ctx, MISSING_CHANNEL_ID)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("Peringatan: Jamaah Tidak Terdeteksi")
+                .setContentText("$names tidak mengirim pembaruan lokasi.")
+                .setStyle(
+                    NotificationCompat.BigTextStyle()
+                        .bigText("${affected.size} jamaah tidak terdeteksi (>75 detik / offline): $names. Segera cek posisi terakhir di peta.")
+                )
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setAutoCancel(true)
+                .build()
+            nm.notify(91042, notif)
         }
     }
 

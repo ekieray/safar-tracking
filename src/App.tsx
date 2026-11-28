@@ -22,6 +22,7 @@ import { KotlinSourceExplorer } from './components/KotlinSourceExplorer';
 import { AboutAppView } from './components/screens/AboutAppView';
 import { AdminBackendView } from './components/screens/AdminBackendView';
 import { CustomizeProfileView } from './components/screens/CustomizeProfileView';
+import { FamilyMonitorView } from './components/screens/FamilyMonitorView';
 import { JoinTourView } from './components/screens/JoinTourView';
 import { LiveTrackingMapView } from './components/screens/LiveTrackingMapView';
 import { LoginView } from './components/screens/LoginView';
@@ -52,13 +53,17 @@ import {
   addRoomCheckpoint,
   addSyncedRoomActivity,
   assignSyncedSweeper,
+  clearFamilyGrant,
   clearPriorityRoomBroadcast,
+  createOrGetFamilyInviteLink,
   createSyncedRoom,
   DEFAULT_GLOBAL_APP_CONFIG,
+  extractFamilyInviteCode,
   finishSyncedRoom,
   isAdminEmailAddress,
   isVerifiedAdminSession,
   joinSyncedRoom,
+  loadActiveFamilyGrant,
   loadLocalSession,
   loadManasikProgressFromFirestore,
   loadManasikProgressLocal,
@@ -69,10 +74,13 @@ import {
   publishMemberTelemetry,
   publishUserPresence,
   recoverOriginalLeader,
+  redeemFamilyInviteLink,
+  regenerateFamilyInviteLink,
   removeRoomCheckpoint,
   removeSyncedMember,
   removeSyncedRoomActivity,
   resolveSyncedSos,
+  revokeFamilyInviteLink,
   saveLocalSession,
   saveManasikProgressLocal,
   saveManasikProgressToFirestore,
@@ -82,7 +90,9 @@ import {
   saveUserPrivateProfile,
   sendPriorityRoomBroadcast,
   sendRoomMessage,
+  subscribeToFamilyMonitor,
   subscribeToGlobalAppConfig,
+  subscribeToMyFamilyLink,
   subscribeToSyncedRoom,
   subscribeToTourLeaderEligibility,
   syncCoLeaderAssignment,
@@ -106,12 +116,16 @@ import {
   ConvoyRouteConfig,
   DestinationPreset,
   DestinationStop,
+  FamilyGrantRecord,
+  FamilyLinkRecord,
+  FamilyMonitorSnapshot,
   GlobalAppConfig,
   ManasikCheckInRecord,
   ManasikGuideType,
   ManasikProgressState,
   MapPosition,
   MemberConditionStatus,
+  MissingPilgrimAlertState,
   OffRouteAlertState,
   RestCheckpoint,
   RoomActivityItem,
@@ -897,6 +911,25 @@ export default function App() {
   const [isOffRouteSimActive, setIsOffRouteSimActive] = useState(false);
   const [isStragglerSimActive, setIsStragglerSimActive] = useState(false);
   const [isLeaderTroubleSimActive, setIsLeaderTroubleSimActive] = useState(false);
+  const [isMissingPilgrimSimActive, setIsMissingPilgrimSimActive] = useState(false);
+  const [pendingFamilyInviteCode, setPendingFamilyInviteCode] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    const params = new URLSearchParams(window.location.search);
+    const qFamily = params.get('family');
+    if (qFamily) {
+      return extractFamilyInviteCode(qFamily) || '';
+    }
+    const pathMatch = window.location.pathname.match(/\/family\/(FAM-[A-Za-z0-9]+)/i);
+    return pathMatch?.[1] ? extractFamilyInviteCode(pathMatch[1]) || '' : '';
+  });
+  const [familyGrant, setFamilyGrant] = useState<FamilyGrantRecord | null>(null);
+  const [familyMonitorSnapshot, setFamilyMonitorSnapshot] =
+    useState<FamilyMonitorSnapshot | null>(null);
+  const [familyMonitorError, setFamilyMonitorError] = useState<string | null>(null);
+  const [myFamilyLink, setMyFamilyLink] = useState<FamilyLinkRecord | null>(null);
+  const [isGeneratingFamilyLink, setIsGeneratingFamilyLink] = useState(false);
+  const [familyLinkError, setFamilyLinkError] = useState<string | null>(null);
+  const [nowTickMs, setNowTickMs] = useState<number>(() => Date.now());
   const [simIndex, setSimIndex] = useState(0);
   const [tripHistory, setTripHistory] = useState<TripHistoryRecord[]>(DEFAULT_TRIP_HISTORY);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(
@@ -945,6 +978,8 @@ export default function App() {
   const lastSyncedRouteSigRef = useRef<string>('');
   const lastCoLeaderSyncedRef = useRef<string>('');
   const lastAlertedBroadcastIdRef = useRef<string>('');
+  const lastAlertedMissingIdsRef = useRef<string>('');
+  const pendingFamilyRedemptionRef = useRef<{ code: string; name?: string } | null>(null);
   const recordedTrackRef = useRef<LatLngPoint[]>([]);
   const batterySaverModeRef = useRef<boolean>(batterySaverMode);
   batterySaverModeRef.current = batterySaverMode;
@@ -1103,6 +1138,41 @@ export default function App() {
           setLocalUserEmail(normalizedUserEmail);
         }
 
+        // Check if this user arrived via a pending Family Monitoring link OR has an active Family Grant
+        const pendingFamily = pendingFamilyRedemptionRef.current;
+        if (pendingFamily?.code) {
+          pendingFamilyRedemptionRef.current = null;
+          try {
+            const grant = await redeemFamilyInviteLink(
+              pendingFamily.code,
+              user.uid,
+              pendingFamily.name || user.displayName || 'Keluarga Jamaah'
+            );
+            setFamilyGrant(grant);
+            setPendingFamilyInviteCode('');
+            setNavDirection(1);
+            setCurrentRoute('family_monitor');
+            return;
+          } catch (famErr) {
+            setFamilyGrant(null);
+            setAuthError(
+              famErr instanceof Error
+                ? famErr.message
+                : 'Gagal mengaktifkan tautan pantauan keluarga.'
+            );
+            setCurrentRoute('login');
+            return;
+          }
+        }
+
+        const existingFamilyGrant = await loadActiveFamilyGrant(user.uid);
+        if (existingFamilyGrant) {
+          setFamilyGrant(existingFamilyGrant);
+          setCurrentRoute('family_monitor');
+          return;
+        }
+
+        setFamilyGrant(null);
         setCurrentRoute((prev) => (prev === 'login' ? 'role_selection' : prev));
         try {
           const savedCloud = await loadUserPrivateProfile(user.uid);
@@ -1167,6 +1237,10 @@ export default function App() {
         } catch (err) {
           console.warn('Gagal memuat profil cloud:', err);
         }
+      } else {
+        setFamilyGrant(null);
+        setFamilyMonitorSnapshot(null);
+        setMyFamilyLink(null);
       }
     });
     return () => unsubAuth();
@@ -1770,28 +1844,33 @@ export default function App() {
     gps.status,
   ]);
 
+  const isFamilyAccount = Boolean(familyGrant && familyGrant.active);
   const isSessionAuthenticated = Boolean(authUser || localUserName);
   const hasAuthenticatedCloudEmailSession = Boolean(
     authUser && !isDeviceCloudGuestEmail(authUser.email)
   );
-  const isAdminUser = isAdminEmailAddress(
-    authUser?.email || vehicleProfile.email || localUserEmail
-  );
+  const isAdminUser =
+    !isFamilyAccount &&
+    isAdminEmailAddress(authUser?.email || vehicleProfile.email || localUserEmail);
   const canCreateRoom =
-    isVerifiedAdminSession(authUser) ||
-    (hasAuthenticatedCloudEmailSession &&
-      (isAdminEmailAddress(authUser?.email) || isRegisteredTourLeader));
+    !isFamilyAccount &&
+    (isVerifiedAdminSession(authUser) ||
+      (hasAuthenticatedCloudEmailSession &&
+        (isAdminEmailAddress(authUser?.email) || isRegisteredTourLeader)));
   const isRegisteredLeaderUnverified = Boolean(
-    hasAuthenticatedCloudEmailSession &&
+    !isFamilyAccount &&
+      hasAuthenticatedCloudEmailSession &&
       authUser &&
       !authUser.emailVerified &&
       isRegisteredTourLeader &&
       !isVerifiedAdminSession(authUser)
   );
 
-  const visibleRouteSteps = canCreateRoom
-    ? ROUTE_STEPS
-    : ROUTE_STEPS.filter((step) => step.route !== 'tour_leader');
+  const visibleRouteSteps = isFamilyAccount
+    ? [{ route: 'family_monitor' as ScreenRoute, label: 'Pantauan Keluarga' }]
+    : canCreateRoom
+      ? ROUTE_STEPS
+      : ROUTE_STEPS.filter((step) => step.route !== 'tour_leader');
   const navSteps = isAdminUser
     ? [...visibleRouteSteps, { route: 'admin_backend' as ScreenRoute, label: '6. Admin Backend' }]
     : visibleRouteSteps;
@@ -1807,6 +1886,16 @@ export default function App() {
       setCurrentRoute('login');
       return;
     }
+    if (
+      isFamilyAccount &&
+      next !== 'family_monitor' &&
+      next !== 'login' &&
+      next !== 'about_app'
+    ) {
+      setNavDirection(1);
+      setCurrentRoute('family_monitor');
+      return;
+    }
     if (next === 'tour_leader' && !canCreateRoom) {
       setAuthError(
         'Menu Buat Rombongan Baru hanya tersedia untuk Ketua Rombongan yang emailnya terdaftar oleh Admin.'
@@ -1819,8 +1908,133 @@ export default function App() {
     setCurrentRoute(next);
   };
 
+  // Subscribe to current user's personal Family Invite Link when inside a Cloud Sync room
+  useEffect(() => {
+    if (!activeRoom?.isSyncedRoom || !activeRoom.roomId || !authUser?.uid || isFamilyAccount) {
+      setMyFamilyLink(null);
+      return;
+    }
+    const unsub = subscribeToMyFamilyLink(
+      activeRoom.roomId,
+      authUser.uid,
+      (link) => setMyFamilyLink(link)
+    );
+    return () => unsub();
+  }, [activeRoom?.roomId, activeRoom?.isSyncedRoom, authUser?.uid, isFamilyAccount]);
+
+  // Subscribe to strict read-only single-jamaah Family Monitoring snapshot
+  useEffect(() => {
+    if (!familyGrant?.active || !authUser?.uid) {
+      setFamilyMonitorSnapshot(null);
+      setFamilyMonitorError(null);
+      return;
+    }
+    const unsub = subscribeToFamilyMonitor(familyGrant, {
+      onSnapshot: (snap) => {
+        setFamilyMonitorSnapshot(snap);
+        setFamilyMonitorError(null);
+      },
+      onError: (msg) => {
+        setFamilyMonitorError(msg);
+      },
+    });
+    return () => unsub();
+  }, [
+    familyGrant?.active,
+    familyGrant?.inviteCode,
+    familyGrant?.roomId,
+    familyGrant?.targetUid,
+    authUser?.uid,
+  ]);
+
+  // Periodic clock tick for Missing Pilgrim staleness detection (75s threshold)
+  useEffect(() => {
+    if (!activeRoom && !familyGrant) return;
+    const id = setInterval(() => setNowTickMs(Date.now()), 5000);
+    return () => clearInterval(id);
+  }, [Boolean(activeRoom), Boolean(familyGrant)]);
+
+  const MISSING_PILGRIM_THRESHOLD_MS = 75_000;
+  const missingPilgrimAlert: MissingPilgrimAlertState = (() => {
+    if (!activeRoom) {
+      return {
+        isTriggered: false,
+        affectedMembers: [],
+        thresholdSeconds: 75,
+        staleSinceLabel: '',
+      };
+    }
+    const affected = activeRoom.members.filter((m) => {
+      if (m.connectionStatus === 'OFFLINE') return true;
+      if (activeRoom.isSyncedRoom && m.lastUpdatedMs && m.lastUpdatedMs > 0) {
+        return nowTickMs - m.lastUpdatedMs >= MISSING_PILGRIM_THRESHOLD_MS;
+      }
+      return false;
+    });
+    return {
+      isTriggered: affected.length > 0,
+      affectedMembers: affected,
+      thresholdSeconds: 75,
+      staleSinceLabel: affected[0]?.lastUpdatedLabel || 'Tidak ada sinyal > 75 dtk',
+    };
+  })();
+
+  // Audio + Browser Notification for newly undetected / missing pilgrims
+  useEffect(() => {
+    if (!missingPilgrimAlert.isTriggered || missingPilgrimAlert.affectedMembers.length === 0) {
+      lastAlertedMissingIdsRef.current = '';
+      return;
+    }
+    const sig = missingPilgrimAlert.affectedMembers.map((m) => m.id).sort().join('|');
+    if (lastAlertedMissingIdsRef.current === sig) return;
+    lastAlertedMissingIdsRef.current = sig;
+
+    if (routeConfigRef.current.soundAlertEnabled) {
+      try {
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext })
+            .webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          [0, 0.22].forEach((offset) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(660, ctx.currentTime + offset);
+            gain.gain.setValueAtTime(0.08, ctx.currentTime + offset);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.18);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + offset);
+            osc.stop(ctx.currentTime + offset + 0.18);
+          });
+        }
+      } catch {
+        // Ignore AudioContext restriction
+      }
+    }
+
+    if (
+      typeof window !== 'undefined' &&
+      'Notification' in window &&
+      Notification.permission === 'granted'
+    ) {
+      try {
+        const names = missingPilgrimAlert.affectedMembers.map((m) => m.fullName).join(', ');
+        new Notification('Peringatan Jamaah Tidak Terdeteksi', {
+          body: `${names} terputus atau belum mengirim sinyal lokasi.`,
+          tag: `safar-missing-${sig}`,
+        });
+      } catch {
+        // Ignore Notification errors
+      }
+    }
+  }, [missingPilgrimAlert.isTriggered, missingPilgrimAlert.affectedMembers.map((m) => m.id).join('|')]);
+
   const handleGoogleSignIn = async () => {
     if (isSigningIn) return;
+    pendingFamilyRedemptionRef.current = null;
     setIsSigningIn(true);
     setAuthError(null);
     setAuthInfoMessage(null);
@@ -1837,6 +2051,101 @@ export default function App() {
     } catch (err) {
       console.error('Login Google gagal:', err);
       setAuthError(mapFirebaseAuthError(err, 'Google'));
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  const handleFamilyGoogleSignIn = async (inviteInput: string) => {
+    if (isSigningIn) return;
+    const code = extractFamilyInviteCode(inviteInput);
+    if (!code) {
+      setAuthError(
+        'Kode atau link pantauan keluarga tidak valid (contoh: FAM-XXXXXX).'
+      );
+      return;
+    }
+    setIsSigningIn(true);
+    setAuthError(null);
+    setAuthInfoMessage(null);
+    pendingFamilyRedemptionRef.current = { code };
+    try {
+      const { user, redirected } = await signInWithGoogle();
+      if (redirected || !user) {
+        setAuthInfoMessage('Mengarahkan ke login Google untuk pantauan keluarga...');
+        return;
+      }
+      setLocalUserName(null);
+      saveLocalSession(null);
+      const grant = await redeemFamilyInviteLink(
+        code,
+        user.uid,
+        user.displayName || 'Keluarga Jamaah'
+      );
+      pendingFamilyRedemptionRef.current = null;
+      setFamilyGrant(grant);
+      setPendingFamilyInviteCode('');
+      setNavDirection(1);
+      setCurrentRoute('family_monitor');
+    } catch (err) {
+      pendingFamilyRedemptionRef.current = null;
+      setAuthError(
+        err instanceof Error
+          ? err.message
+          : mapFirebaseAuthError(err, 'Google Keluarga')
+      );
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
+  const handleFamilyEmailAuth = async (params: {
+    mode: 'signin' | 'signup';
+    fullName: string;
+    email: string;
+    password: string;
+    inviteInput: string;
+  }) => {
+    if (isSigningIn) return;
+    const code = extractFamilyInviteCode(params.inviteInput);
+    if (!code) {
+      setAuthError(
+        'Kode atau link pantauan keluarga tidak valid (contoh: FAM-XXXXXX).'
+      );
+      return;
+    }
+    setIsSigningIn(true);
+    setAuthError(null);
+    setAuthInfoMessage(null);
+    const normEmail = normalizeProfileEmail(params.email);
+    pendingFamilyRedemptionRef.current = {
+      code,
+      name: params.fullName.trim() || 'Keluarga Jamaah',
+    };
+    try {
+      const user =
+        params.mode === 'signup'
+          ? await signUpWithEmail(params.fullName, normEmail, params.password)
+          : await signInWithEmail(normEmail, params.password);
+      setLocalUserName(null);
+      saveLocalSession(null);
+      const grant = await redeemFamilyInviteLink(
+        code,
+        user.uid,
+        params.fullName.trim() || user.displayName || 'Keluarga Jamaah'
+      );
+      pendingFamilyRedemptionRef.current = null;
+      setFamilyGrant(grant);
+      setPendingFamilyInviteCode('');
+      setNavDirection(1);
+      setCurrentRoute('family_monitor');
+    } catch (err) {
+      pendingFamilyRedemptionRef.current = null;
+      setAuthError(
+        err instanceof Error
+          ? err.message
+          : mapFirebaseAuthError(err, 'Email Keluarga')
+      );
     } finally {
       setIsSigningIn(false);
     }
@@ -2007,9 +2316,16 @@ export default function App() {
 
   const handleGoogleSignOut = async () => {
     try {
+      if (authUser && familyGrant?.active) {
+        await clearFamilyGrant(authUser.uid);
+      }
       if (authUser) {
         await signOutFirebase();
       }
+      pendingFamilyRedemptionRef.current = null;
+      setFamilyGrant(null);
+      setFamilyMonitorSnapshot(null);
+      setMyFamilyLink(null);
       setLocalUserName(null);
       setLocalUserEmail('');
       setAuthProvider('local');
@@ -4266,6 +4582,101 @@ export default function App() {
     commitRoomMembers(updatedMembers, routeConfigRef.current, updatedRoom);
   };
 
+  const handleToggleMissingPilgrimSim = () => {
+    const room = activeRoomRef.current;
+    if (!room || room.isSyncedRoom) return;
+    const targetMember =
+      room.members.find((m) => !m.isCurrentUser) || room.members[0];
+    if (!targetMember) return;
+
+    const nextActive = !isMissingPilgrimSimActive;
+    setIsMissingPilgrimSimActive(nextActive);
+    const updatedMembers = room.members.map((m) =>
+      m.id === targetMember.id
+        ? {
+            ...m,
+            connectionStatus: nextActive
+              ? ('OFFLINE' as ConnectionStatus)
+              : ('CONNECTED' as ConnectionStatus),
+            lastLocationText: nextActive
+              ? 'Sinyal Hilang · Terakhir dekat Gate 79'
+              : landmarkForProgress(m.mapPosition.routeProgress),
+            lastUpdatedLabel: nextActive ? '2 mnt lalu' : 'Baru saja',
+          }
+        : m
+    );
+    commitRoomMembers(updatedMembers);
+  };
+
+  const handleGenerateFamilyLink = async () => {
+    const room = activeRoomRef.current;
+    if (!room || !room.isSyncedRoom || !authUser) return;
+    const self = room.members.find((m) => m.isCurrentUser);
+    setIsGeneratingFamilyLink(true);
+    setFamilyLinkError(null);
+    try {
+      const created = await createOrGetFamilyInviteLink({
+        roomId: room.roomId,
+        roomTitle: room.roomTitle,
+        targetUid: authUser.uid,
+        targetName: self?.fullName || vehicleProfile.fullName || 'Jamaah',
+        targetVehicleDetail: self?.vehicleDetail || vehicleProfile.vehicleDetail || '',
+        targetAvatarPreset: self?.avatarPreset || vehicleProfile.avatarPreset,
+        destinationName: routeConfig.destinationName,
+      });
+      setMyFamilyLink(created);
+    } catch (err) {
+      setFamilyLinkError(
+        err instanceof Error ? err.message : 'Gagal membuat link pantauan keluarga.'
+      );
+    } finally {
+      setIsGeneratingFamilyLink(false);
+    }
+  };
+
+  const handleRegenerateFamilyLink = async () => {
+    const room = activeRoomRef.current;
+    if (!room || !room.isSyncedRoom || !authUser) return;
+    const self = room.members.find((m) => m.isCurrentUser);
+    setIsGeneratingFamilyLink(true);
+    setFamilyLinkError(null);
+    try {
+      const recreated = await regenerateFamilyInviteLink({
+        previousInviteCode: myFamilyLink?.inviteCode,
+        roomId: room.roomId,
+        roomTitle: room.roomTitle,
+        targetUid: authUser.uid,
+        targetName: self?.fullName || vehicleProfile.fullName || 'Jamaah',
+        targetVehicleDetail: self?.vehicleDetail || vehicleProfile.vehicleDetail || '',
+        targetAvatarPreset: self?.avatarPreset || vehicleProfile.avatarPreset,
+        destinationName: routeConfig.destinationName,
+      });
+      setMyFamilyLink(recreated);
+    } catch (err) {
+      setFamilyLinkError(
+        err instanceof Error ? err.message : 'Gagal membuat kode keluarga baru.'
+      );
+    } finally {
+      setIsGeneratingFamilyLink(false);
+    }
+  };
+
+  const handleRevokeFamilyLink = async () => {
+    if (!myFamilyLink?.inviteCode) return;
+    setIsGeneratingFamilyLink(true);
+    setFamilyLinkError(null);
+    try {
+      await revokeFamilyInviteLink(myFamilyLink.inviteCode);
+      setMyFamilyLink(null);
+    } catch (err) {
+      setFamilyLinkError(
+        err instanceof Error ? err.message : 'Gagal memutus akses keluarga.'
+      );
+    } finally {
+      setIsGeneratingFamilyLink(false);
+    }
+  };
+
   const handleFinishAndSaveTrip = (options?: { autoEndedByLeader?: boolean }) => {
     const autoEndedByLeader = Boolean(
       options &&
@@ -4861,13 +5272,19 @@ export default function App() {
                         initialName={vehicleProfile.fullName}
                         initialEmail={vehicleProfile.email || localUserEmail}
                         globalConfig={globalConfig}
+                        pendingFamilyInviteCode={pendingFamilyInviteCode}
+                        hasActiveFamilySession={isFamilyAccount}
                         onGoogleSignIn={handleGoogleSignIn}
                         onFacebookSignIn={handleFacebookSignIn}
                         onInstagramSignIn={handleInstagramSignIn}
                         onEmailAuth={handleEmailAuth}
+                        onFamilyGoogleSignIn={handleFamilyGoogleSignIn}
+                        onFamilyEmailAuth={handleFamilyEmailAuth}
                         onForgotPassword={handleForgotPassword}
                         onLocalLogin={handleLocalLogin}
-                        onContinueSession={() => navigateTo('role_selection', 1)}
+                        onContinueSession={() =>
+                          navigateTo(isFamilyAccount ? 'family_monitor' : 'role_selection', 1)
+                        }
                         onOpenCustomizeProfile={() => {
                           setCustomizeReturnRoute('login');
                           setProfileSyncMessage(null);
@@ -5186,6 +5603,15 @@ export default function App() {
                         onDismissBroadcast={(id) => setDismissedBroadcastId(id)}
                         onSendPriorityBroadcast={handleSendPriorityBroadcast}
                         onClearPriorityBroadcast={handleClearPriorityBroadcast}
+                        missingPilgrimAlert={missingPilgrimAlert}
+                        isMissingPilgrimSimActive={isMissingPilgrimSimActive}
+                        onToggleMissingPilgrimSim={handleToggleMissingPilgrimSim}
+                        myFamilyLink={myFamilyLink}
+                        isGeneratingFamilyLink={isGeneratingFamilyLink}
+                        familyLinkError={familyLinkError}
+                        onGenerateFamilyLink={handleGenerateFamilyLink}
+                        onRegenerateFamilyLink={handleRegenerateFamilyLink}
+                        onRevokeFamilyLink={handleRevokeFamilyLink}
                       />
                       );
                     })()}
@@ -5300,6 +5726,17 @@ export default function App() {
                       />
                     )}
 
+                    {currentRoute === 'family_monitor' && familyGrant && (
+                      <FamilyMonitorView
+                        grant={familyGrant}
+                        snapshot={familyMonitorSnapshot}
+                        errorMessage={familyMonitorError}
+                        darkMode={darkMode}
+                        nowMs={nowTickMs}
+                        onLogoutFamily={handleGoogleSignOut}
+                      />
+                    )}
+
                     {currentRoute === 'about_app' && (
                       <AboutAppView
                         onBack={() => navigateTo(aboutReturnRoute, -1)}
@@ -5311,6 +5748,8 @@ export default function App() {
 
                 {/* Persistent In-App Bottom Navigation Bar */}
                 {isSessionAuthenticated &&
+                  !isFamilyAccount &&
+                  currentRoute !== 'family_monitor' &&
                   currentRoute !== 'login' &&
                   currentRoute !== 'live_map' && (
                     <nav
