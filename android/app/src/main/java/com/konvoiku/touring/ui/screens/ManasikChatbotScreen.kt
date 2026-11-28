@@ -425,7 +425,11 @@ fun ManasikChatbotScreen(
                             val showServerUrlEditor = errorMessage.contains("404", ignoreCase = true) ||
                                 errorMessage.contains("/api/gemini/chat", ignoreCase = true) ||
                                 errorMessage.contains("Deploy", ignoreCase = true) ||
-                                errorMessage.contains("URL", ignoreCase = true)
+                                errorMessage.contains("URL", ignoreCase = true) ||
+                                errorMessage.contains("Cloud Run", ignoreCase = true) ||
+                                errorMessage.contains("timeout", ignoreCase = true) ||
+                                errorMessage.contains("batas waktu", ignoreCase = true) ||
+                                errorMessage.contains("terhubung", ignoreCase = true)
                             val lastUserPrompt = messages.lastOrNull { it.role == "user" }?.text
                             Surface(
                                 shape = RoundedCornerShape(14.dp),

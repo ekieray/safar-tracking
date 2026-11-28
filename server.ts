@@ -207,7 +207,15 @@ async function startServer() {
         history: formattedHistory,
       });
 
-      const response = await chat.sendMessage({ message: userMessage });
+      const geminiTimeoutMs = 50_000;
+      const response = await Promise.race([
+        chat.sendMessage({ message: userMessage }),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error('GATEWAY_TIMEOUT: Permintaan ke Gemini API melebihi batas waktu 50 detik.'));
+          }, geminiTimeoutMs);
+        }),
+      ]);
       const replyText = (response.text || '').trim();
       if (!replyText) {
         res.status(502).json({
@@ -226,6 +234,13 @@ async function startServer() {
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       const lower = msg.toLowerCase();
+      if (lower.includes('gateway_timeout') || lower.includes('timed out') || lower.includes('etimedout')) {
+        res.status(504).json({
+          ok: false,
+          error: 'Permintaan ke Gemini API melebihi batas waktu (timeout). Silakan coba pertanyaan yang lebih ringkas atau ulangi sesaat lagi.',
+        });
+        return;
+      }
       if (lower.includes('403') || lower.includes('permission_denied') || lower.includes('api_key_invalid')) {
         res.status(403).json({
           ok: false,
@@ -581,7 +596,13 @@ async function startServer() {
     res.status(404).json({ ok: false, error: 'Endpoint API tidak ditemukan.' });
   });
 
-  if (process.env.NODE_ENV !== 'production') {
+  const distPath = path.join(__dirname, 'dist');
+  const hasBuiltDist = fs.existsSync(path.join(distPath, 'index.html'));
+  const useProdStatic =
+    process.env.NODE_ENV === 'production' ||
+    (process.env.NODE_ENV !== 'development' && hasBuiltDist);
+
+  if (!useProdStatic) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -589,7 +610,6 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(__dirname, 'dist');
     app.use(express.static(distPath));
     app.get('*', (_req: Request, res: Response) => {
       res.sendFile(path.join(distPath, 'index.html'));
@@ -597,9 +617,11 @@ async function startServer() {
   }
 
   const PORT = Number(process.env.PORT) || 3000;
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Safar Tracking server listening on http://0.0.0.0:${PORT}`);
   });
+  server.requestTimeout = 90_000;
+  server.headersTimeout = 65_000;
 }
 
 startServer().catch((err) => {

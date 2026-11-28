@@ -134,25 +134,33 @@ export function ManasikChatbotView({
     setIsSending(true);
 
     try {
-      const response = await fetch('/api/gemini/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: trimmed,
-          history: historySnapshot,
-          roleId,
-          context: {
-            guideType: manasikProgress.haji.length > manasikProgress.umrah.length ? 'haji' : 'umrah',
-            completedCount:
-              manasikProgress.haji.length > manasikProgress.umrah.length
-                ? manasikProgress.haji.length
-                : manasikProgress.umrah.length,
-            totalCount:
-              manasikProgress.haji.length > manasikProgress.umrah.length ? 9 : 5,
-            currentLocationText,
-          },
-        }),
-      });
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 60_000);
+      let response: Response;
+      try {
+        response = await fetch('/api/gemini/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            message: trimmed,
+            history: historySnapshot,
+            roleId,
+            context: {
+              guideType: manasikProgress.haji.length > manasikProgress.umrah.length ? 'haji' : 'umrah',
+              completedCount:
+                manasikProgress.haji.length > manasikProgress.umrah.length
+                  ? manasikProgress.haji.length
+                  : manasikProgress.umrah.length,
+              totalCount:
+                manasikProgress.haji.length > manasikProgress.umrah.length ? 9 : 5,
+              currentLocationText,
+            },
+          }),
+        });
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
 
       type ChatApiResponse = {
         ok?: boolean;
@@ -180,6 +188,13 @@ export function ManasikChatbotView({
         );
       }
 
+      if (response.status === 504) {
+        throw new Error(
+          data?.error ||
+            'Permintaan ke server AI melebihi batas waktu (HTTP 504). Silakan coba lagi sesaat lagi.'
+        );
+      }
+
       if (!response.ok || !data?.ok || !data?.reply) {
         throw new Error(
           data?.error || `Gagal menerima jawaban asisten (HTTP ${response.status}).`
@@ -196,11 +211,17 @@ export function ManasikChatbotView({
       };
       setMessages((prev) => [...prev, modelMsg]);
     } catch (err) {
-      setErrorMsg(
-        err instanceof Error
-          ? err.message
-          : 'Terjadi gangguan jaringan saat menghubungi asisten Gemini.'
-      );
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setErrorMsg(
+          'Koneksi ke server AI melebihi batas waktu (60 detik). Pastikan server aktif lalu coba kirim ulang.'
+        );
+      } else {
+        setErrorMsg(
+          err instanceof Error
+            ? err.message
+            : 'Terjadi gangguan jaringan saat menghubungi asisten Gemini.'
+        );
+      }
     } finally {
       setIsSending(false);
     }

@@ -5440,10 +5440,11 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                 ?.trim()
                 ?.takeIf { it.isNotEmpty() }
             val configuredPublicUrl = _uiState.value.globalConfig.publicWebBaseUrl
-            val resolvedBase = if (savedCustomUrl != null) {
-                syncRepo.normalizeHttpBaseUrl(savedCustomUrl) ?: state.activeWebBaseUrl
-            } else {
-                syncRepo.resolveActiveWebBaseUrl(null, configuredPublicUrl)
+            val configuredClean = syncRepo.normalizeHttpBaseUrl(configuredPublicUrl)
+            val resolvedBase = when {
+                savedCustomUrl != null -> syncRepo.normalizeHttpBaseUrl(savedCustomUrl) ?: state.activeWebBaseUrl
+                configuredClean != null -> configuredClean
+                else -> syncRepo.resolveActiveWebBaseUrl(null, configuredPublicUrl)
             }
             if (resolvedBase != _uiState.value.activeWebBaseUrl) {
                 _uiState.update { it.copy(activeWebBaseUrl = resolvedBase) }

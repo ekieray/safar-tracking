@@ -196,8 +196,8 @@ class FirestoreConvoyRepository {
         val conn = (URL("$baseUrl/api/health").openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             instanceFollowRedirects = false
-            connectTimeout = 4000
-            readTimeout = 4000
+            connectTimeout = 6000
+            readTimeout = 8000
         }
         try {
             val code = conn.responseCode
@@ -2340,17 +2340,37 @@ class FirestoreConvoyRepository {
                 val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"
                     instanceFollowRedirects = false
-                    connectTimeout = 15000
-                    readTimeout = 30000
+                    connectTimeout = 20000
+                    readTimeout = 65000
                     doOutput = true
                     setRequestProperty("Content-Type", "application/json; charset=UTF-8")
                     setRequestProperty("Accept", "application/json")
                 }
                 try {
-                    conn.outputStream.use { os ->
-                        os.write(bodyJson.toByteArray(StandardCharsets.UTF_8))
+                    try {
+                        conn.outputStream.use { os ->
+                            os.write(bodyJson.toByteArray(StandardCharsets.UTF_8))
+                        }
+                    } catch (netErr: java.net.SocketTimeoutException) {
+                        throw IllegalStateException(
+                            "Koneksi ke server ($targetBase) melebihi batas waktu (timeout). Jika Cloud Run baru aktif (cold start), silakan tekan Kirim / Coba Lagi atau periksa URL Cloud Run di bawah."
+                        )
+                    } catch (hostErr: java.net.UnknownHostException) {
+                        throw IllegalStateException(
+                            "Alamat server ($targetBase) tidak ditemukan. Pastikan URL Cloud Run benar dan koneksi internet aktif."
+                        )
+                    } catch (connErr: java.net.ConnectException) {
+                        throw IllegalStateException(
+                            "Gagal terhubung ke server ($targetBase). Pastikan server Cloud Run aktif dan dapat diakses publik."
+                        )
                     }
-                    val code = conn.responseCode
+                    val code = try {
+                        conn.responseCode
+                    } catch (readTimeoutErr: java.net.SocketTimeoutException) {
+                        throw IllegalStateException(
+                            "Server ($targetBase) tidak merespons tepat waktu (timeout). Jika Cloud Run sedang cold start atau AI sedang memproses jawaban panjang, silakan coba kirim ulang."
+                        )
+                    }
                     val location = conn.getHeaderField("Location").orEmpty()
                     if (code in 300..399) {
                         if (location.contains("__cookie_check", ignoreCase = true) ||
