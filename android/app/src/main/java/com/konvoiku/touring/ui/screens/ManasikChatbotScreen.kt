@@ -497,6 +497,22 @@ fun ManasikChatbotScreen(
                                                 }
                                             }
                                         }
+                                    } else if (!lastUserPrompt.isNullOrBlank()) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.End
+                                        ) {
+                                            TextButton(
+                                                enabled = !isSending,
+                                                onClick = { onSendMessage(lastUserPrompt) }
+                                            ) {
+                                                Text(
+                                                    text = "Kirim Ulang",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }

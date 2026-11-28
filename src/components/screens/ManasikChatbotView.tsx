@@ -195,6 +195,12 @@ export function ManasikChatbotView({
         );
       }
 
+      if (response.status === 503 || data?.error?.includes('high demand') || data?.error?.includes('"code":503')) {
+        throw new Error(
+          'Server AI Gemini sedang mengalami lonjakan trafik sementara (503). Silakan tunggu beberapa detik lalu tekan Kirim Ulang.'
+        );
+      }
+
       if (!response.ok || !data?.ok || !data?.reply) {
         throw new Error(
           data?.error || `Gagal menerima jawaban asisten (HTTP ${response.status}).`
@@ -374,9 +380,24 @@ export function ManasikChatbotView({
           )}
 
           {errorMsg && (
-            <div className="rounded-xl bg-[#FEF2F2] dark:bg-[#450A0A]/80 border border-[#FECACA] dark:border-[#991B1B] px-3.5 py-2.5 flex items-start gap-2 text-xs text-[#991B1B] dark:text-[#FECACA]">
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-              <p className="leading-relaxed">{errorMsg}</p>
+            <div className="rounded-xl bg-[#FEF2F2] dark:bg-[#450A0A]/80 border border-[#FECACA] dark:border-[#991B1B] px-3.5 py-2.5 flex flex-col gap-2 text-xs text-[#991B1B] dark:text-[#FECACA]">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">{errorMsg}</p>
+              </div>
+              {(() => {
+                const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
+                if (!lastUserMsg || isSending) return null;
+                return (
+                  <button
+                    type="button"
+                    onClick={() => sendMessageText(lastUserMsg.text)}
+                    className="self-start px-2.5 py-1 rounded-lg bg-[#DC2626] hover:bg-[#B91C1C] text-white text-[11px] font-semibold cursor-pointer transition-colors"
+                  >
+                    Kirim Ulang
+                  </button>
+                );
+              })()}
             </div>
           )}
 

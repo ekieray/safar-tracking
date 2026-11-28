@@ -196,27 +196,79 @@ async function startServer() {
         },
       });
 
-      const chat = ai.chats.create({
-        model: roleCfg.model,
-        config: {
-          systemInstruction: fullSystemInstruction,
-          ...(roleCfg.model === 'gemini-4-hydrogen'
-            ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
-            : {}),
-        },
-        history: formattedHistory,
-      });
+      const fallbackModel: 'gemini-4-hydrogen' | 'gemini-3.1-flash-lite' =
+        roleCfg.model === 'gemini-4-hydrogen' ? 'gemini-3.1-flash-lite' : 'gemini-4-hydrogen';
 
-      const geminiTimeoutMs = 50_000;
-      const response = await Promise.race([
-        chat.sendMessage({ message: userMessage }),
-        new Promise<never>((_, reject) => {
-          setTimeout(() => {
-            reject(new Error('GATEWAY_TIMEOUT: Permintaan ke Gemini API melebihi batas waktu 50 detik.'));
-          }, geminiTimeoutMs);
-        }),
-      ]);
-      const replyText = (response.text || '').trim();
+      const invokeModel = async (
+        targetModel: 'gemini-4-hydrogen' | 'gemini-3.1-flash-lite'
+      ): Promise<string> => {
+        const chat = ai.chats.create({
+          model: targetModel,
+          config: {
+            systemInstruction: fullSystemInstruction,
+            ...(targetModel === 'gemini-4-hydrogen'
+              ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+              : {}),
+          },
+          history: formattedHistory,
+        });
+        const geminiTimeoutMs = 45_000;
+        const response = await Promise.race([
+          chat.sendMessage({ message: userMessage }),
+          new Promise<never>((_, reject) => {
+            setTimeout(() => {
+              reject(new Error('GATEWAY_TIMEOUT: Permintaan ke Gemini API melebihi batas waktu 45 detik.'));
+            }, geminiTimeoutMs);
+          }),
+        ]);
+        return (response.text || '').trim();
+      };
+
+      const isTransientOverload = (err: unknown): boolean => {
+        const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+        return (
+          msg.includes('503') ||
+          msg.includes('unavailable') ||
+          msg.includes('high demand') ||
+          msg.includes('overloaded') ||
+          msg.includes('502')
+        );
+      };
+
+      const attemptOrder: Array<{
+        model: 'gemini-4-hydrogen' | 'gemini-3.1-flash-lite';
+        delayMs: number;
+      }> = [
+        { model: roleCfg.model, delayMs: 0 },
+        { model: fallbackModel, delayMs: 450 },
+        { model: fallbackModel, delayMs: 900 },
+      ];
+
+      let replyText = '';
+      let usedModel: 'gemini-4-hydrogen' | 'gemini-3.1-flash-lite' = roleCfg.model;
+      let lastError: unknown = null;
+
+      for (const attempt of attemptOrder) {
+        if (attempt.delayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, attempt.delayMs));
+        }
+        try {
+          replyText = await invokeModel(attempt.model);
+          usedModel = attempt.model;
+          lastError = null;
+          break;
+        } catch (err) {
+          lastError = err;
+          if (!isTransientOverload(err)) {
+            throw err;
+          }
+        }
+      }
+
+      if (lastError) {
+        throw lastError;
+      }
+
       if (!replyText) {
         res.status(502).json({
           ok: false,
@@ -228,7 +280,7 @@ async function startServer() {
       res.json({
         ok: true,
         reply: replyText,
-        model: roleCfg.model,
+        model: usedModel,
         roleId,
       });
     } catch (error) {
@@ -238,6 +290,19 @@ async function startServer() {
         res.status(504).json({
           ok: false,
           error: 'Permintaan ke Gemini API melebihi batas waktu (timeout). Silakan coba pertanyaan yang lebih ringkas atau ulangi sesaat lagi.',
+        });
+        return;
+      }
+      if (
+        lower.includes('503') ||
+        lower.includes('unavailable') ||
+        lower.includes('high demand') ||
+        lower.includes('overloaded')
+      ) {
+        res.status(503).json({
+          ok: false,
+          error:
+            'Server AI Gemini sedang mengalami lonjakan trafik sementara (503). Silakan tunggu beberapa detik lalu tekan Kirim Ulang.',
         });
         return;
       }

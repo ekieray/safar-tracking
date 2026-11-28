@@ -2414,8 +2414,15 @@ class FirestoreConvoyRepository {
                     }
                     val json = runCatching { JSONObject(rawBody) }.getOrNull()
                     if (code !in 200..299 || json == null || !json.optBoolean("ok", false)) {
-                        val serverErr = json?.optString("error").orEmpty().ifBlank {
-                            "Gagal menghubungi Mutawwif AI (HTTP $code)."
+                        val rawErr = json?.optString("error").orEmpty()
+                        val serverErr = when {
+                            code == 503 ||
+                                rawErr.contains("503") ||
+                                rawErr.contains("high demand", ignoreCase = true) ||
+                                rawErr.contains("UNAVAILABLE", ignoreCase = true) ->
+                                "Server AI Gemini sedang mengalami lonjakan trafik sementara (503). Silakan tunggu beberapa detik lalu tekan Kirim Ulang."
+                            rawErr.isNotBlank() -> rawErr
+                            else -> "Gagal menghubungi Mutawwif AI (HTTP $code)."
                         }
                         throw IllegalStateException(serverErr)
                     }
@@ -2433,6 +2440,13 @@ class FirestoreConvoyRepository {
             try {
                 attemptCall(base)
             } catch (firstErr: Throwable) {
+                val msg = firstErr.message.orEmpty()
+                val isUpstreamRateOrOverload = msg.contains("503") ||
+                    msg.contains("kuota", ignoreCase = true) ||
+                    msg.contains("lonjakan trafik", ignoreCase = true)
+                if (isUpstreamRateOrOverload) {
+                    throw firstErr
+                }
                 val fallbackCandidates = listOfNotNull(configuredClean, SHARED_BASE_URL)
                     .distinct()
                     .filter { it != base }
