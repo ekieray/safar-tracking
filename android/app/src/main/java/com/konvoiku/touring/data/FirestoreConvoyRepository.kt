@@ -16,6 +16,8 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.konvoiku.touring.model.AdminRoomOverview
 import com.konvoiku.touring.model.AdminUserSummary
+import com.konvoiku.touring.model.AssistantChatMessage
+import com.konvoiku.touring.model.AssistantRoleId
 import com.konvoiku.touring.model.AuthProviderType
 import com.konvoiku.touring.model.AvatarPreset
 import com.konvoiku.touring.model.ChatMessageType
@@ -30,6 +32,7 @@ import com.konvoiku.touring.model.ManasikGuideType
 import com.konvoiku.touring.model.ManasikProgressState
 import com.konvoiku.touring.model.MapPosition
 import com.konvoiku.touring.model.MemberConditionStatus
+import com.konvoiku.touring.model.PriorityBroadcast
 import com.konvoiku.touring.model.RegisteredTourLeader
 import com.konvoiku.touring.model.RestCheckpoint
 import com.konvoiku.touring.model.RoomActivityItem
@@ -49,6 +52,8 @@ import com.konvoiku.touring.util.LatLngGeo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
@@ -68,7 +73,8 @@ data class SyncedRoomHeader(
     val leaderTroubleReason: String = "",
     val status: String = "ACTIVE",
     val routeConfig: ConvoyRouteConfig,
-    val sosState: SosEmergencyState
+    val sosState: SosEmergencyState,
+    val priorityBroadcast: PriorityBroadcast? = null
 )
 
 enum class WebEndpointStatus {
@@ -899,6 +905,18 @@ class FirestoreConvoyRepository {
                     locationText = snap.getString("sosLocationText") ?: "",
                     triggeredAtLabel = snap.getString("sosTriggeredAtLabel") ?: ""
                 )
+                val broadcastId = snap.getString("priorityBroadcastId") ?: ""
+                val broadcastActive = snap.getBoolean("priorityBroadcastActive") ?: false
+                val broadcast = if (broadcastActive || broadcastId.isNotBlank()) {
+                    PriorityBroadcast(
+                        isActive = broadcastActive,
+                        id = broadcastId,
+                        title = snap.getString("priorityBroadcastTitle") ?: "",
+                        message = snap.getString("priorityBroadcastMessage") ?: "",
+                        senderName = snap.getString("priorityBroadcastSenderName") ?: "",
+                        atLabel = snap.getString("priorityBroadcastAtLabel") ?: ""
+                    )
+                } else null
                 onRoomHeader(
                     SyncedRoomHeader(
                         roomId = snap.getString("roomId") ?: cleanRoomId,
@@ -910,7 +928,8 @@ class FirestoreConvoyRepository {
                         leaderTroubleReason = snap.getString("leaderTroubleReason") ?: "",
                         status = if (snap.getString("status") == "FINISHED") "FINISHED" else "ACTIVE",
                         routeConfig = cfg,
-                        sosState = sos
+                        sosState = sos,
+                        priorityBroadcast = broadcast
                     )
                 )
             }
@@ -2101,6 +2120,232 @@ class FirestoreConvoyRepository {
             batch.delete(db.collection("tour_leader_hashes").document(cleanId))
             batch.commit().await()
             Unit
+        }
+    }
+
+    suspend fun publishTelemetryAwait(
+        roomId: String,
+        uid: String,
+        latitude: Double,
+        longitude: Double,
+        speedKmh: Int,
+        heading: Int,
+        accuracyMeters: Int,
+        routeProgress: Float
+    ): Result<Unit> {
+        val db = getFirestore()
+            ?: return Result.failure(IllegalStateException("Firestore tidak tersedia."))
+        val cleanRoomId = normalizeRoomId(roomId)
+        return runCatching {
+            db.collection("rooms").document(cleanRoomId)
+                .collection("members").document(uid)
+                .update(
+                    mapOf(
+                        "latitude" to latitude.coerceIn(-90.0, 90.0),
+                        "longitude" to longitude.coerceIn(-180.0, 180.0),
+                        "speedKmh" to speedKmh.coerceIn(0, 350),
+                        "heading" to heading.coerceIn(0, 360),
+                        "accuracyMeters" to accuracyMeters.coerceIn(0, 500_000),
+                        "routeProgress" to routeProgress.toDouble().coerceIn(0.0, 1.0),
+                        "lastLocationText" to "GPS Live (±${accuracyMeters}m)",
+                        "connectionStatus" to ConnectionStatus.CONNECTED.name,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+            Unit
+        }
+    }
+
+    suspend fun sendMessageAwait(roomId: String, senderUid: String, msg: RoomMessage): Result<Unit> {
+        val db = getFirestore()
+            ?: return Result.failure(IllegalStateException("Firestore tidak tersedia."))
+        val cleanRoomId = normalizeRoomId(roomId)
+        val payload = hashMapOf<String, Any>(
+            "id" to msg.id,
+            "roomId" to cleanRoomId,
+            "senderUid" to senderUid,
+            "senderName" to msg.senderName.take(80),
+            "senderVehicle" to msg.senderVehicle.take(80),
+            "senderAvatarPreset" to msg.senderAvatarPreset.name,
+            "type" to msg.type.name,
+            "textContent" to msg.textContent.take(500),
+            "voiceDurationSec" to msg.voiceDurationSec.coerceIn(0, 600),
+            "timestampLabel" to msg.timestampLabel.take(32),
+            "createdAt" to FieldValue.serverTimestamp()
+        )
+        val audioData = msg.voiceAudioDataUrl
+        if (!audioData.isNullOrBlank() && audioData.startsWith("data:audio/") && audioData.length <= 345_000) {
+            payload["voiceAudioDataUrl"] = audioData
+        }
+        return runCatching {
+            db.collection("rooms").document(cleanRoomId)
+                .collection("messages").document(msg.id)
+                .set(payload)
+                .await()
+            Unit
+        }
+    }
+
+    suspend fun sendPriorityBroadcast(
+        roomId: String,
+        senderUid: String,
+        senderName: String,
+        senderVehicle: String,
+        senderAvatarPreset: AvatarPreset,
+        broadcastId: String,
+        title: String,
+        message: String,
+        atLabel: String
+    ): Result<Unit> {
+        val db = getFirestore()
+            ?: return Result.failure(IllegalStateException("Firestore tidak tersedia."))
+        val cleanRoomId = normalizeRoomId(roomId)
+        val safeTitle = title.trim().take(120)
+        val safeMsg = message.trim().take(500)
+        if (safeTitle.isEmpty() || safeMsg.isEmpty()) {
+            return Result.failure(IllegalArgumentException("Judul dan isi pengumuman wajib diisi."))
+        }
+        val safeId = broadcastId.trim().take(64).ifBlank { "brd-${System.currentTimeMillis()}" }
+        val safeSender = senderName.trim().ifBlank { "Mutawwif" }.take(80)
+        val safeAt = atLabel.trim().ifBlank { "Baru saja" }.take(32)
+        val combinedText = "[PENGUMUMAN] $safeTitle: $safeMsg".take(500)
+
+        return runCatching {
+            val batch = db.batch()
+            val roomRef = db.collection("rooms").document(cleanRoomId)
+            batch.update(
+                roomRef,
+                mapOf(
+                    "priorityBroadcastActive" to true,
+                    "priorityBroadcastId" to safeId,
+                    "priorityBroadcastTitle" to safeTitle,
+                    "priorityBroadcastMessage" to safeMsg,
+                    "priorityBroadcastSenderName" to safeSender,
+                    "priorityBroadcastAtLabel" to safeAt,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            )
+            val msgRef = roomRef.collection("messages").document(safeId)
+            batch.set(
+                msgRef,
+                mapOf(
+                    "id" to safeId,
+                    "roomId" to cleanRoomId,
+                    "senderUid" to senderUid,
+                    "senderName" to safeSender,
+                    "senderVehicle" to senderVehicle.trim().ifBlank { "Pembimbing Rombongan" }.take(80),
+                    "senderAvatarPreset" to senderAvatarPreset.name,
+                    "type" to ChatMessageType.BROADCAST.name,
+                    "textContent" to combinedText,
+                    "voiceDurationSec" to 0,
+                    "timestampLabel" to safeAt,
+                    "createdAt" to FieldValue.serverTimestamp()
+                )
+            )
+            batch.commit().await()
+            Unit
+        }
+    }
+
+    suspend fun clearPriorityBroadcast(roomId: String): Result<Unit> {
+        val db = getFirestore()
+            ?: return Result.failure(IllegalStateException("Firestore tidak tersedia."))
+        val cleanRoomId = normalizeRoomId(roomId)
+        return runCatching {
+            db.collection("rooms").document(cleanRoomId)
+                .update(
+                    mapOf(
+                        "priorityBroadcastActive" to false,
+                        "priorityBroadcastTitle" to "",
+                        "priorityBroadcastMessage" to "",
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+            Unit
+        }
+    }
+
+    suspend fun sendManasikChatMessage(
+        webBaseUrl: String,
+        message: String,
+        history: List<AssistantChatMessage>,
+        roleId: AssistantRoleId,
+        guideType: String,
+        completedCount: Int,
+        totalCount: Int,
+        currentLocationText: String
+    ): Result<Pair<String, String>> = withContext(Dispatchers.IO) {
+        val base = webBaseUrl.trim().trimEnd('/').ifBlank { SHARED_BASE_URL }
+        val endpoint = "$base/api/gemini/chat"
+        runCatching {
+            val historyArray = JSONArray()
+            history.takeLast(20).forEach { entry ->
+                historyArray.put(
+                    JSONObject().apply {
+                        put("role", if (entry.role == "model") "model" else "user")
+                        put("text", entry.text)
+                    }
+                )
+            }
+            val contextObj = JSONObject().apply {
+                put("guideType", guideType)
+                put("completedCount", completedCount)
+                put("totalCount", totalCount)
+                if (currentLocationText.isNotBlank()) {
+                    put("currentLocationText", currentLocationText)
+                }
+            }
+            val bodyJson = JSONObject().apply {
+                put("message", message.trim())
+                put("history", historyArray)
+                put("roleId", roleId.id)
+                put("context", contextObj)
+            }.toString()
+
+            val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 15000
+                readTimeout = 30000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                setRequestProperty("Accept", "application/json")
+            }
+            try {
+                conn.outputStream.use { os ->
+                    os.write(bodyJson.toByteArray(StandardCharsets.UTF_8))
+                }
+                val code = conn.responseCode
+                val rawBody = (if (code in 200..299) conn.inputStream else conn.errorStream)
+                    ?.bufferedReader(StandardCharsets.UTF_8)
+                    ?.use { it.readText() }
+                    .orEmpty()
+
+                if (code == 401 || code == 403 || rawBody.contains("accounts.google.com", ignoreCase = true)) {
+                    throw IllegalStateException(
+                        "Server AI membutuhkan aplikasi web terpublish (Published Web URL). Pastikan URL backend web aktif."
+                    )
+                }
+                if (code == 404) {
+                    throw IllegalStateException(
+                        "Endpoint /api/gemini/chat belum ditemukan di server ($base)."
+                    )
+                }
+                val json = runCatching { JSONObject(rawBody) }.getOrNull()
+                if (code !in 200..299 || json == null || !json.optBoolean("ok", false)) {
+                    val serverErr = json?.optString("error").orEmpty().ifBlank {
+                        "Gagal menghubungi Mutawwif AI (HTTP $code)."
+                    }
+                    throw IllegalStateException(serverErr)
+                }
+                val reply = json.optString("reply", "").trim()
+                if (reply.isEmpty()) {
+                    throw IllegalStateException("Jawaban Mutawwif AI kosong.")
+                }
+                val model = json.optString("model", "gemini-4-hydrogen")
+                reply to model
+            } finally {
+                conn.disconnect()
+            }
         }
     }
 

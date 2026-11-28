@@ -6,7 +6,7 @@ export type ConnectionStatus = 'CONNECTED' | 'WEAK_SIGNAL' | 'OFFLINE';
 
 export type MemberConditionStatus = 'AMAN' | 'ISTIRAHAT' | 'MOGOK' | 'SOS';
 
-export type ChatMessageType = 'TEXT' | 'VOICE' | 'SOS_ALERT' | 'SYSTEM';
+export type ChatMessageType = 'TEXT' | 'VOICE' | 'SOS_ALERT' | 'SYSTEM' | 'BROADCAST';
 
 export type AuthProviderId = 'google' | 'facebook' | 'instagram' | 'email' | 'local';
 
@@ -57,6 +57,15 @@ export interface SosEmergencyState {
   longitude: number;
   locationText: string;
   triggeredAtLabel: string;
+}
+
+export interface PriorityBroadcast {
+  isActive: boolean;
+  id: string;
+  title: string;
+  message: string;
+  senderName: string;
+  atLabel: string;
 }
 
 export interface RoutePoint {
@@ -209,6 +218,7 @@ export interface TourRoom {
   actingLeaderUid?: string;
   leaderTroubleActive?: boolean;
   leaderTroubleReason?: string;
+  priorityBroadcast?: PriorityBroadcast;
   members: ConvoyMember[];
 }
 

@@ -47,7 +47,11 @@ class GpsLocationTracker(private val context: Context) {
     }
 
     @SuppressLint("MissingPermission")
-    fun locationUpdates(intervalMs: Long = 2000L): Flow<LiveGpsSample> = callbackFlow {
+    fun locationUpdates(
+        intervalMs: Long = 2000L,
+        minDistanceMeters: Float = 3f,
+        batterySaver: Boolean = false
+    ): Flow<LiveGpsSample> = callbackFlow {
         if (!hasLocationPermission()) {
             close()
             return@callbackFlow
@@ -55,9 +59,14 @@ class GpsLocationTracker(private val context: Context) {
 
         var prevSample: LiveGpsSample? = null
 
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervalMs)
-            .setMinUpdateIntervalMillis(1000L)
-            .setMinUpdateDistanceMeters(3f)
+        val priority = if (batterySaver) {
+            Priority.PRIORITY_BALANCED_POWER_ACCURACY
+        } else {
+            Priority.PRIORITY_HIGH_ACCURACY
+        }
+        val request = LocationRequest.Builder(priority, intervalMs)
+            .setMinUpdateIntervalMillis(if (batterySaver) 5000L else 1000L)
+            .setMinUpdateDistanceMeters(minDistanceMeters)
             .build()
 
         val callback = object : LocationCallback() {

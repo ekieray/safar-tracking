@@ -57,7 +57,10 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.Chat
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.Build
+import androidx.compose.material.icons.rounded.Campaign
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Close
@@ -90,10 +93,12 @@ import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Sos
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material.icons.rounded.WifiOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -210,12 +215,22 @@ fun LiveTrackingMapScreen(
     isLeaderTroubleSimActive: Boolean = false,
     gpsStatus: GpsTrackingStatus = GpsTrackingStatus.IDLE,
     gpsAccuracyMeters: Int = 20,
+    batterySaverMode: Boolean = false,
+    isNetworkOnline: Boolean = true,
+    offlineQueueCount: Int = 0,
+    dismissedBroadcastId: String? = null,
     activeWebBaseUrl: String = "https://ais-pre-3puhws3li7lokxfmbtgyz4-588877716211.asia-southeast1.run.app",
     destinationPresets: List<ConvoyViewModel.DestinationPreset>,
     roomActivities: List<RoomActivityItem> = emptyList(),
     roomActivityProgress: Map<String, RoomActivityMemberProgress> = emptyMap(),
     currentUserUid: String = "",
     onOpenManasik: (String) -> Unit = {},
+    onOpenAssistant: () -> Unit = {},
+    onToggleBatterySaverMode: () -> Unit = {},
+    onFlushOfflineQueue: () -> Unit = {},
+    onDismissBroadcast: (String) -> Unit = {},
+    onSendPriorityBroadcast: (String, String) -> Unit = { _, _ -> },
+    onClearPriorityBroadcast: () -> Unit = {},
     onAddDestinationPoint: (Double, Double, String?, String?) -> Unit = { _, _, _, _ -> },
     onLocationPermissionResult: (Boolean) -> Unit = {},
     onRetryGps: () -> Unit = {},
@@ -268,6 +283,10 @@ fun LiveTrackingMapScreen(
     var chatInputText by remember { mutableStateOf("") }
     var dismissedSosKey by remember(activeRoom?.roomId) { mutableStateOf("") }
     var sosFlashSecondsLeft by remember(activeRoom?.roomId) { mutableStateOf(10) }
+    var showBroadcastModal by remember { mutableStateOf(false) }
+    var broadcastTitleInput by remember { mutableStateOf("") }
+    var broadcastMessageInput by remember { mutableStateOf("") }
+    var lastBeepedBroadcastId by remember(activeRoom?.roomId) { mutableStateOf("") }
 
     val currentSosKey = remember(sosState.isActive, sosState.senderId, sosState.triggeredAtLabel) {
         if (sosState.isActive) "${sosState.senderId}|${sosState.triggeredAtLabel}" else ""
@@ -552,6 +571,25 @@ fun LiveTrackingMapScreen(
             runCatching {
                 val tone = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 90)
                 tone.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 400)
+            }
+        }
+    }
+
+    val activeBroadcast = activeRoom?.priorityBroadcast
+    LaunchedEffect(activeBroadcast?.isActive, activeBroadcast?.id, dismissedBroadcastId, routeConfig.soundAlertEnabled) {
+        if (activeBroadcast?.isActive == true &&
+            activeBroadcast.id.isNotBlank() &&
+            activeBroadcast.id != lastBeepedBroadcastId &&
+            activeBroadcast.id != dismissedBroadcastId
+        ) {
+            lastBeepedBroadcastId = activeBroadcast.id
+            if (routeConfig.soundAlertEnabled) {
+                runCatching {
+                    val tone = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 95)
+                    tone.startTone(ToneGenerator.TONE_PROP_BEEP2, 260)
+                    delay(220L)
+                    tone.startTone(ToneGenerator.TONE_PROP_BEEP, 220)
+                }
             }
         }
     }
@@ -891,6 +929,116 @@ fun LiveTrackingMapScreen(
                 }
             }
 
+            if (activeRoom?.priorityBroadcast?.isActive == true &&
+                activeRoom.priorityBroadcast.id != dismissedBroadcastId
+            ) {
+                val brd = activeRoom.priorityBroadcast
+                Surface(
+                    color = Color(0xFFD97706),
+                    contentColor = Color.White,
+                    shadowElevation = 4.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color.White.copy(alpha = 0.2f),
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Campaign,
+                                    contentDescription = "Pengumuman Prioritas",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
+                        }
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = Color.Black.copy(alpha = 0.22f)
+                                ) {
+                                    Text(
+                                        text = "PENGUMUMAN PRIORITAS",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color.White,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                    )
+                                }
+                                Text(
+                                    text = "${brd.senderName} · ${brd.atLabel.ifBlank { "Baru saja" }}",
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Text(
+                                text = brd.title,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = brd.message,
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp,
+                                color = Color.White.copy(alpha = 0.96f)
+                            )
+                        }
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            horizontalAlignment = Alignment.End
+                        ) {
+                            Surface(
+                                onClick = { onDismissBroadcast(brd.id) },
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color.White,
+                                contentColor = Color(0xFF92400E)
+                            ) {
+                                Text(
+                                    text = "Dibaca",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                )
+                            }
+                            if (isEffectiveLeader) {
+                                Surface(
+                                    onClick = onClearPriorityBroadcast,
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color.Black.copy(alpha = 0.25f),
+                                    contentColor = Color.White
+                                ) {
+                                    Text(
+                                        text = "Hapus",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Real Live TomTom Maps Viewport (osmdroid + TomTom Tiles & Routing)
             Box(
                 modifier = Modifier
@@ -1123,14 +1271,15 @@ fun LiveTrackingMapScreen(
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Icon(Icons.Rounded.GpsFixed, contentDescription = null, modifier = Modifier.size(13.dp))
+                                    val baseGpsText = if (gpsStatus == GpsTrackingStatus.ACTIVE) {
+                                        "GPS ±${gpsAccuracyMeters}m"
+                                    } else if (gpsStatus == GpsTrackingStatus.DENIED && isPermanentlyDenied) {
+                                        "Buka Pengaturan Lokasi"
+                                    } else {
+                                        gpsStatus.label
+                                    }
                                     Text(
-                                        text = if (gpsStatus == GpsTrackingStatus.ACTIVE) {
-                                            "GPS ±${gpsAccuracyMeters}m"
-                                        } else if (gpsStatus == GpsTrackingStatus.DENIED && isPermanentlyDenied) {
-                                            "Buka Pengaturan Lokasi"
-                                        } else {
-                                            gpsStatus.label
-                                        },
+                                        text = if (batterySaverMode) "$baseGpsText · Hemat" else baseGpsText,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold
                                     )
@@ -1151,6 +1300,37 @@ fun LiveTrackingMapScreen(
                                     ) {
                                         Icon(Icons.Rounded.CloudDone, contentDescription = null, modifier = Modifier.size(13.dp))
                                         Text("Room Sync", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
+
+                            if (!isNetworkOnline || offlineQueueCount > 0) {
+                                Surface(
+                                    onClick = onFlushOfflineQueue,
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color(0xEBB45309),
+                                    contentColor = Color.White,
+                                    shadowElevation = 3.dp
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isNetworkOnline) Icons.Rounded.Sync else Icons.Rounded.WifiOff,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Text(
+                                            text = when {
+                                                !isNetworkOnline && offlineQueueCount > 0 -> "Offline · Antrean $offlineQueueCount"
+                                                !isNetworkOnline -> "Offline"
+                                                else -> "Antrean $offlineQueueCount"
+                                            },
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     }
                                 }
                             }
@@ -1181,7 +1361,7 @@ fun LiveTrackingMapScreen(
                             }
                         }
 
-                        // Compact Non-Overlapping Quick Entry to Manasik & Checklist Kegiatan
+                        // Compact Non-Overlapping Quick Entry to Manasik, Checklist Kegiatan & Tanya AI
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Surface(
                                 onClick = { onOpenManasik("manasik") },
@@ -1191,7 +1371,7 @@ fun LiveTrackingMapScreen(
                                 shadowElevation = 3.dp
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
@@ -1207,12 +1387,28 @@ fun LiveTrackingMapScreen(
                                 shadowElevation = 3.dp
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Icon(Icons.Rounded.Checklist, contentDescription = "Checklist Kegiatan", modifier = Modifier.size(13.dp))
                                     Text("Kegiatan $myActivitiesDoneCount/$totalActivitiesCount", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Surface(
+                                onClick = onOpenAssistant,
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xEB065F46),
+                                contentColor = Color.White,
+                                shadowElevation = 3.dp
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Rounded.AutoAwesome, contentDescription = "Tanya Mutawwif AI", modifier = Modifier.size(13.dp))
+                                    Text("Tanya AI", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -1291,6 +1487,38 @@ fun LiveTrackingMapScreen(
                         ) {
                             Icon(Icons.Rounded.GpsFixed, contentDescription = null, modifier = Modifier.size(13.dp))
                             Text("Izin GPS Ditolak · Ketuk", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                } else if (!isNetworkOnline || offlineQueueCount > 0) {
+                    Surface(
+                        onClick = onFlushOfflineQueue,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(start = 12.dp, top = 88.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xEBB45309),
+                        contentColor = Color.White,
+                        shadowElevation = 3.dp
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isNetworkOnline) Icons.Rounded.Sync else Icons.Rounded.WifiOff,
+                                contentDescription = null,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = when {
+                                    !isNetworkOnline && offlineQueueCount > 0 -> "Offline · Antrean $offlineQueueCount"
+                                    !isNetworkOnline -> "Offline"
+                                    else -> "Antrean $offlineQueueCount"
+                                },
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -1719,6 +1947,129 @@ fun LiveTrackingMapScreen(
                                             isNavInfoHidden = it
                                         }
                                     )
+                                }
+
+                                // Toggle Battery Saver Mode
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.BatteryChargingFull,
+                                                contentDescription = null,
+                                                tint = Color(0xFFB45309),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Text(
+                                                text = "Mode Hemat Baterai",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                        Text(
+                                            text = "GPS seimbang & sinkronisasi hemat daya",
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Switch(
+                                        checked = batterySaverMode,
+                                        onCheckedChange = {
+                                            touchSideDrawer()
+                                            onToggleBatterySaverMode()
+                                        }
+                                    )
+                                }
+
+                                // Offline Signal Queue Card
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (isNetworkOnline && offlineQueueCount == 0) {
+                                        MaterialTheme.colorScheme.background
+                                    } else {
+                                        Color(0xFFFFFBEB)
+                                    },
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (isNetworkOnline && offlineQueueCount == 0) {
+                                            MaterialTheme.colorScheme.outline
+                                        } else {
+                                            Color(0xFFFCD34D)
+                                        }
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = if (isNetworkOnline) "Jaringan Online · Antrean Sinyal" else "Mode Offline · Antrean Sinyal",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (isNetworkOnline && offlineQueueCount == 0) MaterialTheme.colorScheme.onSurface else Color(0xFF92400E)
+                                            )
+                                            Text(
+                                                text = if (offlineQueueCount > 0) {
+                                                    "$offlineQueueCount pembaruan menunggu terkirim"
+                                                } else {
+                                                    "Semua data tersinkronisasi"
+                                                },
+                                                fontSize = 10.sp,
+                                                color = if (isNetworkOnline && offlineQueueCount == 0) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFFB45309)
+                                            )
+                                        }
+                                        if (offlineQueueCount > 0) {
+                                            TextButton(
+                                                onClick = {
+                                                    touchSideDrawer()
+                                                    onFlushOfflineQueue()
+                                                },
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                modifier = Modifier.height(28.dp)
+                                            ) {
+                                                Text("Sinkronkan", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (isEffectiveLeader) {
+                                    Button(
+                                        onClick = {
+                                            showSideInfoDrawer = false
+                                            showBroadcastModal = true
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFFB45309),
+                                            contentColor = Color.White
+                                        ),
+                                        shape = RoundedCornerShape(12.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Campaign,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "Broadcast Pengumuman Prioritas",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
 
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
@@ -2390,7 +2741,7 @@ fun LiveTrackingMapScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text("Komunikasi Rombongan", style = MaterialTheme.typography.titleLarge)
                         Text(
                             text = "${activeRoom?.roomId ?: "UMR-8492"} · ${members.size} Jamaah Terhubung",
@@ -2398,8 +2749,34 @@ fun LiveTrackingMapScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    TextButton(onClick = { showChatSheet = false }) {
-                        Text("Tutup")
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (isEffectiveLeader) {
+                            Surface(
+                                onClick = { showBroadcastModal = true },
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFFFEF3C7),
+                                contentColor = Color(0xFFB45309)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Campaign,
+                                        contentDescription = "Broadcast Prioritas",
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text("Broadcast", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                        TextButton(onClick = { showChatSheet = false }) {
+                            Text("Tutup")
+                        }
                     }
                 }
 
@@ -3010,6 +3387,114 @@ private fun TopParticipantChip(
             }
         }
     }
+
+    if (showBroadcastModal && isEffectiveLeader) {
+        val quickTemplates = listOf(
+            "Kumpul Pintu Masjidil Haram" to "Seluruh jamaah harap berkumpul di Pintu King Fahd dalam 15 menit.",
+            "Persiapan Miqat & Ihram" to "Segera mandi sunnah & kenakan kain ihram sebelum rombongan bergerak.",
+            "Bus Segera Berangkat" to "Mohon seluruh jamaah naik ke bus masing-masing dalam 10 menit.",
+            "Tawaf & Sa'i Dimulai" to "Rombongan bersiap menuju area Mataf bersama Mutawwif."
+        )
+        AlertDialog(
+            onDismissRequest = { showBroadcastModal = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Rounded.Campaign,
+                    contentDescription = null,
+                    tint = Color(0xFFB45309),
+                    modifier = Modifier.size(30.dp)
+                )
+            },
+            title = { Text("Broadcast Prioritas", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Tampil serentak di layar seluruh jamaah beserta notifikasi suara.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Template Cepat Umroh / Haji",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        quickTemplates.chunked(2).forEach { pair ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                pair.forEach { (tplTitle, tplMsg) ->
+                                    Surface(
+                                        onClick = {
+                                            broadcastTitleInput = tplTitle
+                                            broadcastMessageInput = tplMsg
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.background,
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            text = tplTitle,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            lineHeight = 14.sp,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = broadcastTitleInput,
+                        onValueChange = { if (it.length <= 120) broadcastTitleInput = it },
+                        label = { Text("Judul Pengumuman", fontSize = 12.sp) },
+                        placeholder = { Text("Misal: Kumpul di Pintu King Fahd", fontSize = 12.sp) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = broadcastMessageInput,
+                        onValueChange = { if (it.length <= 500) broadcastMessageInput = it },
+                        label = { Text("Isi Instruksi untuk Jamaah", fontSize = 12.sp) },
+                        placeholder = { Text("Tulis instruksi penting untuk seluruh rombongan...", fontSize = 12.sp) },
+                        minLines = 3,
+                        maxLines = 4,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onSendPriorityBroadcast(broadcastTitleInput, broadcastMessageInput)
+                        broadcastTitleInput = ""
+                        broadcastMessageInput = ""
+                        showBroadcastModal = false
+                    },
+                    enabled = broadcastTitleInput.isNotBlank() && broadcastMessageInput.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB45309))
+                ) {
+                    Text("Kirim Broadcast")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBroadcastModal = false }) {
+                    Text("Batal")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -3461,6 +3946,50 @@ private fun MessengerChatBubble(
                                 Text("Tandai SOS Selesai", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
+                    }
+                }
+            }
+        }
+        ChatMessageType.BROADCAST -> {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFFFFFBEB),
+                border = BorderStroke(1.dp, Color(0xFFD97706)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFFEF3C7),
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Rounded.Campaign,
+                                contentDescription = "Pengumuman Prioritas",
+                                tint = Color(0xFFB45309),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Text(
+                            text = "PENGUMUMAN PRIORITAS · ${message.senderName} · ${message.timestampLabel}",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = Color(0xFF92400E)
+                        )
+                        Text(
+                            text = message.textContent,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFF78350F)
+                        )
                     }
                 }
             }

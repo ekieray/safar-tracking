@@ -3,6 +3,7 @@ import { useMapsLibrary } from '@vis.gl/react-google-maps';
 import {
   AlertTriangle,
   ArrowLeft,
+  BatteryCharging,
   BellRing,
   BookOpenCheck,
   Bus,
@@ -25,11 +26,13 @@ import {
   Loader2,
   LocateFixed,
   MapPin,
+  Megaphone,
   MessageCircle,
   Mic,
   Navigation,
   Pause,
   Play,
+  RefreshCw,
   Route,
   Search,
   Send,
@@ -38,6 +41,8 @@ import {
   Shield,
   Square,
   Volume2,
+  Wifi,
+  WifiOff,
   X,
 } from 'lucide-react';
 import {
@@ -171,6 +176,15 @@ interface LiveTrackingMapViewProps {
   onRemoveRoomActivity?: (activityId: string) => void;
   onMoveRoomActivity?: (activityId: string, direction: 'up' | 'down') => void;
   onApplyRoomStarterTemplates?: (items: RoomActivityItem[]) => void;
+  batterySaverMode?: boolean;
+  onToggleBatterySaverMode?: () => void;
+  isOnline?: boolean;
+  offlineQueueCount?: number;
+  onFlushOfflineQueue?: () => void;
+  dismissedBroadcastId?: string;
+  onDismissBroadcast?: (id: string) => void;
+  onSendPriorityBroadcast?: (title: string, message: string) => void;
+  onClearPriorityBroadcast?: () => void;
 }
 
 function getMarkerTitle(member: ConvoyMember): string {
@@ -410,6 +424,15 @@ export function LiveTrackingMapView({
   onRemoveRoomActivity,
   onMoveRoomActivity,
   onApplyRoomStarterTemplates,
+  batterySaverMode = false,
+  onToggleBatterySaverMode,
+  isOnline = true,
+  offlineQueueCount = 0,
+  onFlushOfflineQueue,
+  dismissedBroadcastId = '',
+  onDismissBroadcast,
+  onSendPriorityBroadcast,
+  onClearPriorityBroadcast,
 }: LiveTrackingMapViewProps) {
   const [isNavigationMode, setIsNavigationMode] = useState(true);
   const [isNavInfoHidden, setIsNavInfoHidden] = useState(true);
@@ -436,6 +459,9 @@ export function LiveTrackingMapView({
   const [isSearchingDest, setIsSearchingDest] = useState(false);
   const [showSosConfirm, setShowSosConfirm] = useState(false);
   const [showFinishTripConfirm, setShowFinishTripConfirm] = useState(false);
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [broadcastTitle, setBroadcastTitle] = useState('');
+  const [broadcastMessage, setBroadcastMessage] = useState('');
   const [chatText, setChatText] = useState('');
   const [dismissedSosKey, setDismissedSosKey] = useState('');
   const [sosFlashSecondsLeft, setSosFlashSecondsLeft] = useState(10);
@@ -1119,6 +1145,56 @@ export function LiveTrackingMapView({
         </div>
       )}
 
+      {/* Priority Broadcast Banner (Visible to all jamaah until dismissed or cleared) */}
+      {activeRoom?.priorityBroadcast?.isActive &&
+        activeRoom.priorityBroadcast.id !== dismissedBroadcastId && (
+          <div
+            role="alert"
+            className="shrink-0 bg-gradient-to-r from-[#B45309] to-[#D97706] text-white px-3.5 py-2.5 flex items-start gap-2.5 shadow-md"
+          >
+            <div className="w-7 h-7 rounded-xl bg-white/20 flex items-center justify-center shrink-0 mt-0.5">
+              <Megaphone className="w-4 h-4 text-white" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider bg-black/20 px-1.5 py-0.5 rounded-md">
+                  Pengumuman Prioritas
+                </span>
+                <span className="text-[10px] text-white/90 font-mono">
+                  {activeRoom.priorityBroadcast.senderName} ·{' '}
+                  {activeRoom.priorityBroadcast.atLabel || 'Baru saja'}
+                </span>
+              </div>
+              <p className="text-xs font-bold leading-snug mt-0.5">
+                {activeRoom.priorityBroadcast.title}
+              </p>
+              <p className="text-[11px] text-white/95 leading-snug">
+                {activeRoom.priorityBroadcast.message}
+              </p>
+            </div>
+            <div className="flex flex-col gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() =>
+                  onDismissBroadcast?.(activeRoom.priorityBroadcast?.id || '')
+                }
+                className="px-2 py-1 rounded-lg bg-white text-[#92400E] hover:bg-[#FEF3C7] text-[10px] font-bold cursor-pointer whitespace-nowrap"
+              >
+                Sudah Dibaca
+              </button>
+              {isEffectiveLeader && onClearPriorityBroadcast && (
+                <button
+                  type="button"
+                  onClick={onClearPriorityBroadcast}
+                  className="px-2 py-1 rounded-lg bg-black/25 hover:bg-black/35 text-white text-[10px] font-semibold cursor-pointer whitespace-nowrap"
+                >
+                  Tutup di Room
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
       {/* Full Live Google Maps Viewport */}
       <div className="relative flex-1 min-h-0 overflow-hidden bg-[#EBF3EE] dark:bg-[#091812]">
         <div className="absolute inset-0">
@@ -1150,42 +1226,76 @@ export function LiveTrackingMapView({
         </div>
 
         {/* Single Compact GPS Status Chip (clear of Turn-by-Turn HUD and Speedometer) */}
-        {(!isCleanNavHud || gpsStatus === 'denied') && (
+        {(!isCleanNavHud || gpsStatus === 'denied' || !isOnline || offlineQueueCount > 0) && (
           <div
-            className={`absolute left-2.5 z-20 flex flex-col gap-1 max-w-[70%] ${
+            className={`absolute left-2.5 z-20 flex flex-col gap-1 max-w-[74%] ${
               activeNavMode ? 'top-[76px]' : 'top-2.5'
             }`}
           >
-            <button
-              type="button"
-              onClick={onRetryGps}
-              className={`w-fit px-2.5 py-1 rounded-xl text-[10px] font-semibold border shadow-sm flex items-center gap-1.5 cursor-pointer ${
-                gpsStatus === 'active'
-                  ? 'bg-[#ECFDF5]/95 dark:bg-[#064E3B]/95 text-[#047857] dark:text-[#6EE7B7] border-[#A7F3D0] dark:border-[#065F46]'
-                  : gpsStatus === 'denied' || gpsStatus === 'unavailable'
-                    ? 'bg-[#FEF2F2]/95 dark:bg-[#450A0A]/95 text-[#DC2626] dark:text-[#FCA5A5] border-[#FCA5A5] dark:border-[#991B1B]'
-                    : 'bg-white/95 dark:bg-[#0C1E17]/95 text-[#047857] dark:text-[#34D399] border-[#D8E6DD] dark:border-[#1B3B2E]'
-              }`}
-            >
-              <LocateFixed className="w-3 h-3 shrink-0" />
-              <span>
-                {gpsStatus === 'active'
-                  ? `GPS ±${gpsAccuracyMeters ?? 15}m`
-                  : gpsStatus === 'requesting'
-                    ? 'Mencari GPS...'
-                    : gpsStatus === 'denied'
-                      ? 'Izin GPS Ditolak (Ketuk)'
-                      : gpsStatus === 'unavailable'
-                        ? 'GPS Tidak Tersedia'
-                        : 'GPS Siap'}
-              </span>
-              {activeRoom?.isSyncedRoom && (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span>Sync</span>
-                </>
+            <div className="flex flex-wrap items-center gap-1">
+              {(!isCleanNavHud || gpsStatus === 'denied') && (
+                <button
+                  type="button"
+                  onClick={onRetryGps}
+                  className={`w-fit px-2.5 py-1 rounded-xl text-[10px] font-semibold border shadow-sm flex items-center gap-1.5 cursor-pointer ${
+                    gpsStatus === 'active'
+                      ? 'bg-[#ECFDF5]/95 dark:bg-[#064E3B]/95 text-[#047857] dark:text-[#6EE7B7] border-[#A7F3D0] dark:border-[#065F46]'
+                      : gpsStatus === 'denied' || gpsStatus === 'unavailable'
+                        ? 'bg-[#FEF2F2]/95 dark:bg-[#450A0A]/95 text-[#DC2626] dark:text-[#FCA5A5] border-[#FCA5A5] dark:border-[#991B1B]'
+                        : 'bg-white/95 dark:bg-[#0C1E17]/95 text-[#047857] dark:text-[#34D399] border-[#D8E6DD] dark:border-[#1B3B2E]'
+                  }`}
+                >
+                  <LocateFixed className="w-3 h-3 shrink-0" />
+                  <span>
+                    {gpsStatus === 'active'
+                      ? `GPS ±${gpsAccuracyMeters ?? 15}m`
+                      : gpsStatus === 'requesting'
+                        ? 'Mencari GPS...'
+                        : gpsStatus === 'denied'
+                          ? 'Izin GPS Ditolak (Ketuk)'
+                          : gpsStatus === 'unavailable'
+                            ? 'GPS Tidak Tersedia'
+                            : 'GPS Siap'}
+                  </span>
+                  {batterySaverMode && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span className="inline-flex items-center gap-0.5 text-[#B45309] dark:text-[#FBBF24]">
+                        <BatteryCharging className="w-3 h-3" />
+                        Hemat
+                      </span>
+                    </>
+                  )}
+                  {activeRoom?.isSyncedRoom && !batterySaverMode && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span>Sync</span>
+                    </>
+                  )}
+                </button>
               )}
-            </button>
+
+              {(!isOnline || offlineQueueCount > 0) && (
+                <button
+                  type="button"
+                  onClick={() => onFlushOfflineQueue?.()}
+                  className="w-fit px-2.5 py-1 rounded-xl text-[10px] font-semibold border shadow-sm flex items-center gap-1 cursor-pointer bg-[#FFFBEB]/95 dark:bg-[#451A03]/95 text-[#B45309] dark:text-[#FCD34D] border-[#FCD34D] dark:border-[#92400E]"
+                >
+                  {isOnline ? (
+                    <RefreshCw className="w-3 h-3 shrink-0" />
+                  ) : (
+                    <WifiOff className="w-3 h-3 shrink-0" />
+                  )}
+                  <span>
+                    {!isOnline
+                      ? offlineQueueCount > 0
+                        ? `Offline · Antrean ${offlineQueueCount}`
+                        : 'Mode Offline'
+                      : `Antrean ${offlineQueueCount} (Sinkronkan)`}
+                  </span>
+                </button>
+              )}
+            </div>
             {gpsStatus === 'denied' && gpsErrorMessage && !isCleanNavHud && (
               <div className="px-2.5 py-1 rounded-xl bg-[#FEF2F2]/95 dark:bg-[#450A0A]/95 border border-[#FCA5A5] dark:border-[#991B1B] text-[10px] leading-snug text-[#991B1B] dark:text-[#FECACA] shadow-sm">
                 {gpsErrorMessage}
@@ -1269,6 +1379,84 @@ export function LiveTrackingMapView({
                   }`}
                 />
               </button>
+            </div>
+
+            {/* Battery Saver Mode & Offline Crowd-Signal Queue */}
+            <div className="space-y-2.5 pb-2.5 border-b border-[#D8E6DD] dark:border-[#1B3B2E]">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <BatteryCharging className="w-3.5 h-3.5 text-[#B45309] dark:text-[#FBBF24] shrink-0" />
+                    <p className="text-[11px] font-semibold">Mode Hemat Baterai</p>
+                  </div>
+                  <p className="text-[10px] text-[#4D6659] dark:text-[#9CC2AE]">
+                    Interval GPS adaptif 10–20 dtk saat berhenti
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={batterySaverMode}
+                  onClick={() => {
+                    touchSideDrawer();
+                    onToggleBatterySaverMode?.();
+                  }}
+                  className={`w-10 h-6 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 ${
+                    batterySaverMode
+                      ? 'bg-[#B45309]'
+                      : 'bg-[#CFE0D5] dark:bg-[#1B3B2E]'
+                  }`}
+                >
+                  <span
+                    className={`block w-5 h-5 rounded-full bg-white transition-transform ${
+                      batterySaverMode ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#D8E6DD] dark:border-[#1B3B2E] px-2.5 py-2 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    {isOnline ? (
+                      <Wifi className="w-3.5 h-3.5 text-[#047857] dark:text-[#34D399] shrink-0" />
+                    ) : (
+                      <WifiOff className="w-3.5 h-3.5 text-[#B45309] dark:text-[#FBBF24] shrink-0" />
+                    )}
+                    <p className="text-[11px] font-semibold truncate">
+                      Antrean Sinyal Padat
+                    </p>
+                  </div>
+                  <p className="text-[10px] text-[#4D6659] dark:text-[#9CC2AE]">
+                    {isOnline ? 'Online' : 'Offline'} · {offlineQueueCount} data menunggu
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={offlineQueueCount === 0}
+                  onClick={() => {
+                    touchSideDrawer();
+                    onFlushOfflineQueue?.();
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg bg-[#047857] disabled:bg-[#CFE0D5] dark:disabled:bg-[#1B3B2E] text-white disabled:text-[#4D6659] text-[10px] font-semibold cursor-pointer shrink-0"
+                >
+                  Sinkronkan
+                </button>
+              </div>
+
+              {isEffectiveLeader && onSendPriorityBroadcast && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSideInfoDrawer(false);
+                    setShowBroadcastModal(true);
+                  }}
+                  className="w-full min-h-[38px] px-3 rounded-xl bg-[#B45309] hover:bg-[#92400E] text-white text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Megaphone className="w-3.5 h-3.5 shrink-0" />
+                  <span>Broadcast Pengumuman Prioritas</span>
+                </button>
+              )}
             </div>
 
             {/* Trip Telemetry & 10-Min Avg Speed Chart */}
@@ -1994,21 +2182,36 @@ export function LiveTrackingMapView({
         <div className="absolute inset-0 z-40 bg-black/45 backdrop-blur-[2px] flex items-end">
           <div className="w-full h-[80%] rounded-t-[24px] bg-white dark:bg-[#0C1E17] border-t border-[#D8E6DD] dark:border-[#1B3B2E] flex flex-col shadow-2xl overflow-hidden">
             {/* Sheet Header */}
-            <div className="shrink-0 px-4 py-3 border-b border-[#D8E6DD] dark:border-[#1B3B2E] flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold">Komunikasi Rombongan</h3>
-                <p className="text-[11px] text-[#4D6659] dark:text-[#9CC2AE]">
+            <div className="shrink-0 px-4 py-3 border-b border-[#D8E6DD] dark:border-[#1B3B2E] flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold truncate">Komunikasi Rombongan</h3>
+                <p className="text-[11px] text-[#4D6659] dark:text-[#9CC2AE] truncate">
                   {activeRoom?.roomId || 'UMR-8492'} · {members.length} Jamaah Terhubung
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowChatSheet(false)}
-                aria-label="Tutup Chat"
-                className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[#ECFDF5] dark:hover:bg-[#133025] cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {isEffectiveLeader && onSendPriorityBroadcast && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowChatSheet(false);
+                      setShowBroadcastModal(true);
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl bg-[#B45309] hover:bg-[#92400E] text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Megaphone className="w-3.5 h-3.5 shrink-0" />
+                    <span>Broadcast</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowChatSheet(false)}
+                  aria-label="Tutup Chat"
+                  className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[#ECFDF5] dark:hover:bg-[#133025] cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Messenger Bubbles */}
@@ -2035,6 +2238,27 @@ export function LiveTrackingMapView({
                   'HELMET_TOURING';
                 const msgPhoto =
                   matchedMember?.avatarPhotoUrl ?? msg.senderAvatarPhotoUrl;
+
+                if (msg.type === 'BROADCAST') {
+                  return (
+                    <div
+                      key={msg.id}
+                      className="rounded-2xl bg-[#FFFBEB] dark:bg-[#451A03]/60 border border-[#D97706] p-3 flex items-start gap-2.5"
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-[#D97706] text-white flex items-center justify-center shrink-0">
+                        <Megaphone className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        <p className="text-[11px] font-bold text-[#92400E] dark:text-[#FCD34D]">
+                          PENGUMUMAN PRIORITAS · {msg.senderName} · {msg.timestampLabel}
+                        </p>
+                        <p className="text-xs font-medium text-[#78350F] dark:text-[#FEF3C7]">
+                          {msg.textContent}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
 
                 if (msg.type === 'SOS_ALERT') {
                   return (
@@ -2916,6 +3140,141 @@ export function LiveTrackingMapView({
                   }}
                 />
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Priority Broadcast Composer Modal (Leader / Acting Leader) */}
+      {showBroadcastModal && onSendPriorityBroadcast && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Kirim Broadcast Pengumuman Prioritas"
+          className="absolute inset-0 z-50 bg-black/55 backdrop-blur-[2px] flex items-center justify-center p-4"
+          onClick={() => setShowBroadcastModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-[360px] rounded-[22px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] p-4 space-y-3.5 shadow-2xl"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-[#FEF3C7] dark:bg-[#451A03] text-[#B45309] dark:text-[#FBBF24] flex items-center justify-center shrink-0">
+                  <Megaphone className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold truncate">
+                    Broadcast Prioritas
+                  </h3>
+                  <p className="text-[11px] text-[#4D6659] dark:text-[#9CC2AE] truncate">
+                    Tampil serentak di layar seluruh jamaah
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBroadcastModal(false)}
+                aria-label="Tutup Broadcast"
+                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#ECFDF5] dark:hover:bg-[#133025] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#4D6659] dark:text-[#9CC2AE]">
+                Template Cepat Umroh / Haji
+              </p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  {
+                    title: 'Kumpul di Pintu Masjidil Haram',
+                    message:
+                      'Seluruh jamaah harap berkumpul di Pintu King Fahd dalam 15 menit.',
+                  },
+                  {
+                    title: 'Persiapan Miqat & Ihram',
+                    message:
+                      'Segera mandi sunnah & kenakan kain ihram sebelum rombongan bergerak.',
+                  },
+                  {
+                    title: 'Bus Rombongan Segera Berangkat',
+                    message:
+                      'Mohon seluruh jamaah naik ke bus masing-masing dalam 10 menit.',
+                  },
+                  {
+                    title: 'Jadwal Tawaf & Sa’i Dimulai',
+                    message:
+                      'Rombongan bersiap menuju area Mataf bersama Mutawwif.',
+                  },
+                ].map((tpl) => (
+                  <button
+                    key={tpl.title}
+                    type="button"
+                    onClick={() => {
+                      setBroadcastTitle(tpl.title);
+                      setBroadcastMessage(tpl.message);
+                    }}
+                    className="px-2.5 py-2 rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#D8E6DD] dark:border-[#1B3B2E] hover:border-[#B45309] text-left text-[10px] font-semibold leading-snug cursor-pointer"
+                  >
+                    {tpl.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div>
+                <label className="block text-[11px] font-semibold mb-1">
+                  Judul Pengumuman
+                </label>
+                <input
+                  type="text"
+                  maxLength={120}
+                  value={broadcastTitle}
+                  onChange={(e) => setBroadcastTitle(e.target.value)}
+                  placeholder="Misal: Kumpul di Pintu King Fahd"
+                  className="w-full min-h-[40px] px-3 rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#CFE0D5] dark:border-[#1B3B2E] text-xs outline-none focus:border-[#B45309]"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold mb-1">
+                  Isi Instruksi untuk Jamaah
+                </label>
+                <textarea
+                  rows={3}
+                  maxLength={500}
+                  value={broadcastMessage}
+                  onChange={(e) => setBroadcastMessage(e.target.value)}
+                  placeholder="Tulis instruksi penting untuk seluruh rombongan..."
+                  className="w-full p-3 rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#CFE0D5] dark:border-[#1B3B2E] text-xs outline-none focus:border-[#B45309] resize-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowBroadcastModal(false)}
+                className="flex-1 min-h-[42px] rounded-xl border border-[#CFE0D5] dark:border-[#1B3B2E] text-xs font-semibold cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={!broadcastTitle.trim() || !broadcastMessage.trim()}
+                onClick={() => {
+                  onSendPriorityBroadcast(broadcastTitle, broadcastMessage);
+                  setBroadcastTitle('');
+                  setBroadcastMessage('');
+                  setShowBroadcastModal(false);
+                }}
+                className="flex-1 min-h-[42px] rounded-xl bg-[#B45309] hover:bg-[#92400E] disabled:opacity-45 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Megaphone className="w-3.5 h-3.5 shrink-0" />
+                <span>Kirim Broadcast</span>
+              </button>
             </div>
           </div>
         </div>

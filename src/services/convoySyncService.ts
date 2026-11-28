@@ -684,6 +684,18 @@ export function subscribeToSyncedRoom(
           actingLeaderUid,
           leaderTroubleActive,
           leaderTroubleReason: typeof d.leaderTroubleReason === 'string' ? d.leaderTroubleReason : '',
+          priorityBroadcast:
+            typeof d.priorityBroadcastMessage === 'string' &&
+            d.priorityBroadcastMessage.trim().length > 0
+              ? {
+                  isActive: Boolean(d.priorityBroadcastActive),
+                  id: String(d.priorityBroadcastId || ''),
+                  title: String(d.priorityBroadcastTitle || 'Pengumuman Mutawwif'),
+                  message: String(d.priorityBroadcastMessage || ''),
+                  senderName: String(d.priorityBroadcastSenderName || 'Ketua Rombongan'),
+                  atLabel: String(d.priorityBroadcastAtLabel || ''),
+                }
+              : undefined,
           status: d.status === 'FINISHED' ? 'FINISHED' : 'ACTIVE',
         },
         routeConfig: nextConfig,
@@ -1201,6 +1213,69 @@ export async function resolveSyncedSos(
     if (senderUid && senderUid === auth.currentUser?.uid) {
       await updateSyncedMemberCondition(roomId, senderUid, 'AMAN');
     }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function sendPriorityRoomBroadcast(
+  roomId: string,
+  payload: {
+    id: string;
+    senderUid: string;
+    senderName: string;
+    senderVehicle: string;
+    senderAvatarPreset: AvatarPreset;
+    title: string;
+    message: string;
+    atLabel: string;
+  }
+): Promise<void> {
+  const path = `rooms/${roomId}`;
+  const cleanId = payload.id.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) || `bcast-${Date.now()}`;
+  const cleanTitle = (payload.title.trim() || 'Pengumuman Prioritas').slice(0, 80);
+  const cleanMsg = payload.message.trim().slice(0, 280);
+  const cleanSender = (payload.senderName.trim() || 'Ketua Rombongan').slice(0, 80);
+  const cleanAt = (payload.atLabel.trim() || 'Baru saja').slice(0, 16);
+  if (!cleanMsg) return;
+
+  try {
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'rooms', roomId), {
+      priorityBroadcastActive: true,
+      priorityBroadcastId: cleanId,
+      priorityBroadcastTitle: cleanTitle,
+      priorityBroadcastMessage: cleanMsg,
+      priorityBroadcastSenderName: cleanSender,
+      priorityBroadcastAtLabel: cleanAt,
+      updatedAt: serverTimestamp(),
+    });
+    batch.set(doc(db, 'rooms', roomId, 'messages', cleanId), {
+      id: cleanId,
+      roomId,
+      senderUid: payload.senderUid,
+      senderName: cleanSender,
+      senderVehicle: (payload.senderVehicle || '').slice(0, 80),
+      senderAvatarPreset: payload.senderAvatarPreset || 'RIDER_CAPTAIN',
+      type: 'BROADCAST',
+      textContent: `[${cleanTitle}] ${cleanMsg}`.slice(0, 500),
+      voiceDurationSec: 0,
+      timestampLabel: cleanAt,
+      createdAt: serverTimestamp(),
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function clearPriorityRoomBroadcast(roomId: string): Promise<void> {
+  const path = `rooms/${roomId}`;
+  try {
+    await updateDoc(doc(db, 'rooms', roomId), {
+      priorityBroadcastActive: false,
+      updatedAt: serverTimestamp(),
+    });
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
   }

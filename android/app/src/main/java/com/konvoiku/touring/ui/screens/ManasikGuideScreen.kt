@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Close
@@ -124,6 +125,7 @@ fun ManasikGuideScreen(
     onMoveRoomActivity: (String, Int) -> Unit,
     onApplyStarterActivities: () -> Unit,
     onToggleRoomActivity: (String) -> Unit,
+    onOpenAssistant: () -> Unit = {},
     onBack: () -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -204,6 +206,32 @@ fun ManasikGuideScreen(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = "Kembali"
                         )
+                    }
+                },
+                actions = {
+                    Surface(
+                        onClick = onOpenAssistant,
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.AutoAwesome,
+                                contentDescription = "Tanya Mutawwif AI",
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = "Tanya AI",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

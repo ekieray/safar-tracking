@@ -34,6 +34,7 @@ import com.konvoiku.touring.ui.screens.CustomizeProfileScreen
 import com.konvoiku.touring.ui.screens.JoinTourScreen
 import com.konvoiku.touring.ui.screens.LiveTrackingMapScreen
 import com.konvoiku.touring.ui.screens.LoginScreen
+import com.konvoiku.touring.ui.screens.ManasikChatbotScreen
 import com.konvoiku.touring.ui.screens.ManasikGuideScreen
 import com.konvoiku.touring.ui.screens.RoleSelectionScreen
 import com.konvoiku.touring.ui.screens.TourLeaderScreen
@@ -57,6 +58,7 @@ sealed class ConvoyRoute(val route: String) {
     data object ManasikGuide : ConvoyRoute("manasik_guide/{initialTab}") {
         fun createRoute(tab: String = "manasik") = "manasik_guide/$tab"
     }
+    data object ManasikChatbot : ConvoyRoute("manasik_chatbot")
 }
 
 @Composable
@@ -261,6 +263,9 @@ fun ConvoyNavGraph(
                 },
                 onOpenManasik = { tab ->
                     navController.navigate(ConvoyRoute.ManasikGuide.createRoute(tab))
+                },
+                onOpenManasikAssistant = {
+                    navController.navigate(ConvoyRoute.ManasikChatbot.route)
                 },
                 onOpenCustomizeProfile = {
                     viewModel.clearProfileSyncMessage()
@@ -476,6 +481,10 @@ fun ConvoyNavGraph(
                 isLeaderTroubleSimActive = uiState.isLeaderTroubleSimActive,
                 gpsStatus = uiState.gpsStatus,
                 gpsAccuracyMeters = uiState.gpsAccuracyMeters,
+                batterySaverMode = uiState.batterySaverMode,
+                isNetworkOnline = uiState.isNetworkOnline,
+                offlineQueueCount = uiState.offlineQueueCount,
+                dismissedBroadcastId = uiState.dismissedBroadcastId,
                 activeWebBaseUrl = uiState.activeWebBaseUrl,
                 destinationPresets = viewModel.destinationPresets,
                 roomActivities = uiState.roomActivities,
@@ -484,6 +493,14 @@ fun ConvoyNavGraph(
                 onOpenManasik = { tab ->
                     navController.navigate(ConvoyRoute.ManasikGuide.createRoute(tab))
                 },
+                onOpenAssistant = {
+                    navController.navigate(ConvoyRoute.ManasikChatbot.route)
+                },
+                onToggleBatterySaverMode = viewModel::toggleBatterySaverMode,
+                onFlushOfflineQueue = viewModel::flushOfflineQueueNow,
+                onDismissBroadcast = viewModel::dismissPriorityBroadcast,
+                onSendPriorityBroadcast = viewModel::sendPriorityBroadcast,
+                onClearPriorityBroadcast = viewModel::clearPriorityBroadcast,
                 onAddDestinationPoint = { lat, lng, name, addr ->
                     viewModel.addDestinationPoint(lat, lng, name, addr)
                 },
@@ -604,6 +621,22 @@ fun ConvoyNavGraph(
                 onMoveRoomActivity = viewModel::moveRoomActivity,
                 onApplyStarterActivities = viewModel::applyStarterRoomActivities,
                 onToggleRoomActivity = viewModel::toggleRoomActivity,
+                onOpenAssistant = {
+                    navController.navigate(ConvoyRoute.ManasikChatbot.route)
+                },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(ConvoyRoute.ManasikChatbot.route) {
+            ManasikChatbotScreen(
+                selectedRole = uiState.manasikChatRole,
+                messages = uiState.manasikChatMessages,
+                isSending = uiState.isSendingManasikChat,
+                errorMessage = uiState.manasikChatError,
+                onSelectRole = viewModel::setManasikChatRole,
+                onSendMessage = viewModel::sendManasikChatMessage,
+                onClearHistory = viewModel::clearManasikChatHistory,
                 onBack = { navController.popBackStack() }
             )
         }

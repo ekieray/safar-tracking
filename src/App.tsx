@@ -52,6 +52,7 @@ import {
   addRoomCheckpoint,
   addSyncedRoomActivity,
   assignSyncedSweeper,
+  clearPriorityRoomBroadcast,
   createSyncedRoom,
   DEFAULT_GLOBAL_APP_CONFIG,
   finishSyncedRoom,
@@ -79,6 +80,7 @@ import {
   saveProfileByEmail,
   saveTripRecordToFirestore,
   saveUserPrivateProfile,
+  sendPriorityRoomBroadcast,
   sendRoomMessage,
   subscribeToGlobalAppConfig,
   subscribeToSyncedRoom,
@@ -90,6 +92,13 @@ import {
   updateSyncedRoomActivity,
   updateSyncedRoomRoute,
 } from './services/convoySyncService';
+import {
+  enqueuePriorityBroadcast,
+  enqueueRoomMessage,
+  enqueueTelemetryUpdate,
+  flushOfflineSyncQueue,
+  getOfflineQueueCount,
+} from './services/offlineSyncQueue';
 import {
   AuthProviderId,
   ConnectionStatus,
@@ -908,6 +917,21 @@ export default function App() {
   >({});
   const [syncWithPreview, setSyncWithPreview] = useState(true);
   const [mobileWorkspaceTab, setMobileWorkspaceTab] = useState<'preview' | 'code'>('preview');
+  const [batterySaverMode, setBatterySaverMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return window.localStorage.getItem('safar_battery_saver_v1') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [isOnline, setIsOnline] = useState<boolean>(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  const [offlineQueueCount, setOfflineQueueCount] = useState<number>(() =>
+    getOfflineQueueCount()
+  );
+  const [dismissedBroadcastId, setDismissedBroadcastId] = useState<string>('');
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<BlobPart[]>([]);
@@ -920,7 +944,10 @@ export default function App() {
   const lastTelemetryFixRef = useRef<LatLngPoint | null>(null);
   const lastSyncedRouteSigRef = useRef<string>('');
   const lastCoLeaderSyncedRef = useRef<string>('');
+  const lastAlertedBroadcastIdRef = useRef<string>('');
   const recordedTrackRef = useRef<LatLngPoint[]>([]);
+  const batterySaverModeRef = useRef<boolean>(batterySaverMode);
+  batterySaverModeRef.current = batterySaverMode;
   const routeConfigRef = useRef<ConvoyRouteConfig>(routeConfig);
   routeConfigRef.current = routeConfig;
   const activeRoomRef = useRef<TourRoom | null>(activeRoom);
@@ -1329,17 +1356,28 @@ export default function App() {
       );
       commitRoomMembers(updatedMembers, currentCfg);
 
-      // Publish throttled telemetry to Firestore when in a synced room
+      // Publish throttled telemetry to Firestore when in a synced room (adaptive for battery saver + offline queue)
       if (currentRoom.isSyncedRoom && user) {
         const now = Date.now();
         const prevPt = lastTelemetryFixRef.current;
         const movedMeters = prevPt
           ? haversineMeters(prevPt, { lat: fix.latitude, lng: fix.longitude })
           : 999;
-        if (now - lastTelemetrySentMsRef.current >= 2200 || movedMeters >= 15) {
+        const saverActive = batterySaverModeRef.current;
+        const intervalThresholdMs = saverActive
+          ? fix.speedKmh < 3
+            ? 20_000
+            : 10_000
+          : 2_200;
+        const distanceThresholdMeters = saverActive ? 25 : 15;
+
+        if (
+          now - lastTelemetrySentMsRef.current >= intervalThresholdMs ||
+          movedMeters >= distanceThresholdMeters
+        ) {
           lastTelemetrySentMsRef.current = now;
           lastTelemetryFixRef.current = { lat: fix.latitude, lng: fix.longitude };
-          publishMemberTelemetry(currentRoom.roomId, user.uid, {
+          const telemetryPatch = {
             latitude: fix.latitude,
             longitude: fix.longitude,
             speedKmh: fix.speedKmh,
@@ -1349,9 +1387,33 @@ export default function App() {
             xFraction: Math.max(0.08, Math.min(0.92, geoEval.routeProgress)),
             yFraction: Math.max(0.08, Math.min(0.92, 1 - geoEval.routeProgress)),
             lastLocationText: `GPS Live (±${fix.accuracyMeters}m)`,
-          }).catch((err) => {
-            console.warn('Gagal mengirim telemetri GPS ke Firestore:', err);
-          });
+          };
+
+          if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            const count = enqueueTelemetryUpdate({
+              roomId: currentRoom.roomId,
+              uid: user.uid,
+              patch: telemetryPatch,
+            });
+            setOfflineQueueCount(count);
+          } else {
+            publishMemberTelemetry(currentRoom.roomId, user.uid, telemetryPatch)
+              .then(() => {
+                if (getOfflineQueueCount() > 0) {
+                  flushOfflineSyncQueue()
+                    .then(({ remaining }) => setOfflineQueueCount(remaining))
+                    .catch(() => {});
+                }
+              })
+              .catch(() => {
+                const count = enqueueTelemetryUpdate({
+                  roomId: currentRoom.roomId,
+                  uid: user.uid,
+                  patch: telemetryPatch,
+                });
+                setOfflineQueueCount(count);
+              });
+          }
         }
       }
     },
@@ -1364,8 +1426,54 @@ export default function App() {
       currentRoute === 'live_map' ||
       currentRoute === 'tour_leader' ||
       currentRoute === 'join_tour',
+    batterySaver: batterySaverMode,
     onFix: handleGpsFix,
   });
+
+  const handleToggleBatterySaverMode = useCallback(() => {
+    setBatterySaverMode((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem('safar_battery_saver_v1', next ? '1' : '0');
+      } catch {
+        // Ignore storage error
+      }
+      return next;
+    });
+  }, []);
+
+  const handleManualFlushOfflineQueue = useCallback(async () => {
+    const res = await flushOfflineSyncQueue();
+    setOfflineQueueCount(res.remaining);
+  }, []);
+
+  useEffect(() => {
+    const onOnline = () => {
+      setIsOnline(true);
+      flushOfflineSyncQueue()
+        .then(({ remaining }) => setOfflineQueueCount(remaining))
+        .catch(() => {});
+    };
+    const onOffline = () => {
+      setIsOnline(false);
+    };
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (offlineQueueCount <= 0 || !isOnline) return;
+    const timer = setInterval(() => {
+      flushOfflineSyncQueue()
+        .then(({ remaining }) => setOfflineQueueCount(remaining))
+        .catch(() => {});
+    }, 8000);
+    return () => clearInterval(timer);
+  }, [offlineQueueCount, isOnline]);
 
   // Publish live online/traveling presence heartbeat for Admin Backend monitoring
   useEffect(() => {
@@ -1443,6 +1551,7 @@ export default function App() {
             actingLeaderUid: snapshot.room.actingLeaderUid,
             leaderTroubleActive: snapshot.room.leaderTroubleActive,
             leaderTroubleReason: snapshot.room.leaderTroubleReason,
+            priorityBroadcast: snapshot.room.priorityBroadcast,
             members: prev?.members ?? latestMembers,
           };
           const evaluated = evaluateRoomSafety(base.members, mergedConfig, {
@@ -3018,36 +3127,219 @@ export default function App() {
     commitRoomMembers(updated);
   };
 
+  // Audible triple-chime & browser notification for new priority broadcasts
+  useEffect(() => {
+    const broadcast = activeRoom?.priorityBroadcast;
+    if (!broadcast?.isActive || !broadcast.id) return;
+    if (lastAlertedBroadcastIdRef.current === broadcast.id) return;
+    lastAlertedBroadcastIdRef.current = broadcast.id;
+    setDismissedBroadcastId((prev) => (prev === broadcast.id ? '' : prev));
+
+    if (routeConfigRef.current.soundAlertEnabled) {
+      try {
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext })
+            .webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          [0, 0.18, 0.36].forEach((offset, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(idx === 2 ? 987.77 : 783.99, ctx.currentTime + offset);
+            gain.gain.setValueAtTime(0.11, ctx.currentTime + offset);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.16);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + offset);
+            osc.stop(ctx.currentTime + offset + 0.16);
+          });
+        }
+      } catch {
+        // Ignore AudioContext restrictions
+      }
+    }
+
+    if (
+      typeof window !== 'undefined' &&
+      'Notification' in window &&
+      Notification.permission === 'granted'
+    ) {
+      try {
+        new Notification(`Pengumuman Rombongan: ${broadcast.title}`, {
+          body: `${broadcast.message} — ${broadcast.senderName}`,
+          tag: `safar-broadcast-${broadcast.id}`,
+        });
+      } catch {
+        // Ignore Notification errors
+      }
+    }
+  }, [activeRoom?.priorityBroadcast?.id, activeRoom?.priorityBroadcast?.isActive]);
+
   const handleSendTextMessage = (text: string) => {
     if (!activeRoom || !text.trim()) return;
     const self = activeRoom.members.find((m) => m.isCurrentUser);
+    const trimmed = text.trim();
+    const msgId = `txt-${Date.now()}`;
     if (activeRoom.isSyncedRoom && authUser) {
-      sendRoomMessage(activeRoom.roomId, {
-        id: `txt-${Date.now()}`,
+      const msgPayload = {
+        id: msgId,
         senderUid: authUser.uid,
         senderName: self?.fullName ?? vehicleProfile.fullName ?? 'Jamaah',
         senderVehicle: self?.vehicleDetail ?? vehicleProfile.vehicleDetail ?? 'Peserta',
         senderAvatarPreset: self?.avatarPreset ?? vehicleProfile.avatarPreset,
-        type: 'TEXT',
-        textContent: text.trim(),
+        type: 'TEXT' as const,
+        textContent: trimmed,
+      };
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        const count = enqueueRoomMessage({
+          roomId: activeRoom.roomId,
+          msg: msgPayload,
+        });
+        setOfflineQueueCount(count);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: msgId,
+            senderId: authUser.uid,
+            senderName: msgPayload.senderName,
+            senderVehicle: msgPayload.senderVehicle,
+            type: 'TEXT',
+            textContent: `${trimmed} (menunggu sinyal)`,
+            timestampLabel: currentClock(),
+            isFromCurrentUser: true,
+            senderAvatarPreset: msgPayload.senderAvatarPreset,
+          },
+        ]);
+        return;
+      }
+      sendRoomMessage(activeRoom.roomId, msgPayload).catch(() => {
+        const count = enqueueRoomMessage({
+          roomId: activeRoom.roomId,
+          msg: msgPayload,
+        });
+        setOfflineQueueCount(count);
       });
       return;
     }
     setMessages((prev) => [
       ...prev,
       {
-        id: `txt-${Date.now()}`,
+        id: msgId,
         senderId: self?.id ?? 'self',
         senderName: self?.fullName ?? 'Anda',
         senderVehicle: self?.vehicleDetail ?? 'Peserta',
         type: 'TEXT',
-        textContent: text.trim(),
+        textContent: trimmed,
         timestampLabel: currentClock(),
         isFromCurrentUser: true,
         senderAvatarPreset: self?.avatarPreset ?? vehicleProfile.avatarPreset,
         senderAvatarPhotoUrl: self?.avatarPhotoUrl ?? vehicleProfile.avatarPhotoUrl,
       },
     ]);
+  };
+
+  const handleSendPriorityBroadcast = async (title: string, message: string) => {
+    if (!activeRoom) return;
+    const cleanTitle = title.trim();
+    const cleanMessage = message.trim();
+    if (!cleanTitle || !cleanMessage) return;
+
+    const self = activeRoom.members.find((m) => m.isCurrentUser);
+    const id = `brd-${Date.now()}`;
+    const atLabel = currentClock();
+    const senderName =
+      self?.fullName ?? vehicleProfile.fullName ?? localUserName ?? 'Mutawwif';
+    const senderVehicle =
+      self?.vehicleDetail ?? vehicleProfile.vehicleDetail ?? 'Pembimbing Rombongan';
+    const senderAvatarPreset = self?.avatarPreset ?? vehicleProfile.avatarPreset;
+
+    // Optimistic local state update so UI reflects immediately even when offline
+    setActiveRoom((prev) =>
+      prev
+        ? {
+            ...prev,
+            priorityBroadcast: {
+              isActive: true,
+              id,
+              title: cleanTitle,
+              message: cleanMessage,
+              senderName,
+              atLabel,
+            },
+          }
+        : prev
+    );
+
+    if (activeRoom.isSyncedRoom && authUser) {
+      const payload = {
+        id,
+        senderUid: authUser.uid,
+        senderName,
+        senderVehicle,
+        senderAvatarPreset,
+        title: cleanTitle,
+        message: cleanMessage,
+        atLabel,
+      };
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        const count = enqueuePriorityBroadcast({
+          roomId: activeRoom.roomId,
+          payload,
+        });
+        setOfflineQueueCount(count);
+        return;
+      }
+      try {
+        await sendPriorityRoomBroadcast(activeRoom.roomId, payload);
+      } catch {
+        const count = enqueuePriorityBroadcast({
+          roomId: activeRoom.roomId,
+          payload,
+        });
+        setOfflineQueueCount(count);
+      }
+      return;
+    }
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id,
+        senderId: self?.id ?? 'leader',
+        senderName,
+        senderVehicle,
+        type: 'BROADCAST',
+        textContent: `[PENGUMUMAN] ${cleanTitle}: ${cleanMessage}`,
+        timestampLabel: atLabel,
+        isFromCurrentUser: true,
+        senderAvatarPreset,
+        senderAvatarPhotoUrl: self?.avatarPhotoUrl ?? vehicleProfile.avatarPhotoUrl,
+      },
+    ]);
+  };
+
+  const handleClearPriorityBroadcast = async () => {
+    if (!activeRoom) return;
+    setActiveRoom((prev) =>
+      prev
+        ? {
+            ...prev,
+            priorityBroadcast: {
+              isActive: false,
+              id: prev.priorityBroadcast?.id ?? '',
+              title: '',
+              message: '',
+              senderName: '',
+              atLabel: '',
+            },
+          }
+        : prev
+    );
+    if (activeRoom.isSyncedRoom && authUser) {
+      clearPriorityRoomBroadcast(activeRoom.roomId).catch(() => {});
+    }
   };
 
   const showVoiceStatus = (msg: string) => {
@@ -4885,6 +5177,15 @@ export default function App() {
                         onRemoveRoomActivity={handleRemoveRoomActivity}
                         onMoveRoomActivity={handleMoveRoomActivity}
                         onApplyRoomStarterTemplates={handleApplyRoomStarterTemplates}
+                        batterySaverMode={batterySaverMode}
+                        onToggleBatterySaverMode={handleToggleBatterySaverMode}
+                        isOnline={isOnline}
+                        offlineQueueCount={offlineQueueCount}
+                        onFlushOfflineQueue={handleManualFlushOfflineQueue}
+                        dismissedBroadcastId={dismissedBroadcastId}
+                        onDismissBroadcast={(id) => setDismissedBroadcastId(id)}
+                        onSendPriorityBroadcast={handleSendPriorityBroadcast}
+                        onClearPriorityBroadcast={handleClearPriorityBroadcast}
                       />
                       );
                     })()}

@@ -38,7 +38,8 @@ enum class ChatMessageType {
     TEXT,
     VOICE,
     SOS_ALERT,
-    SYSTEM
+    SYSTEM,
+    BROADCAST
 }
 
 enum class AvatarPreset(val label: String) {
@@ -668,6 +669,35 @@ data class RoomActivityMemberProgress(
     val updatedAtMs: Long = 0L
 )
 
+data class PriorityBroadcast(
+    val isActive: Boolean = false,
+    val id: String = "",
+    val title: String = "",
+    val message: String = "",
+    val senderName: String = "",
+    val atLabel: String = ""
+)
+
+enum class AssistantRoleId(val id: String, val label: String, val subtitle: String) {
+    MUTAWWIF("mutawwif", "Mutawwif", "Bimbingan lengkap tata cara Umroh & Haji"),
+    DOA_FAST("doa_fast", "Doa Cepat", "Bacaan niat, talbiyah, dan doa ringkas"),
+    KOORDINATOR("koordinator", "Koordinator", "Titik kumpul, lansia & koordinasi rombongan");
+
+    companion object {
+        fun fromId(raw: String?): AssistantRoleId =
+            entries.firstOrNull { it.id.equals(raw?.trim(), ignoreCase = true) } ?: MUTAWWIF
+    }
+}
+
+data class AssistantChatMessage(
+    val id: String,
+    val role: String, // "user" | "model"
+    val text: String,
+    val timestampLabel: String,
+    val roleId: AssistantRoleId = AssistantRoleId.MUTAWWIF,
+    val modelName: String? = null
+)
+
 data class TourRoom(
     val roomId: String,
     val roomTitle: String,
@@ -679,7 +709,8 @@ data class TourRoom(
     val coLeaderUid: String = "",
     val actingLeaderUid: String = "",
     val leaderTroubleActive: Boolean = false,
-    val leaderTroubleReason: String = ""
+    val leaderTroubleReason: String = "",
+    val priorityBroadcast: PriorityBroadcast? = null
 )
 
 data class ConvoyUiState(
@@ -712,6 +743,14 @@ data class ConvoyUiState(
     val gpsAccuracyMeters: Int = 20,
     val userGpsLat: Double? = null,
     val userGpsLng: Double? = null,
+    val batterySaverMode: Boolean = false,
+    val isNetworkOnline: Boolean = true,
+    val offlineQueueCount: Int = 0,
+    val dismissedBroadcastId: String? = null,
+    val manasikChatRole: AssistantRoleId = AssistantRoleId.MUTAWWIF,
+    val manasikChatMessages: List<AssistantChatMessage> = emptyList(),
+    val isSendingManasikChat: Boolean = false,
+    val manasikChatError: String? = null,
     val isCloudSyncConnected: Boolean = false,
     val isLoggedIn: Boolean = false,
     val authUserName: String = "",

@@ -3,25 +3,35 @@ package com.konvoiku.touring.viewmodel
 import android.Manifest
 import android.app.Activity
 import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.MediaRecorder
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.Uri
 import android.os.Build
 import android.util.Base64
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.google.firebase.auth.FirebaseUser
+import com.konvoiku.touring.R
 import com.konvoiku.touring.data.FirestoreConvoyRepository
 import com.konvoiku.touring.data.LocalBrowserGoogleAuthServer
 import com.konvoiku.touring.data.ManasikGuideData
 import com.konvoiku.touring.location.GpsLocationTracker
+import com.konvoiku.touring.model.AssistantChatMessage
+import com.konvoiku.touring.model.AssistantRoleId
 import com.konvoiku.touring.model.AuthProviderType
 import com.konvoiku.touring.model.AvatarPreset
 import com.konvoiku.touring.model.ChatMessageType
@@ -40,6 +50,7 @@ import com.konvoiku.touring.model.ManasikStepItem
 import com.konvoiku.touring.model.MapPosition
 import com.konvoiku.touring.model.MemberConditionStatus
 import com.konvoiku.touring.model.OffRouteAlertState
+import com.konvoiku.touring.model.PriorityBroadcast
 import com.konvoiku.touring.model.RestCheckpoint
 import com.konvoiku.touring.model.RoomActivityItem
 import com.konvoiku.touring.model.RoomActivityMemberProgress
@@ -105,10 +116,23 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
     private var tourLeaderEligibilityUnsubscribe: (() -> Unit)? = null
     private var authUnsubscribe: (() -> Unit)? = null
     private var lastTelemetrySentMs = 0L
+    private var lastTelemetryLat = Double.NaN
+    private var lastTelemetryLng = Double.NaN
     private val recordedTrackPoints = mutableListOf<LatLngGeo>()
     private var lastComputedRouteSig = ""
     private var lastSyncedCoLeaderUid = ""
     private var lastFailoverAttemptMs = 0L
+    private var lastNotifiedBroadcastId = ""
+    private var isFlushingOfflineQueue = false
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    private val offlineQueueLock = Any()
+
+    companion object {
+        private const val KEY_BATTERY_SAVER = "safar_battery_saver_v1"
+        private const val KEY_OFFLINE_QUEUE = "safar_offline_sync_queue_v1"
+        private const val KEY_GEMINI_CHAT_HISTORY = "safar_gemini_chat_history_v1"
+        private const val BROADCAST_CHANNEL_ID = "safar_priority_broadcast"
+    }
 
     private data class SimTemplate(
         val name: String,
@@ -196,18 +220,27 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         FirestoreConvoyRepository.init(application.applicationContext)
+        val savedBatterySaver = profilePrefs.getBoolean(KEY_BATTERY_SAVER, false)
+        val initialQueueSize = readOfflineQueue().length()
+        val initialChatHistory = loadManasikChatHistory()
+        val initialOnline = checkCurrentNetworkOnline()
         _uiState.update { state ->
             val seeded = defaultTripHistory()
             state.copy(
                 tripHistory = seeded,
                 selectedTripId = seeded.firstOrNull()?.id,
                 isCloudSyncConnected = syncRepo.isAvailable(),
-                isVerifiedAdmin = syncRepo.isVerifiedAdminSession()
+                isVerifiedAdmin = syncRepo.isVerifiedAdminSession(),
+                batterySaverMode = savedBatterySaver,
+                offlineQueueCount = initialQueueSize,
+                isNetworkOnline = initialOnline,
+                manasikChatMessages = initialChatHistory
             )
         }
         restoreSessionAndProfile()
         attachAuthStateObserver()
         subscribeToGlobalConfig()
+        registerNetworkObserver()
         startPresenceHeartbeatLoop()
         startLiveMapTicker()
         viewModelScope.launch {
@@ -224,6 +257,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
 
     override fun onCleared() {
         super.onCleared()
+        unregisterNetworkObserver()
         localBrowserAuthServer.stop()
         authUnsubscribe?.invoke()
         roomUnsubscribe?.invoke()
@@ -245,6 +279,17 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun toggleBatterySaverMode() {
+        val next = !_uiState.value.batterySaverMode
+        profilePrefs.edit().putBoolean(KEY_BATTERY_SAVER, next).apply()
+        _uiState.update { it.copy(batterySaverMode = next) }
+        if (gpsTracker.hasLocationPermission()) {
+            gpsJob?.cancel()
+            gpsJob = null
+            startGpsTracking()
+        }
+    }
+
     fun startGpsTracking() {
         if (!gpsTracker.hasLocationPermission()) {
             _uiState.update { it.copy(gpsStatus = GpsTrackingStatus.DENIED) }
@@ -252,9 +297,14 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         }
         if (gpsJob?.isActive == true) return
 
+        val saver = _uiState.value.batterySaverMode
         _uiState.update { it.copy(gpsStatus = GpsTrackingStatus.REQUESTING) }
         gpsJob = viewModelScope.launch {
-            gpsTracker.locationUpdates(intervalMs = 2000L).collect { sample ->
+            gpsTracker.locationUpdates(
+                intervalMs = if (saver) 12_000L else 2000L,
+                minDistanceMeters = if (saver) 15f else 3f,
+                batterySaver = saver
+            ).collect { sample ->
                 val state = _uiState.value
                 val eval = GeoUtils.evaluatePositionAlongRoute(
                     pos = LatLngGeo(sample.latitude, sample.longitude),
@@ -299,18 +349,62 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                 if (room.isSyncedRoom) {
                     val uid = syncRepo.currentUid()
                     val now = System.currentTimeMillis()
-                    if (uid != null && now - lastTelemetrySentMs >= 2000L) {
-                        lastTelemetrySentMs = now
-                        syncRepo.publishTelemetry(
-                            roomId = room.roomId,
-                            uid = uid,
-                            latitude = sample.latitude,
-                            longitude = sample.longitude,
-                            speedKmh = sample.speedKmh,
-                            heading = sample.headingDegrees,
-                            accuracyMeters = sample.accuracyMeters,
-                            routeProgress = eval.routeProgress
+                    val movedMeters = if (lastTelemetryLat.isFinite() && lastTelemetryLng.isFinite()) {
+                        GeoUtils.haversineMeters(
+                            LatLngGeo(lastTelemetryLat, lastTelemetryLng),
+                            LatLngGeo(sample.latitude, sample.longitude)
                         )
+                    } else 999.0
+                    val intervalThresholdMs = if (state.batterySaverMode) {
+                        if (sample.speedKmh < 3) 20_000L else 10_000L
+                    } else 2000L
+                    val distanceThresholdMeters = if (state.batterySaverMode) 25.0 else 15.0
+
+                    if (uid != null && (now - lastTelemetrySentMs >= intervalThresholdMs || movedMeters >= distanceThresholdMeters)) {
+                        lastTelemetrySentMs = now
+                        lastTelemetryLat = sample.latitude
+                        lastTelemetryLng = sample.longitude
+                        if (!state.isNetworkOnline) {
+                            enqueueTelemetry(
+                                roomId = room.roomId,
+                                uid = uid,
+                                latitude = sample.latitude,
+                                longitude = sample.longitude,
+                                speedKmh = sample.speedKmh,
+                                heading = sample.headingDegrees,
+                                accuracyMeters = sample.accuracyMeters,
+                                routeProgress = eval.routeProgress
+                            )
+                        } else {
+                            viewModelScope.launch {
+                                val res = syncRepo.publishTelemetryAwait(
+                                    roomId = room.roomId,
+                                    uid = uid,
+                                    latitude = sample.latitude,
+                                    longitude = sample.longitude,
+                                    speedKmh = sample.speedKmh,
+                                    heading = sample.headingDegrees,
+                                    accuracyMeters = sample.accuracyMeters,
+                                    routeProgress = eval.routeProgress
+                                )
+                                if (res.isSuccess) {
+                                    if (_uiState.value.offlineQueueCount > 0) {
+                                        flushOfflineQueue()
+                                    }
+                                } else {
+                                    enqueueTelemetry(
+                                        roomId = room.roomId,
+                                        uid = uid,
+                                        latitude = sample.latitude,
+                                        longitude = sample.longitude,
+                                        speedKmh = sample.speedKmh,
+                                        heading = sample.headingDegrees,
+                                        accuracyMeters = sample.accuracyMeters,
+                                        routeProgress = eval.routeProgress
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1776,9 +1870,20 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                 _uiState.update { state ->
                     val mergedConfig = header.routeConfig.copy(checkpoints = state.routeConfig.checkpoints)
                     val curRoom = state.activeRoom
+                    val incomingBroadcast = header.priorityBroadcast
+                    val nextDismissed = if (
+                        incomingBroadcast?.isActive == true &&
+                        incomingBroadcast.id.isNotBlank() &&
+                        incomingBroadcast.id != curRoom?.priorityBroadcast?.id
+                    ) {
+                        null
+                    } else {
+                        state.dismissedBroadcastId
+                    }
                     state.copy(
                         routeConfig = mergedConfig,
                         sosState = header.sosState,
+                        dismissedBroadcastId = nextDismissed,
                         activeRoom = curRoom?.copy(
                             roomTitle = header.roomTitle,
                             leaderUid = header.leaderUid,
@@ -1786,6 +1891,7 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                             actingLeaderUid = header.actingLeaderUid,
                             leaderTroubleActive = header.leaderTroubleActive,
                             leaderTroubleReason = header.leaderTroubleReason,
+                            priorityBroadcast = incomingBroadcast,
                             isSyncedRoom = true
                         ) ?: TourRoom(
                             roomId = header.roomId,
@@ -1798,9 +1904,15 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                             coLeaderUid = header.coLeaderUid,
                             actingLeaderUid = header.actingLeaderUid,
                             leaderTroubleActive = header.leaderTroubleActive,
-                            leaderTroubleReason = header.leaderTroubleReason
+                            leaderTroubleReason = header.leaderTroubleReason,
+                            priorityBroadcast = incomingBroadcast
                         )
                     )
+                }
+                val b = header.priorityBroadcast
+                if (b?.isActive == true && b.id.isNotBlank() && b.id != lastNotifiedBroadcastId) {
+                    lastNotifiedBroadcastId = b.id
+                    postPriorityBroadcastNotification(b)
                 }
                 _uiState.value.activeRoom?.members?.let { existing ->
                     if (existing.isNotEmpty()) recomputeAndCommitRoom(existing)
@@ -2494,10 +2606,142 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
         )
         val uid = syncRepo.currentUid()
         if (room.isSyncedRoom && uid != null) {
-            syncRepo.sendMessage(room.roomId, uid, message)
+            if (!_uiState.value.isNetworkOnline) {
+                enqueueMessage(room.roomId, uid, message)
+                _uiState.update {
+                    it.copy(messages = it.messages + message.copy(textContent = "$trimmed (menunggu sinyal)"))
+                }
+                return
+            }
+            viewModelScope.launch {
+                val res = syncRepo.sendMessageAwait(room.roomId, uid, message)
+                if (res.isFailure) {
+                    enqueueMessage(room.roomId, uid, message)
+                    _uiState.update {
+                        it.copy(messages = it.messages + message.copy(textContent = "$trimmed (antrean sinyal)"))
+                    }
+                }
+            }
             return
         }
         _uiState.update { it.copy(messages = it.messages + message) }
+    }
+
+    fun sendPriorityBroadcast(title: String, message: String) {
+        val cleanTitle = title.trim().take(120)
+        val cleanMsg = message.trim().take(500)
+        if (cleanTitle.isEmpty() || cleanMsg.isEmpty()) return
+        val state = _uiState.value
+        val room = state.activeRoom ?: return
+        val self = room.members.find { it.isCurrentUser }
+        val profile = state.vehicleProfile
+        val senderName = self?.fullName?.ifBlank { profile.fullName }
+            ?: profile.fullName.ifBlank { state.authUserName }.ifBlank { "Mutawwif" }
+        val senderVehicle = self?.vehicleDetail?.ifBlank { profile.vehicleDetail }
+            ?: profile.vehicleDetail.ifBlank { "Pembimbing Rombongan" }
+        val senderPreset = self?.avatarPreset ?: profile.avatarPreset
+        val broadcastId = "brd-${UUID.randomUUID().toString().take(12)}"
+        val atLabel = currentClockLabel()
+
+        val broadcastObj = PriorityBroadcast(
+            isActive = true,
+            id = broadcastId,
+            title = cleanTitle,
+            message = cleanMsg,
+            senderName = senderName,
+            atLabel = atLabel
+        )
+        lastNotifiedBroadcastId = broadcastId
+
+        _uiState.update { cur ->
+            cur.copy(
+                dismissedBroadcastId = null,
+                activeRoom = cur.activeRoom?.copy(priorityBroadcast = broadcastObj)
+            )
+        }
+
+        val uid = syncRepo.currentUid()
+        if (room.isSyncedRoom && uid != null) {
+            if (!state.isNetworkOnline) {
+                enqueueBroadcast(
+                    roomId = room.roomId,
+                    senderUid = uid,
+                    senderName = senderName,
+                    senderVehicle = senderVehicle,
+                    senderAvatarPreset = senderPreset,
+                    broadcastId = broadcastId,
+                    title = cleanTitle,
+                    message = cleanMsg,
+                    atLabel = atLabel
+                )
+                return
+            }
+            viewModelScope.launch {
+                val res = syncRepo.sendPriorityBroadcast(
+                    roomId = room.roomId,
+                    senderUid = uid,
+                    senderName = senderName,
+                    senderVehicle = senderVehicle,
+                    senderAvatarPreset = senderPreset,
+                    broadcastId = broadcastId,
+                    title = cleanTitle,
+                    message = cleanMsg,
+                    atLabel = atLabel
+                )
+                if (res.isFailure) {
+                    enqueueBroadcast(
+                        roomId = room.roomId,
+                        senderUid = uid,
+                        senderName = senderName,
+                        senderVehicle = senderVehicle,
+                        senderAvatarPreset = senderPreset,
+                        broadcastId = broadcastId,
+                        title = cleanTitle,
+                        message = cleanMsg,
+                        atLabel = atLabel
+                    )
+                }
+            }
+            return
+        }
+
+        val localMsg = RoomMessage(
+            id = broadcastId,
+            senderId = self?.id ?: "leader",
+            senderName = senderName,
+            senderVehicle = senderVehicle,
+            type = ChatMessageType.BROADCAST,
+            textContent = "[PENGUMUMAN] $cleanTitle: $cleanMsg",
+            timestampLabel = atLabel,
+            isFromCurrentUser = true,
+            senderAvatarPreset = senderPreset,
+            senderAvatarPhotoUri = self?.avatarPhotoUri ?: profile.avatarPhotoUri
+        )
+        _uiState.update { it.copy(messages = it.messages + localMsg) }
+    }
+
+    fun clearPriorityBroadcast() {
+        val room = _uiState.value.activeRoom ?: return
+        _uiState.update { cur ->
+            cur.copy(
+                activeRoom = cur.activeRoom?.copy(
+                    priorityBroadcast = cur.activeRoom.priorityBroadcast?.copy(
+                        isActive = false,
+                        title = "",
+                        message = ""
+                    )
+                )
+            )
+        }
+        if (room.isSyncedRoom) {
+            viewModelScope.launch {
+                syncRepo.clearPriorityBroadcast(room.roomId)
+            }
+        }
+    }
+
+    fun dismissPriorityBroadcast(broadcastId: String) {
+        _uiState.update { it.copy(dismissedBroadcastId = broadcastId) }
     }
 
     private fun showVoiceStatus(message: String) {
@@ -4529,6 +4773,424 @@ class ConvoyViewModel(application: Application) : AndroidViewModel(application) 
                     completedAtByActivity = nextTimes
                 )
             }
+        }
+    }
+
+    fun flushOfflineQueueNow() {
+        viewModelScope.launch {
+            flushOfflineQueue()
+        }
+    }
+
+    fun setManasikChatRole(roleId: AssistantRoleId) {
+        _uiState.update { it.copy(manasikChatRole = roleId, manasikChatError = null) }
+    }
+
+    fun clearManasikChatHistory() {
+        profilePrefs.edit().remove(KEY_GEMINI_CHAT_HISTORY).apply()
+        _uiState.update { it.copy(manasikChatMessages = emptyList(), manasikChatError = null) }
+    }
+
+    fun sendManasikChatMessage(rawText: String) {
+        val trimmed = rawText.trim()
+        val state = _uiState.value
+        if (trimmed.isEmpty() || state.isSendingManasikChat) return
+
+        val roleId = state.manasikChatRole
+        val userMsg = AssistantChatMessage(
+            id = "usr-${System.currentTimeMillis()}",
+            role = "user",
+            text = trimmed,
+            timestampLabel = currentClockLabel(),
+            roleId = roleId
+        )
+        val historySnapshot = state.manasikChatMessages.takeLast(20)
+        val updatedBeforeSend = (state.manasikChatMessages + userMsg).takeLast(40)
+        saveManasikChatHistory(updatedBeforeSend)
+        _uiState.update {
+            it.copy(
+                manasikChatMessages = updatedBeforeSend,
+                isSendingManasikChat = true,
+                manasikChatError = null
+            )
+        }
+
+        val guideType = if (state.manasikProgress.haji.completedStepIds.size > state.manasikProgress.umrah.completedStepIds.size) {
+            "haji"
+        } else {
+            "umrah"
+        }
+        val completedCount = if (guideType == "haji") {
+            state.manasikProgress.haji.completedStepIds.size
+        } else {
+            state.manasikProgress.umrah.completedStepIds.size
+        }
+        val totalCount = if (guideType == "haji") {
+            ManasikGuideData.hajjSteps.size
+        } else {
+            ManasikGuideData.umrahSteps.size
+        }
+        val currentLoc = state.activeRoom?.members?.firstOrNull { it.isCurrentUser }?.lastLocationText
+            ?: state.userGpsLat?.let { lat ->
+                state.userGpsLng?.let { lng ->
+                    String.format(Locale.US, "GPS %.4f, %.4f", lat, lng)
+                }
+            }.orEmpty()
+
+        viewModelScope.launch {
+            val result = syncRepo.sendManasikChatMessage(
+                webBaseUrl = state.activeWebBaseUrl,
+                message = trimmed,
+                history = historySnapshot,
+                roleId = roleId,
+                guideType = guideType,
+                completedCount = completedCount,
+                totalCount = totalCount,
+                currentLocationText = currentLoc
+            )
+            result.onSuccess { (reply, modelName) ->
+                val aiMsg = AssistantChatMessage(
+                    id = "ai-${System.currentTimeMillis()}",
+                    role = "model",
+                    text = reply,
+                    timestampLabel = currentClockLabel(),
+                    roleId = roleId,
+                    modelName = modelName
+                )
+                val nextList = (_uiState.value.manasikChatMessages + aiMsg).takeLast(40)
+                saveManasikChatHistory(nextList)
+                _uiState.update {
+                    it.copy(
+                        manasikChatMessages = nextList,
+                        isSendingManasikChat = false,
+                        manasikChatError = null
+                    )
+                }
+            }.onFailure { err ->
+                _uiState.update {
+                    it.copy(
+                        isSendingManasikChat = false,
+                        manasikChatError = err.message ?: "Terjadi gangguan jaringan saat menghubungi Mutawwif AI."
+                    )
+                }
+            }
+        }
+    }
+
+    private fun loadManasikChatHistory(): List<AssistantChatMessage> {
+        val raw = profilePrefs.getString(KEY_GEMINI_CHAT_HISTORY, null).orEmpty()
+        if (raw.isBlank()) return emptyList()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).mapNotNull { idx ->
+                val obj = arr.optJSONObject(idx) ?: return@mapNotNull null
+                val text = obj.optString("text", "")
+                if (text.isBlank()) return@mapNotNull null
+                AssistantChatMessage(
+                    id = obj.optString("id", "msg-$idx"),
+                    role = obj.optString("role", "user"),
+                    text = text,
+                    timestampLabel = obj.optString("timestampLabel", ""),
+                    roleId = AssistantRoleId.fromId(obj.optString("roleId")),
+                    modelName = obj.optString("modelName").takeIf { it.isNotBlank() }
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun saveManasikChatHistory(items: List<AssistantChatMessage>) {
+        val arr = JSONArray()
+        items.takeLast(40).forEach { msg ->
+            arr.put(
+                JSONObject().apply {
+                    put("id", msg.id)
+                    put("role", msg.role)
+                    put("text", msg.text)
+                    put("timestampLabel", msg.timestampLabel)
+                    put("roleId", msg.roleId.id)
+                    if (!msg.modelName.isNullOrBlank()) {
+                        put("modelName", msg.modelName)
+                    }
+                }
+            )
+        }
+        profilePrefs.edit().putString(KEY_GEMINI_CHAT_HISTORY, arr.toString()).apply()
+    }
+
+    private fun checkCurrentNetworkOnline(): Boolean {
+        val cm = getApplication<Application>().getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return true
+        val active = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(active) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
+    private fun registerNetworkObserver() {
+        val cm = getApplication<Application>().getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                _uiState.update { it.copy(isNetworkOnline = true) }
+                viewModelScope.launch { flushOfflineQueue() }
+            }
+
+            override fun onLost(network: Network) {
+                val stillOnline = checkCurrentNetworkOnline()
+                _uiState.update { it.copy(isNetworkOnline = stillOnline) }
+            }
+        }
+        networkCallback = callback
+        runCatching {
+            val req = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+            cm.registerNetworkCallback(req, callback)
+        }
+    }
+
+    private fun unregisterNetworkObserver() {
+        val cb = networkCallback ?: return
+        networkCallback = null
+        val cm = getApplication<Application>().getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return
+        runCatching { cm.unregisterNetworkCallback(cb) }
+    }
+
+    private fun readOfflineQueue(): JSONArray {
+        val raw = profilePrefs.getString(KEY_OFFLINE_QUEUE, null).orEmpty()
+        if (raw.isBlank()) return JSONArray()
+        return runCatching { JSONArray(raw) }.getOrDefault(JSONArray())
+    }
+
+    private fun writeOfflineQueue(arr: JSONArray): Int {
+        val trimmed = JSONArray()
+        val startIdx = (arr.length() - 40).coerceAtLeast(0)
+        for (i in startIdx until arr.length()) {
+            trimmed.put(arr.get(i))
+        }
+        profilePrefs.edit().putString(KEY_OFFLINE_QUEUE, trimmed.toString()).apply()
+        val count = trimmed.length()
+        _uiState.update { it.copy(offlineQueueCount = count) }
+        return count
+    }
+
+    private fun enqueueTelemetry(
+        roomId: String,
+        uid: String,
+        latitude: Double,
+        longitude: Double,
+        speedKmh: Int,
+        heading: Int,
+        accuracyMeters: Int,
+        routeProgress: Float
+    ) {
+        synchronized(offlineQueueLock) {
+            val current = readOfflineQueue()
+            val next = JSONArray()
+            for (i in 0 until current.length()) {
+                val item = current.optJSONObject(i) ?: continue
+                val sameTelemetry = item.optString("kind") == "telemetry" &&
+                    item.optString("roomId") == roomId &&
+                    item.optString("uid") == uid
+                if (!sameTelemetry) next.put(item)
+            }
+            next.put(
+                JSONObject().apply {
+                    put("kind", "telemetry")
+                    put("roomId", roomId)
+                    put("uid", uid)
+                    put("latitude", latitude)
+                    put("longitude", longitude)
+                    put("speedKmh", speedKmh)
+                    put("heading", heading)
+                    put("accuracyMeters", accuracyMeters)
+                    put("routeProgress", routeProgress.toDouble())
+                }
+            )
+            writeOfflineQueue(next)
+        }
+    }
+
+    private fun enqueueMessage(roomId: String, senderUid: String, msg: RoomMessage) {
+        synchronized(offlineQueueLock) {
+            val current = readOfflineQueue()
+            for (i in 0 until current.length()) {
+                val item = current.optJSONObject(i) ?: continue
+                if (item.optString("kind") == "message" &&
+                    item.optString("roomId") == roomId &&
+                    item.optString("id") == msg.id
+                ) {
+                    return
+                }
+            }
+            current.put(
+                JSONObject().apply {
+                    put("kind", "message")
+                    put("roomId", roomId)
+                    put("senderUid", senderUid)
+                    put("id", msg.id)
+                    put("senderName", msg.senderName)
+                    put("senderVehicle", msg.senderVehicle)
+                    put("senderAvatarPreset", msg.senderAvatarPreset.name)
+                    put("type", msg.type.name)
+                    put("textContent", msg.textContent)
+                    put("voiceDurationSec", msg.voiceDurationSec)
+                    put("timestampLabel", msg.timestampLabel)
+                }
+            )
+            writeOfflineQueue(current)
+        }
+    }
+
+    private fun enqueueBroadcast(
+        roomId: String,
+        senderUid: String,
+        senderName: String,
+        senderVehicle: String,
+        senderAvatarPreset: AvatarPreset,
+        broadcastId: String,
+        title: String,
+        message: String,
+        atLabel: String
+    ) {
+        synchronized(offlineQueueLock) {
+            val current = readOfflineQueue()
+            current.put(
+                JSONObject().apply {
+                    put("kind", "broadcast")
+                    put("roomId", roomId)
+                    put("senderUid", senderUid)
+                    put("senderName", senderName)
+                    put("senderVehicle", senderVehicle)
+                    put("senderAvatarPreset", senderAvatarPreset.name)
+                    put("broadcastId", broadcastId)
+                    put("title", title)
+                    put("message", message)
+                    put("atLabel", atLabel)
+                }
+            )
+            writeOfflineQueue(current)
+        }
+    }
+
+    private suspend fun flushOfflineQueue() {
+        if (isFlushingOfflineQueue) return
+        if (!checkCurrentNetworkOnline()) return
+        val snapshot: List<JSONObject> = synchronized(offlineQueueLock) {
+            val arr = readOfflineQueue()
+            (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
+        }
+        if (snapshot.isEmpty()) return
+        isFlushingOfflineQueue = true
+        val remaining = JSONArray()
+        try {
+            var stopFlush = false
+            for (idx in snapshot.indices) {
+                val item = snapshot[idx]
+                if (stopFlush) {
+                    remaining.put(item)
+                    continue
+                }
+                val kind = item.optString("kind")
+                val res: Result<Unit> = when (kind) {
+                    "telemetry" -> syncRepo.publishTelemetryAwait(
+                        roomId = item.optString("roomId"),
+                        uid = item.optString("uid"),
+                        latitude = item.optDouble("latitude", 21.4225),
+                        longitude = item.optDouble("longitude", 39.8262),
+                        speedKmh = item.optInt("speedKmh", 0),
+                        heading = item.optInt("heading", 0),
+                        accuracyMeters = item.optInt("accuracyMeters", 20),
+                        routeProgress = item.optDouble("routeProgress", 0.05).toFloat()
+                    )
+                    "message" -> syncRepo.sendMessageAwait(
+                        roomId = item.optString("roomId"),
+                        senderUid = item.optString("senderUid"),
+                        msg = RoomMessage(
+                            id = item.optString("id"),
+                            senderId = item.optString("senderUid"),
+                            senderName = item.optString("senderName"),
+                            senderVehicle = item.optString("senderVehicle"),
+                            type = runCatching {
+                                ChatMessageType.valueOf(item.optString("type", "TEXT"))
+                            }.getOrDefault(ChatMessageType.TEXT),
+                            textContent = item.optString("textContent"),
+                            timestampLabel = item.optString("timestampLabel"),
+                            voiceDurationSec = item.optInt("voiceDurationSec", 0),
+                            senderAvatarPreset = runCatching {
+                                AvatarPreset.valueOf(item.optString("senderAvatarPreset", "HELMET_TOURING"))
+                            }.getOrDefault(AvatarPreset.HELMET_TOURING)
+                        )
+                    )
+                    "broadcast" -> syncRepo.sendPriorityBroadcast(
+                        roomId = item.optString("roomId"),
+                        senderUid = item.optString("senderUid"),
+                        senderName = item.optString("senderName"),
+                        senderVehicle = item.optString("senderVehicle"),
+                        senderAvatarPreset = runCatching {
+                            AvatarPreset.valueOf(item.optString("senderAvatarPreset", "PILOT_CLASSIC"))
+                        }.getOrDefault(AvatarPreset.PILOT_CLASSIC),
+                        broadcastId = item.optString("broadcastId"),
+                        title = item.optString("title"),
+                        message = item.optString("message"),
+                        atLabel = item.optString("atLabel")
+                    )
+                    else -> Result.success(Unit)
+                }
+
+                if (res.isFailure) {
+                    val msg = res.exceptionOrNull()?.message.orEmpty().lowercase(Locale.ROOT)
+                    val isPermDenied = msg.contains("permission") || msg.contains("permission_denied")
+                    if (!isPermDenied) {
+                        remaining.put(item)
+                        stopFlush = true
+                    }
+                }
+            }
+            synchronized(offlineQueueLock) {
+                writeOfflineQueue(remaining)
+            }
+        } finally {
+            isFlushingOfflineQueue = false
+        }
+    }
+
+    private fun postPriorityBroadcastNotification(broadcast: PriorityBroadcast) {
+        val ctx = getApplication<Application>().applicationContext
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(
+                ctx,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) return
+        }
+        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        runCatching {
+            val existing = nm.getNotificationChannel(BROADCAST_CHANNEL_ID)
+            if (existing == null) {
+                val channel = NotificationChannel(
+                    BROADCAST_CHANNEL_ID,
+                    "Pengumuman Prioritas Rombongan",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Notifikasi instruksi penting dari Mutawwif / Ketua Rombongan."
+                    enableVibration(true)
+                }
+                nm.createNotificationChannel(channel)
+            }
+            val notif = NotificationCompat.Builder(ctx, BROADCAST_CHANNEL_ID)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("Pengumuman: ${broadcast.title}")
+                .setContentText("${broadcast.message} — ${broadcast.senderName}")
+                .setStyle(
+                    NotificationCompat.BigTextStyle()
+                        .bigText("${broadcast.message}\nDari: ${broadcast.senderName} (${broadcast.atLabel})")
+                )
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setAutoCancel(true)
+                .build()
+            nm.notify(broadcast.id.hashCode(), notif)
         }
     }
 

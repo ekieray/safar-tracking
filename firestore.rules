@@ -254,6 +254,12 @@ service cloud.firestore {
         'sosLng',
         'sosLocationText',
         'sosTriggeredAtLabel',
+        'priorityBroadcastActive',
+        'priorityBroadcastId',
+        'priorityBroadcastTitle',
+        'priorityBroadcastMessage',
+        'priorityBroadcastSenderName',
+        'priorityBroadcastAtLabel',
         'createdAt',
         'updatedAt'
       ]) &&
@@ -298,6 +304,12 @@ service cloud.firestore {
       data.sosLat is number && data.sosLng is number &&
       data.sosLocationText is string && data.sosLocationText.size() <= 160 &&
       data.sosTriggeredAtLabel is string && data.sosTriggeredAtLabel.size() <= 32 &&
+      (!('priorityBroadcastActive' in data) || data.priorityBroadcastActive is bool) &&
+      (!('priorityBroadcastId' in data) || (data.priorityBroadcastId is string && data.priorityBroadcastId.size() <= 64)) &&
+      (!('priorityBroadcastTitle' in data) || (data.priorityBroadcastTitle is string && data.priorityBroadcastTitle.size() <= 80)) &&
+      (!('priorityBroadcastMessage' in data) || (data.priorityBroadcastMessage is string && data.priorityBroadcastMessage.size() <= 280)) &&
+      (!('priorityBroadcastSenderName' in data) || (data.priorityBroadcastSenderName is string && data.priorityBroadcastSenderName.size() <= 80)) &&
+      (!('priorityBroadcastAtLabel' in data) || (data.priorityBroadcastAtLabel is string && data.priorityBroadcastAtLabel.size() <= 16)) &&
       data.createdAt is timestamp &&
       data.updatedAt is timestamp;
     }
@@ -507,7 +519,7 @@ service cloud.firestore {
       data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 80 &&
       data.senderVehicle is string && data.senderVehicle.size() <= 80 &&
       data.senderAvatarPreset is string && data.senderAvatarPreset.size() <= 40 &&
-      data.type in ['TEXT', 'VOICE', 'SOS_ALERT', 'SYSTEM'] &&
+      data.type in ['TEXT', 'VOICE', 'SOS_ALERT', 'SYSTEM', 'BROADCAST'] &&
       data.textContent is string && data.textContent.size() >= 1 && data.textContent.size() <= 500 &&
       data.voiceDurationSec is number &&
       (!('voiceAudioDataUrl' in data) || (data.voiceAudioDataUrl is string && data.voiceAudioDataUrl.size() <= 350000)) &&
@@ -839,6 +851,12 @@ service cloud.firestore {
                   'sosLng',
                   'sosLocationText',
                   'sosTriggeredAtLabel',
+                  'priorityBroadcastActive',
+                  'priorityBroadcastId',
+                  'priorityBroadcastTitle',
+                  'priorityBroadcastMessage',
+                  'priorityBroadcastSenderName',
+                  'priorityBroadcastAtLabel',
                   'updatedAt'
                 ])
               ) ||
@@ -1010,6 +1028,7 @@ service cloud.firestore {
         allow create: if isSignedIn() && isValidRoomId(roomId) && isValidId(messageId) &&
           isRoomActive(roomId) &&
           isValidRoomMessage(incoming(), roomId) &&
+          (incoming().type != 'BROADCAST' || isEffectiveRoomLeader(roomId) || isAdmin()) &&
           incoming().createdAt == request.time;
       }
     }

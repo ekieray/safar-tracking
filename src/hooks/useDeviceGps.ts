@@ -19,10 +19,11 @@ export interface LiveGpsFix {
 
 interface UseDeviceGpsOptions {
   enabled: boolean;
+  batterySaver?: boolean;
   onFix?: (fix: LiveGpsFix) => void;
 }
 
-export function useDeviceGps({ enabled, onFix }: UseDeviceGpsOptions) {
+export function useDeviceGps({ enabled, batterySaver = false, onFix }: UseDeviceGpsOptions) {
   const [status, setStatus] = useState<GpsPermissionStatus>(
     typeof navigator !== 'undefined' && 'geolocation' in navigator
       ? 'idle'
@@ -130,15 +131,15 @@ export function useDeviceGps({ enabled, onFix }: UseDeviceGpsOptions) {
     };
 
     const watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
-      enableHighAccuracy: true,
-      maximumAge: 2000,
-      timeout: 12000,
+      enableHighAccuracy: !batterySaver,
+      maximumAge: batterySaver ? 8000 : 2000,
+      timeout: batterySaver ? 20000 : 12000,
     });
 
     return () => {
       navigator.geolocation.clearWatch(watchId);
     };
-  }, [enabled, retryCounter]);
+  }, [enabled, batterySaver, retryCounter]);
 
   return {
     status,

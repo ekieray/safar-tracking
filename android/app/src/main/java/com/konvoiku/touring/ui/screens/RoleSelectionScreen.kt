@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.Campaign
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -109,6 +110,7 @@ fun RoleSelectionScreen(
     onResumeCurrentConvoy: () -> Unit,
     onRepeatTour: (TripHistoryRecord) -> Unit = {},
     onOpenManasik: (String) -> Unit = {},
+    onOpenManasikAssistant: () -> Unit = {},
     onOpenCustomizeProfile: () -> Unit = {},
     onOpenAdminBackend: () -> Unit = {},
     onOpenTripHistory: () -> Unit,
@@ -735,6 +737,60 @@ fun RoleSelectionScreen(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
                             contentDescription = "Buka Panduan Manasik",
                             tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onOpenManasikAssistant),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    border = BorderStroke(1.dp, Color(0xFFB45309).copy(alpha = 0.45f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Surface(
+                            color = Color(0xFFFEF3C7),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.size(46.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Rounded.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = Color(0xFFB45309)
+                                )
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Tanya Mutawwif AI",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Tanya doa, tata cara manasik & koordinasi jamaah",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                            contentDescription = "Buka Tanya Mutawwif AI",
+                            tint = Color(0xFFB45309)
                         )
                     }
                 }
