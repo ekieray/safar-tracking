@@ -625,8 +625,8 @@ private fun FamilyTargetHeaderCard(
             }
 
             DualTimezoneClockBar(
-                latitude = targetMember?.mapPosition?.latitude ?: snapshot.routeConfig.waypoints.firstOrNull()?.latitude,
-                longitude = targetMember?.mapPosition?.longitude ?: snapshot.routeConfig.waypoints.firstOrNull()?.longitude,
+                latitude = targetMember?.mapPosition?.latitude ?: snapshot.routeConfig?.waypoints?.firstOrNull()?.latitude,
+                longitude = targetMember?.mapPosition?.longitude ?: snapshot.routeConfig?.waypoints?.firstOrNull()?.longitude,
                 subjectName = displayName,
                 compact = false
             )
