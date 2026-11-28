@@ -71,10 +71,10 @@ export function VehicleProfileView({
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col min-h-full bg-transparent text-[#0B1F16] dark:text-[#ECFDF5]"
+      className="flex flex-col min-h-full bg-[#F4F8F5] dark:bg-[#06130E] text-[#0B1F16] dark:text-[#ECFDF5]"
     >
       {/* Material 3 Top App Bar */}
-      <div className="sticky top-0 z-10 flex items-center gap-2 px-3 py-2.5 bg-white/90 dark:bg-[#0C1E17]/90 backdrop-blur-md border-b border-[#D8E6DD] dark:border-[#1B3B2E]">
+      <div className="sticky top-0 z-10 flex items-center gap-2 px-3 py-2.5 bg-white dark:bg-[#0C1E17] border-b border-[#BDD6C7] dark:border-[#244E3D] shadow-2xs">
         <button
           type="button"
           onClick={onBack}
@@ -102,15 +102,15 @@ export function VehicleProfileView({
       </div>
 
       {/* Form Body */}
-      <div className="flex-1 px-5 py-5 space-y-4">
-        <div className="rounded-[16px] bg-white/90 dark:bg-[#0C1E17]/90 backdrop-blur-xs border border-[#D8E6DD] dark:border-[#1B3B2E] px-3.5 py-2.5">
+      <div className="flex-1 px-4 py-4 space-y-4">
+        <div className="rounded-[18px] bg-white dark:bg-[#0C1E17] border-[1.5px] border-[#BDD6C7] dark:border-[#244E3D] px-3.5 py-2.5 shadow-sm">
           <p className="text-xs sm:text-sm text-[#2D4A3D] dark:text-[#D1FAE5] leading-relaxed">
             Lengkapi foto profil dan identitas jamaah (maktab/hotel, nomor gelang/kloter, &amp; kontak darurat) agar mudah dipantau Mutawwif di peta.
           </p>
         </div>
 
         {/* Foto Profil & Pilihan Avatar Bawaan */}
-        <div className="rounded-[18px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] p-4 space-y-3.5">
+        <div className="rounded-[20px] bg-white dark:bg-[#0C1E17] border-[1.5px] border-[#BDD6C7] dark:border-[#244E3D] p-4 space-y-3.5 shadow-sm">
           <div className="flex items-center gap-3.5">
             <ConvoyAvatar
               preset={profile.avatarPreset}
@@ -193,201 +193,215 @@ export function VehicleProfileView({
           </div>
         </div>
 
-        {/* Nama Lengkap */}
-        <div>
-          <label
-            htmlFor="fullName"
-            className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1.5"
-          >
-            Nama Lengkap Jamaah
-          </label>
-          <div className="relative">
-            <User className="w-4 h-4 text-[#4D6659] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              id="fullName"
-              type="text"
-              value={profile.fullName}
-              onChange={(e) => onUpdateProfile({ fullName: e.target.value })}
-              placeholder="Contoh: H. Ahmad Fauzi"
-              className={`w-full min-h-[46px] pl-10 pr-3.5 rounded-[14px] bg-white dark:bg-[#0C1E17] border text-sm outline-none transition-colors ${
-                nameError
-                  ? 'border-[#DC2626] focus:border-[#DC2626]'
-                  : 'border-[#C6DACD] dark:border-[#1E3F31] focus:border-[#047857]'
-              }`}
-            />
-          </div>
-          {nameError && (
-            <p className="mt-1 text-xs text-[#DC2626]">
-              Nama lengkap minimal 2 karakter
-            </p>
-          )}
-        </div>
-
-        {/* Moda Pergerakan Segmented Control */}
-        <div>
-          <span className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1.5">
-            Moda Pergerakan
-          </span>
-          <div className="grid grid-cols-2 rounded-[14px] border border-[#C6DACD] dark:border-[#1E3F31] overflow-hidden bg-white dark:bg-[#0C1E17]">
-            {(['MOBIL', 'MOTOR'] as VehicleType[]).map((type, idx) => {
-              const active = profile.vehicleType === type;
-              return (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => onUpdateProfile({ vehicleType: type })}
-                  className={`min-h-[44px] flex items-center justify-center gap-2 text-sm font-medium transition-colors cursor-pointer ${
-                    idx === 0
-                      ? 'border-r border-[#C6DACD] dark:border-[#1E3F31]'
-                      : ''
-                  } ${
-                    active
-                      ? 'bg-[#ECFDF5] dark:bg-[#064E3B] text-[#047857] dark:text-[#A7F3D0]'
-                      : 'text-[#2D4A3D] dark:text-[#D1FAE5] hover:bg-[#F4F8F5] dark:hover:bg-[#132E24]'
-                  }`}
-                >
-                  {type === 'MOBIL' ? (
-                    <Bus className="w-4 h-4 shrink-0" />
-                  ) : (
-                    <Footprints className="w-4 h-4 shrink-0" />
-                  )}
-                  <span>{type === 'MOBIL' ? 'Bus Rombongan' : 'Jalan Kaki'}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Hotel / Maktab / Bus Rombongan */}
-        <div>
-          <label
-            htmlFor="vehicleDetail"
-            className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1.5"
-          >
-            Hotel / Maktab / No. Bus (Opsional)
-          </label>
-          <div className="relative">
-            <Hotel className="w-4 h-4 text-[#4D6659] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              id="vehicleDetail"
-              type="text"
-              value={profile.vehicleDetail}
-              onChange={(e) => onUpdateProfile({ vehicleDetail: e.target.value })}
-              placeholder={
-                profile.vehicleType === 'MOBIL'
-                  ? 'Contoh: Hotel Ajyad · Bus 01'
-                  : 'Contoh: Hotel Kiswah · Jalan Kaki'
-              }
-              className="w-full min-h-[46px] pl-10 pr-3.5 rounded-[14px] bg-white dark:bg-[#0C1E17] border border-[#C6DACD] dark:border-[#1E3F31] focus:border-[#047857] text-sm outline-none transition-colors"
-            />
-          </div>
-          <p className="mt-1 text-xs text-[#4D6659] dark:text-[#9CC2AE]">
-            Tampil di label peta jamaah, misal: H. Ahmad - Hotel Ajyad · Bus 01.
+        {/* Frame Identitas & Moda Rombongan */}
+        <div className="rounded-[20px] bg-white dark:bg-[#0C1E17] border-[1.5px] border-[#BDD6C7] dark:border-[#244E3D] p-4 space-y-3.5 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wider text-[#047857] dark:text-[#6EE7B7]">
+            Identitas Jamaah &amp; Rombongan
           </p>
-        </div>
 
-        {/* Nomor Kloter / Kamar / Gelang */}
-        <div>
-          <label
-            htmlFor="licensePlate"
-            className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1.5"
-          >
-            No. Kloter / Kamar / Gelang Jamaah
-          </label>
-          <div className="relative">
-            <BadgeInfo className="w-4 h-4 text-[#4D6659] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              id="licensePlate"
-              type="text"
-              value={profile.licensePlate}
-              onChange={(e) =>
-                onUpdateProfile({ licensePlate: e.target.value.toUpperCase() })
-              }
-              placeholder="Contoh: JKT-01 / KMR 402"
-              className={`w-full min-h-[46px] pl-10 pr-3.5 rounded-[14px] bg-white dark:bg-[#0C1E17] border text-sm font-mono uppercase outline-none transition-colors ${
-                plateError
-                  ? 'border-[#DC2626] focus:border-[#DC2626]'
-                  : 'border-[#C6DACD] dark:border-[#1E3F31] focus:border-[#047857]'
-              }`}
-            />
+          {/* Nama Lengkap */}
+          <div>
+            <label
+              htmlFor="fullName"
+              className="block text-xs font-semibold text-[#0B1F16] dark:text-[#ECFDF5] mb-1.5"
+            >
+              Nama Lengkap Jamaah
+            </label>
+            <div className="relative">
+              <User className="w-4 h-4 text-[#047857] dark:text-[#6EE7B7] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                id="fullName"
+                type="text"
+                value={profile.fullName}
+                onChange={(e) => onUpdateProfile({ fullName: e.target.value })}
+                placeholder="Contoh: Ahmad Fauzi"
+                className={`w-full min-h-[46px] pl-10 pr-3.5 rounded-[14px] bg-[#F8FBF9] dark:bg-[#0F261D] border-[1.5px] text-sm text-[#0B1F16] dark:text-[#ECFDF5] placeholder:text-[#6B8A7A] dark:placeholder:text-[#86B09A] shadow-2xs outline-none transition-colors ${
+                  nameError
+                    ? 'border-[#DC2626] focus:border-[#DC2626]'
+                    : 'border-[#9EC5B0] dark:border-[#2B5D49] focus:border-[#047857] focus:ring-2 focus:ring-[#047857]'
+                }`}
+              />
+            </div>
+            {nameError && (
+              <p className="mt-1 text-xs text-[#DC2626]">
+                Nama lengkap minimal 2 karakter
+              </p>
+            )}
           </div>
-          {plateError && (
-            <p className="mt-1 text-xs text-[#DC2626]">
-              Masukkan nomor kloter, kamar, atau gelang jamaah yang valid
-            </p>
-          )}
-        </div>
 
-        {/* Nomor Passport */}
-        <div>
-          <label
-            htmlFor="passportNumber"
-            className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1.5"
-          >
-            Nomor Passport (Opsional)
-          </label>
-          <div className="relative">
-            <FileText className="w-4 h-4 text-[#4D6659] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              id="passportNumber"
-              type="text"
-              maxLength={32}
-              value={profile.passportNumber || ''}
-              onChange={(e) =>
-                onUpdateProfile({
-                  passportNumber: e.target.value.toUpperCase().slice(0, 32),
-                })
-              }
-              placeholder="Contoh: C1234567"
-              className="w-full min-h-[46px] pl-10 pr-3.5 rounded-[14px] bg-white dark:bg-[#0C1E17] border border-[#C6DACD] dark:border-[#1E3F31] focus:border-[#047857] text-sm font-mono uppercase outline-none transition-colors"
-            />
+          {/* Moda Pergerakan Segmented Control */}
+          <div>
+            <span className="block text-xs font-semibold text-[#0B1F16] dark:text-[#ECFDF5] mb-1.5">
+              Moda Pergerakan
+            </span>
+            <div className="grid grid-cols-2 rounded-[14px] border-[1.5px] border-[#9EC5B0] dark:border-[#2B5D49] overflow-hidden bg-[#F8FBF9] dark:bg-[#0F261D]">
+              {(['MOBIL', 'MOTOR'] as VehicleType[]).map((type, idx) => {
+                const active = profile.vehicleType === type;
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => onUpdateProfile({ vehicleType: type })}
+                    className={`min-h-[44px] flex items-center justify-center gap-2 text-sm font-medium transition-colors cursor-pointer ${
+                      idx === 0
+                        ? 'border-r border-[#9EC5B0] dark:border-[#2B5D49]'
+                        : ''
+                    } ${
+                      active
+                        ? 'bg-[#047857] text-white'
+                        : 'text-[#2D4A3D] dark:text-[#D1FAE5] hover:bg-[#ECFDF5] dark:hover:bg-[#132E24]'
+                    }`}
+                  >
+                    {type === 'MOBIL' ? (
+                      <Bus className="w-4 h-4 shrink-0" />
+                    ) : (
+                      <Footprints className="w-4 h-4 shrink-0" />
+                    )}
+                    <span>{type === 'MOBIL' ? 'Bus Rombongan' : 'Jalan Kaki'}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <p className="mt-1 text-xs text-[#4D6659] dark:text-[#9CC2AE]">
-            Disimpan privat di akun Anda untuk keperluan administrasi safar umroh.
-          </p>
-        </div>
 
-        {/* Kontak Darurat */}
-        <div>
-          <label
-            htmlFor="emergencyContact"
-            className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1.5"
-          >
-            Kontak Darurat Keluarga / Mutawwif (WA / Telp)
-          </label>
-          <div className="relative">
-            <Phone className="w-4 h-4 text-[#4D6659] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              id="emergencyContact"
-              type="tel"
-              value={profile.emergencyContact}
-              onChange={(e) =>
-                onUpdateProfile({ emergencyContact: e.target.value })
-              }
-              placeholder="Contoh: 0812-3456-7890"
-              className={`w-full min-h-[46px] pl-10 pr-3.5 rounded-[14px] bg-white dark:bg-[#0C1E17] border text-sm font-mono outline-none transition-colors ${
-                contactError
-                  ? 'border-[#DC2626] focus:border-[#DC2626]'
-                  : 'border-[#C6DACD] dark:border-[#1E3F31] focus:border-[#047857]'
-              }`}
-            />
-          </div>
-          {contactError ? (
-            <p className="mt-1 text-xs text-[#DC2626]">
-              Masukkan nomor kontak darurat minimal 8 digit
-            </p>
-          ) : (
+          {/* Hotel / Maktab / Bus Rombongan */}
+          <div>
+            <label
+              htmlFor="vehicleDetail"
+              className="block text-xs font-semibold text-[#0B1F16] dark:text-[#ECFDF5] mb-1.5"
+            >
+              Hotel / Maktab / No. Bus (Opsional)
+            </label>
+            <div className="relative">
+              <Hotel className="w-4 h-4 text-[#047857] dark:text-[#6EE7B7] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                id="vehicleDetail"
+                type="text"
+                value={profile.vehicleDetail}
+                onChange={(e) => onUpdateProfile({ vehicleDetail: e.target.value })}
+                placeholder={
+                  profile.vehicleType === 'MOBIL'
+                    ? 'Contoh: Hotel Ajyad · Bus 01'
+                    : 'Contoh: Hotel Kiswah · Jalan Kaki'
+                }
+                className="w-full min-h-[46px] pl-10 pr-3.5 rounded-[14px] bg-[#F8FBF9] dark:bg-[#0F261D] border-[1.5px] border-[#9EC5B0] dark:border-[#2B5D49] focus:border-[#047857] focus:ring-2 focus:ring-[#047857] text-sm text-[#0B1F16] dark:text-[#ECFDF5] placeholder:text-[#6B8A7A] dark:placeholder:text-[#86B09A] shadow-2xs outline-none transition-colors"
+              />
+            </div>
             <p className="mt-1 text-xs text-[#4D6659] dark:text-[#9CC2AE]">
-              Digunakan jika jamaah terpisah atau membutuhkan bantuan saat umroh.
+              Tampil di label peta jamaah, misal: H. Ahmad - Hotel Ajyad · Bus 01.
             </p>
-          )}
+          </div>
+
+          {/* Nomor Kloter / Kamar / Gelang */}
+          <div>
+            <label
+              htmlFor="licensePlate"
+              className="block text-xs font-semibold text-[#0B1F16] dark:text-[#ECFDF5] mb-1.5"
+            >
+              No. Kloter / Kamar / Gelang Jamaah
+            </label>
+            <div className="relative">
+              <BadgeInfo className="w-4 h-4 text-[#047857] dark:text-[#6EE7B7] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                id="licensePlate"
+                type="text"
+                value={profile.licensePlate}
+                onChange={(e) =>
+                  onUpdateProfile({ licensePlate: e.target.value.toUpperCase() })
+                }
+                placeholder="Contoh: JKT-01 / KMR 402"
+                className={`w-full min-h-[46px] pl-10 pr-3.5 rounded-[14px] bg-[#F8FBF9] dark:bg-[#0F261D] border-[1.5px] text-sm font-mono uppercase text-[#0B1F16] dark:text-[#ECFDF5] placeholder:text-[#6B8A7A] dark:placeholder:text-[#86B09A] shadow-2xs outline-none transition-colors ${
+                  plateError
+                    ? 'border-[#DC2626] focus:border-[#DC2626]'
+                    : 'border-[#9EC5B0] dark:border-[#2B5D49] focus:border-[#047857] focus:ring-2 focus:ring-[#047857]'
+                }`}
+              />
+            </div>
+            {plateError && (
+              <p className="mt-1 text-xs text-[#DC2626]">
+                Masukkan nomor kloter, kamar, atau gelang jamaah yang valid
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Frame Dokumen Passport & Kontak Darurat */}
+        <div className="rounded-[20px] bg-white dark:bg-[#0C1E17] border-[1.5px] border-[#BDD6C7] dark:border-[#244E3D] p-4 space-y-3.5 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wider text-[#047857] dark:text-[#6EE7B7]">
+            Dokumen Passport &amp; Kontak Darurat
+          </p>
+
+          {/* Nomor Passport */}
+          <div>
+            <label
+              htmlFor="passportNumber"
+              className="block text-xs font-semibold text-[#0B1F16] dark:text-[#ECFDF5] mb-1.5"
+            >
+              Nomor Passport (Opsional)
+            </label>
+            <div className="relative">
+              <FileText className="w-4 h-4 text-[#047857] dark:text-[#6EE7B7] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                id="passportNumber"
+                type="text"
+                maxLength={32}
+                value={profile.passportNumber || ''}
+                onChange={(e) =>
+                  onUpdateProfile({
+                    passportNumber: e.target.value.toUpperCase().slice(0, 32),
+                  })
+                }
+                placeholder="Contoh: C1234567"
+                className="w-full min-h-[46px] pl-10 pr-3.5 rounded-[14px] bg-[#F8FBF9] dark:bg-[#0F261D] border-[1.5px] border-[#9EC5B0] dark:border-[#2B5D49] focus:border-[#047857] focus:ring-2 focus:ring-[#047857] text-sm font-mono uppercase text-[#0B1F16] dark:text-[#ECFDF5] placeholder:text-[#6B8A7A] dark:placeholder:text-[#86B09A] shadow-2xs outline-none transition-colors"
+              />
+            </div>
+            <p className="mt-1 text-xs text-[#4D6659] dark:text-[#9CC2AE]">
+              Disimpan privat di akun Anda untuk keperluan administrasi safar umroh.
+            </p>
+          </div>
+
+          {/* Kontak Darurat */}
+          <div>
+            <label
+              htmlFor="emergencyContact"
+              className="block text-xs font-semibold text-[#0B1F16] dark:text-[#ECFDF5] mb-1.5"
+            >
+              Kontak Darurat Keluarga / Mutawwif (WA / Telp)
+            </label>
+            <div className="relative">
+              <Phone className="w-4 h-4 text-[#047857] dark:text-[#6EE7B7] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                id="emergencyContact"
+                type="tel"
+                value={profile.emergencyContact}
+                onChange={(e) =>
+                  onUpdateProfile({ emergencyContact: e.target.value })
+                }
+                placeholder="Contoh: 0812-3456-7890"
+                className={`w-full min-h-[46px] pl-10 pr-3.5 rounded-[14px] bg-[#F8FBF9] dark:bg-[#0F261D] border-[1.5px] text-sm font-mono text-[#0B1F16] dark:text-[#ECFDF5] placeholder:text-[#6B8A7A] dark:placeholder:text-[#86B09A] shadow-2xs outline-none transition-colors ${
+                  contactError
+                    ? 'border-[#DC2626] focus:border-[#DC2626]'
+                    : 'border-[#9EC5B0] dark:border-[#2B5D49] focus:border-[#047857] focus:ring-2 focus:ring-[#047857]'
+                }`}
+              />
+            </div>
+            {contactError ? (
+              <p className="mt-1 text-xs text-[#DC2626]">
+                Masukkan nomor kontak darurat minimal 8 digit
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-[#4D6659] dark:text-[#9CC2AE]">
+                Digunakan jika jamaah terpisah atau membutuhkan bantuan saat umroh.
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Tentang Aplikasi & Kredit Pembuat */}
         <button
           type="button"
           onClick={onOpenAboutApp}
-          className="w-full text-left rounded-[16px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] hover:border-[#047857] p-3.5 flex items-center gap-3 transition-colors cursor-pointer"
+          className="w-full text-left rounded-[18px] bg-white dark:bg-[#0C1E17] border-[1.5px] border-[#BDD6C7] dark:border-[#244E3D] hover:border-[#047857] p-3.5 flex items-center gap-3 transition-colors cursor-pointer shadow-sm"
         >
           <BadgeCheck className="w-5 h-5 text-[#047857] dark:text-[#34D399] shrink-0" />
           <div className="min-w-0 flex-1">

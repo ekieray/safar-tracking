@@ -50,6 +50,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -106,8 +107,24 @@ fun CustomizeProfileScreen(
         }
     }
 
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = MaterialTheme.colorScheme.surface,
+        unfocusedContainerColor = MaterialTheme.colorScheme.background,
+        errorContainerColor = Color(0xFFFEF2F2),
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+        focusedLabelColor = MaterialTheme.colorScheme.primary,
+        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+        unfocusedLeadingIconColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+        focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+    )
+
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = {
@@ -213,7 +230,8 @@ fun CustomizeProfileScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -295,7 +313,8 @@ fun CustomizeProfileScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -381,165 +400,209 @@ fun CustomizeProfileScreen(
                 }
             }
 
-            // Identitas Pribadi & Rombongan
-            OutlinedTextField(
-                value = draft.fullName,
-                onValueChange = { draft = draft.copy(fullName = it) },
-                label = { Text("Nama Lengkap / Panggilan Safar") },
-                leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = null) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Words,
-                    imeAction = ImeAction.Next
-                ),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
+            // Frame Identitas Pribadi & Biro Travel
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Identitas Jamaah & Biro Travel",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
 
-            OutlinedTextField(
-                value = draft.email,
-                onValueChange = { draft = draft.copy(email = it) },
-                label = { Text("Email Sinkronisasi Profil") },
-                leadingIcon = { Icon(Icons.Rounded.Email, contentDescription = null) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
-                    imeAction = ImeAction.Next
-                ),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
+                    OutlinedTextField(
+                        value = draft.fullName,
+                        onValueChange = { draft = draft.copy(fullName = it) },
+                        label = { Text("Nama Lengkap / Panggilan Safar") },
+                        leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = null) },
+                        singleLine = true,
+                        colors = fieldColors,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Words,
+                            imeAction = ImeAction.Next
+                        ),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-            OutlinedTextField(
-                value = draft.clubName,
-                onValueChange = { draft = draft.copy(clubName = it) },
-                label = { Text("Travel / Kloter / Majelis") },
-                placeholder = { Text("Contoh: Kloter Safar Al-Haramain") },
-                leadingIcon = { Icon(Icons.Rounded.Group, contentDescription = null) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Words,
-                    imeAction = ImeAction.Next
-                ),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
+                    OutlinedTextField(
+                        value = draft.email,
+                        onValueChange = { draft = draft.copy(email = it) },
+                        label = { Text("Email Sinkronisasi Profil") },
+                        leadingIcon = { Icon(Icons.Rounded.Email, contentDescription = null) },
+                        singleLine = true,
+                        colors = fieldColors,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Email,
+                            imeAction = ImeAction.Next
+                        ),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-            OutlinedTextField(
-                value = draft.homeCity,
-                onValueChange = { draft = draft.copy(homeCity = it) },
-                label = { Text("Kota Asal") },
-                placeholder = { Text("Contoh: Jakarta / Bandung") },
-                leadingIcon = { Icon(Icons.Rounded.LocationCity, contentDescription = null) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Words,
-                    imeAction = ImeAction.Next
-                ),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
+                    OutlinedTextField(
+                        value = draft.clubName,
+                        onValueChange = { draft = draft.copy(clubName = it) },
+                        label = { Text("Travel / Kloter / Majelis") },
+                        placeholder = { Text("Contoh: Kloter Safar Al-Haramain") },
+                        leadingIcon = { Icon(Icons.Rounded.Group, contentDescription = null) },
+                        singleLine = true,
+                        colors = fieldColors,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Words,
+                            imeAction = ImeAction.Next
+                        ),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-            OutlinedTextField(
-                value = draft.instagramHandle,
-                onValueChange = { draft = draft.copy(instagramHandle = it) },
-                label = { Text("Username Instagram (Opsional)") },
-                placeholder = { Text("Contoh: safar.rombongan") },
-                leadingIcon = { Icon(Icons.Rounded.AlternateEmail, contentDescription = null) },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
+                    OutlinedTextField(
+                        value = draft.homeCity,
+                        onValueChange = { draft = draft.copy(homeCity = it) },
+                        label = { Text("Kota Asal") },
+                        placeholder = { Text("Contoh: Jakarta / Bandung") },
+                        leadingIcon = { Icon(Icons.Rounded.LocationCity, contentDescription = null) },
+                        singleLine = true,
+                        colors = fieldColors,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Words,
+                            imeAction = ImeAction.Next
+                        ),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-            OutlinedTextField(
-                value = draft.bio,
-                onValueChange = { if (it.length <= 240) draft = draft.copy(bio = it) },
-                label = { Text("Bio Singkat Jamaah") },
-                placeholder = { Text("Jamaah Umroh Kloter 1 · Siap saling jaga rombongan.") },
-                minLines = 2,
-                maxLines = 3,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
+                    OutlinedTextField(
+                        value = draft.instagramHandle,
+                        onValueChange = { draft = draft.copy(instagramHandle = it) },
+                        label = { Text("Username Instagram (Opsional)") },
+                        placeholder = { Text("Contoh: safar.rombongan") },
+                        leadingIcon = { Icon(Icons.Rounded.AlternateEmail, contentDescription = null) },
+                        singleLine = true,
+                        colors = fieldColors,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-            // Info Perjalanan Default
-            Text(
-                text = "Info Perjalanan Default & Kontak Darurat",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
-            )
-
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                VehicleType.entries.forEachIndexed { index, type ->
-                    SegmentedButton(
-                        shape = SegmentedButtonDefaults.itemShape(index, VehicleType.entries.size),
-                        selected = draft.vehicleType == type,
-                        onClick = { draft = draft.copy(vehicleType = type) },
-                        icon = {
-                            Icon(
-                                imageVector = if (type == VehicleType.MOBIL) Icons.Rounded.DirectionsBus else Icons.Rounded.DirectionsWalk,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    ) {
-                        Text(type.label)
-                    }
+                    OutlinedTextField(
+                        value = draft.bio,
+                        onValueChange = { if (it.length <= 240) draft = draft.copy(bio = it) },
+                        label = { Text("Bio Singkat Jamaah") },
+                        placeholder = { Text("Jamaah Umroh Kloter 1 · Siap saling jaga rombongan.") },
+                        minLines = 2,
+                        maxLines = 3,
+                        colors = fieldColors,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
 
-            OutlinedTextField(
-                value = draft.vehicleDetail,
-                onValueChange = { draft = draft.copy(vehicleDetail = it) },
-                label = { Text("Info Bus / Kloter (Opsional)") },
-                leadingIcon = { Icon(Icons.Rounded.Palette, contentDescription = null) },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
+            // Frame Info Perjalanan Default & Dokumen Safar
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Info Perjalanan Default, Passport & Kontak Darurat",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
 
-            OutlinedTextField(
-                value = draft.licensePlate,
-                onValueChange = { draft = draft.copy(licensePlate = it.uppercase()) },
-                label = { Text("Kode Kloter / Regu") },
-                leadingIcon = { Icon(Icons.Rounded.Badge, contentDescription = null) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        VehicleType.entries.forEachIndexed { index, type ->
+                            SegmentedButton(
+                                shape = SegmentedButtonDefaults.itemShape(index, VehicleType.entries.size),
+                                selected = draft.vehicleType == type,
+                                onClick = { draft = draft.copy(vehicleType = type) },
+                                icon = {
+                                    Icon(
+                                        imageVector = if (type == VehicleType.MOBIL) Icons.Rounded.DirectionsBus else Icons.Rounded.DirectionsWalk,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            ) {
+                                Text(type.label)
+                            }
+                        }
+                    }
 
-            OutlinedTextField(
-                value = draft.passportNumber,
-                onValueChange = {
-                    val sanitized = it.uppercase().take(32)
-                    draft = draft.copy(passportNumber = sanitized)
-                },
-                label = { Text("Nomor Passport (Opsional)") },
-                placeholder = { Text("Contoh: C1234567") },
-                leadingIcon = { Icon(Icons.Rounded.Shield, contentDescription = null) },
-                supportingText = {
-                    Text("Disimpan privat di akun Anda (tidak dibagikan ke peta publik).")
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Characters,
-                    imeAction = ImeAction.Next
-                ),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
+                    OutlinedTextField(
+                        value = draft.vehicleDetail,
+                        onValueChange = { draft = draft.copy(vehicleDetail = it) },
+                        label = { Text("Info Bus / Kloter (Opsional)") },
+                        leadingIcon = { Icon(Icons.Rounded.Palette, contentDescription = null) },
+                        singleLine = true,
+                        colors = fieldColors,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-            OutlinedTextField(
-                value = draft.emergencyContact,
-                onValueChange = { draft = draft.copy(emergencyContact = it) },
-                label = { Text("Kontak Darurat (No. Telepon / WA)") },
-                leadingIcon = { Icon(Icons.Rounded.ContactPhone, contentDescription = null) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
+                    OutlinedTextField(
+                        value = draft.licensePlate,
+                        onValueChange = { draft = draft.copy(licensePlate = it.uppercase()) },
+                        label = { Text("Kode Kloter / Regu") },
+                        leadingIcon = { Icon(Icons.Rounded.Badge, contentDescription = null) },
+                        singleLine = true,
+                        colors = fieldColors,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = draft.passportNumber,
+                        onValueChange = {
+                            val sanitized = it.uppercase().take(32)
+                            draft = draft.copy(passportNumber = sanitized)
+                        },
+                        label = { Text("Nomor Passport (Opsional)") },
+                        placeholder = { Text("Contoh: C1234567") },
+                        leadingIcon = { Icon(Icons.Rounded.Shield, contentDescription = null) },
+                        supportingText = {
+                            Text("Disimpan privat di akun Anda (tidak dibagikan ke peta publik).")
+                        },
+                        singleLine = true,
+                        colors = fieldColors,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Characters,
+                            imeAction = ImeAction.Next
+                        ),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = draft.emergencyContact,
+                        onValueChange = { draft = draft.copy(emergencyContact = it) },
+                        label = { Text("Kontak Darurat (No. Telepon / WA)") },
+                        leadingIcon = { Icon(Icons.Rounded.ContactPhone, contentDescription = null) },
+                        singleLine = true,
+                        colors = fieldColors,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
 
             if (formError != null) {
                 Surface(

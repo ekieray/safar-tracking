@@ -46,6 +46,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -110,8 +111,24 @@ fun VehicleProfileScreen(
     val plateError = showValidationErrors && profile.licensePlate.trim().length < 3
     val contactError = showValidationErrors && profile.emergencyContact.trim().length < 8
 
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = MaterialTheme.colorScheme.surface,
+        unfocusedContainerColor = MaterialTheme.colorScheme.background,
+        errorContainerColor = Color(0xFFFEF2F2),
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+        focusedLabelColor = MaterialTheme.colorScheme.primary,
+        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+        unfocusedLeadingIconColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+        focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+    )
+
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = {
@@ -202,15 +219,16 @@ fun VehicleProfileScreen(
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             Surface(
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                color = MaterialTheme.colorScheme.surface,
                 shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+                shadowElevation = 2.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     text = "Lengkapi foto profil/avatar dan identitas rombongan agar Anda mudah dikenali di peta, daftar jamaah, dan chat safar.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
                 )
             }
@@ -220,7 +238,8 @@ fun VehicleProfileScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -320,165 +339,212 @@ fun VehicleProfileScreen(
                 }
             }
 
-            // 1. Nama Lengkap
-            OutlinedTextField(
-                value = profile.fullName,
-                onValueChange = { onUpdateProfile(it, null, null, null, null, null, null, null, false) },
-                label = { Text("Nama Lengkap") },
-                placeholder = { Text("Contoh: Ahmad Fauzi") },
-                leadingIcon = {
-                    Icon(Icons.Rounded.Person, contentDescription = null)
-                },
-                isError = nameError,
-                supportingText = if (nameError) {
-                    { Text("Nama lengkap minimal 2 karakter") }
-                } else null,
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Words,
-                    imeAction = ImeAction.Next
-                ),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // 2. Tipe Perjalanan (Bus / Pejalan Kaki)
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "Tipe Perjalanan",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-
-                SingleChoiceSegmentedButtonRow(
-                    modifier = Modifier.fillMaxWidth()
+            // Frame 1: Identitas Jamaah & Rombongan
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    VehicleType.entries.forEachIndexed { index, type ->
-                        SegmentedButton(
-                            shape = SegmentedButtonDefaults.itemShape(
-                                index = index,
-                                count = VehicleType.entries.size
-                            ),
-                            selected = profile.vehicleType == type,
-                            onClick = { onUpdateProfile(null, type, null, null, null, null, null, null, false) },
-                            icon = {
-                                Icon(
-                                    imageVector = if (type == VehicleType.MOBIL) {
-                                        Icons.Rounded.DirectionsBus
-                                    } else {
-                                        Icons.Rounded.DirectionsWalk
-                                    },
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
+                    Text(
+                        text = "Identitas Jamaah & Rombongan",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    // 1. Nama Lengkap
+                    OutlinedTextField(
+                        value = profile.fullName,
+                        onValueChange = { onUpdateProfile(it, null, null, null, null, null, null, null, false) },
+                        label = { Text("Nama Lengkap") },
+                        placeholder = { Text("Contoh: Ahmad Fauzi") },
+                        leadingIcon = {
+                            Icon(Icons.Rounded.Person, contentDescription = null)
+                        },
+                        isError = nameError,
+                        supportingText = if (nameError) {
+                            { Text("Nama lengkap minimal 2 karakter") }
+                        } else null,
+                        singleLine = true,
+                        colors = fieldColors,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Words,
+                            imeAction = ImeAction.Next
+                        ),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // 2. Tipe Perjalanan (Bus / Pejalan Kaki)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Tipe Perjalanan",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        SingleChoiceSegmentedButtonRow(
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(
-                                text = type.label,
-                                fontWeight = FontWeight.Medium
-                            )
+                            VehicleType.entries.forEachIndexed { index, type ->
+                                SegmentedButton(
+                                    shape = SegmentedButtonDefaults.itemShape(
+                                        index = index,
+                                        count = VehicleType.entries.size
+                                    ),
+                                    selected = profile.vehicleType == type,
+                                    onClick = { onUpdateProfile(null, type, null, null, null, null, null, null, false) },
+                                    icon = {
+                                        Icon(
+                                            imageVector = if (type == VehicleType.MOBIL) {
+                                                Icons.Rounded.DirectionsBus
+                                            } else {
+                                                Icons.Rounded.DirectionsWalk
+                                            },
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                ) {
+                                    Text(
+                                        text = type.label,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
                         }
                     }
+
+                    // 3. Info Bus / Kloter (untuk Label Marker Peta)
+                    OutlinedTextField(
+                        value = profile.vehicleDetail,
+                        onValueChange = { onUpdateProfile(null, null, it, null, null, null, null, null, false) },
+                        label = { Text("Info Bus / Kloter (Opsional)") },
+                        placeholder = {
+                            Text(
+                                if (profile.vehicleType == VehicleType.MOBIL) {
+                                    "Contoh: Bus Rombongan #1"
+                                } else {
+                                    "Contoh: Jamaah Kloter A"
+                                }
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Rounded.Palette, contentDescription = null)
+                        },
+                        supportingText = {
+                            Text("Ditampilkan pada label marker peta, misal: Ahmad - Bus Rombongan #1.")
+                        },
+                        singleLine = true,
+                        colors = fieldColors,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Words,
+                            imeAction = ImeAction.Next
+                        ),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // 4. Kode Kloter / Regu
+                    OutlinedTextField(
+                        value = profile.licensePlate,
+                        onValueChange = { onUpdateProfile(null, null, null, it, null, null, null, null, false) },
+                        label = { Text("Kode Kloter / Regu") },
+                        placeholder = { Text("Contoh: KLOTER-01") },
+                        leadingIcon = {
+                            Icon(Icons.Rounded.Badge, contentDescription = null)
+                        },
+                        isError = plateError,
+                        supportingText = if (plateError) {
+                            { Text("Masukkan kode kloter / regu minimal 3 karakter") }
+                        } else null,
+                        singleLine = true,
+                        colors = fieldColors,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Characters,
+                            imeAction = ImeAction.Next
+                        ),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
 
-            // 3. Info Bus / Kloter (untuk Label Marker Peta)
-            OutlinedTextField(
-                value = profile.vehicleDetail,
-                onValueChange = { onUpdateProfile(null, null, it, null, null, null, null, null, false) },
-                label = { Text("Info Bus / Kloter (Opsional)") },
-                placeholder = {
+            // Frame 2: Dokumen Passport & Kontak Darurat
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
                     Text(
-                        if (profile.vehicleType == VehicleType.MOBIL) {
-                            "Contoh: Bus Rombongan #1"
-                        } else {
-                            "Contoh: Jamaah Kloter A"
-                        }
+                        text = "Dokumen Passport & Kontak Darurat",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
                     )
-                },
-                leadingIcon = {
-                    Icon(Icons.Rounded.Palette, contentDescription = null)
-                },
-                supportingText = {
-                    Text("Ditampilkan pada label marker peta, misal: Ahmad - Bus Rombongan #1.")
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Words,
-                    imeAction = ImeAction.Next
-                ),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
 
-            // 4. Kode Kloter / Regu
-            OutlinedTextField(
-                value = profile.licensePlate,
-                onValueChange = { onUpdateProfile(null, null, null, it, null, null, null, null, false) },
-                label = { Text("Kode Kloter / Regu") },
-                placeholder = { Text("Contoh: KLOTER-01") },
-                leadingIcon = {
-                    Icon(Icons.Rounded.Badge, contentDescription = null)
-                },
-                isError = plateError,
-                supportingText = if (plateError) {
-                    { Text("Masukkan kode kloter / regu minimal 3 karakter") }
-                } else null,
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Characters,
-                    imeAction = ImeAction.Next
-                ),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
+                    // 5. Nomor Passport (Opsional & Privat)
+                    OutlinedTextField(
+                        value = profile.passportNumber,
+                        onValueChange = {
+                            onUpdateProfile(null, null, null, null, it.uppercase().take(32), null, null, null, false)
+                        },
+                        label = { Text("Nomor Passport (Opsional)") },
+                        placeholder = { Text("Contoh: C1234567") },
+                        leadingIcon = {
+                            Icon(Icons.Rounded.Shield, contentDescription = null)
+                        },
+                        supportingText = {
+                            Text("Disimpan privat di akun Anda (tidak dibagikan ke peta publik).")
+                        },
+                        singleLine = true,
+                        colors = fieldColors,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Characters,
+                            imeAction = ImeAction.Next
+                        ),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
-            // 5. Nomor Passport (Opsional & Privat)
-            OutlinedTextField(
-                value = profile.passportNumber,
-                onValueChange = {
-                    onUpdateProfile(null, null, null, null, it.uppercase().take(32), null, null, null, false)
-                },
-                label = { Text("Nomor Passport (Opsional)") },
-                placeholder = { Text("Contoh: C1234567") },
-                leadingIcon = {
-                    Icon(Icons.Rounded.Shield, contentDescription = null)
-                },
-                supportingText = {
-                    Text("Disimpan privat di akun Anda (tidak dibagikan ke peta publik).")
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Characters,
-                    imeAction = ImeAction.Next
-                ),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // 6. Kontak Darurat
-            OutlinedTextField(
-                value = profile.emergencyContact,
-                onValueChange = { onUpdateProfile(null, null, null, null, null, it, null, null, false) },
-                label = { Text("Kontak Darurat (No. Telepon / WA)") },
-                placeholder = { Text("Contoh: 0812-3456-7890") },
-                leadingIcon = {
-                    Icon(Icons.Rounded.ContactPhone, contentDescription = null)
-                },
-                isError = contactError,
-                supportingText = if (contactError) {
-                    { Text("Masukkan nomor kontak darurat minimal 8 digit") }
-                } else {
-                    { Text("Digunakan jika terjadi kendala darurat saat safar / ibadah.") }
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Phone,
-                    imeAction = ImeAction.Done
-                ),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
+                    // 6. Kontak Darurat
+                    OutlinedTextField(
+                        value = profile.emergencyContact,
+                        onValueChange = { onUpdateProfile(null, null, null, null, null, it, null, null, false) },
+                        label = { Text("Kontak Darurat (No. Telepon / WA)") },
+                        placeholder = { Text("Contoh: 0812-3456-7890") },
+                        leadingIcon = {
+                            Icon(Icons.Rounded.ContactPhone, contentDescription = null)
+                        },
+                        isError = contactError,
+                        supportingText = if (contactError) {
+                            { Text("Masukkan nomor kontak darurat minimal 8 digit") }
+                        } else {
+                            { Text("Digunakan jika terjadi kendala darurat saat safar / ibadah.") }
+                        },
+                        singleLine = true,
+                        colors = fieldColors,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Phone,
+                            imeAction = ImeAction.Done
+                        ),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
 
             // 6. Tentang Aplikasi & Kredit Pembuat
             Card(
@@ -486,7 +552,8 @@ fun VehicleProfileScreen(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Row(
                     modifier = Modifier

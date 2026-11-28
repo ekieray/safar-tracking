@@ -138,10 +138,10 @@ export function CustomizeProfileView({
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col min-h-full bg-transparent text-[#0B1F16] dark:text-[#ECFDF5]"
+      className="flex flex-col min-h-full bg-[#F4F8F5] dark:bg-[#06130E] text-[#0B1F16] dark:text-[#ECFDF5]"
     >
       {/* Top App Bar */}
-      <div className="sticky top-0 z-20 flex items-center gap-2 px-3 py-2.5 bg-white/90 dark:bg-[#0C1E17]/90 backdrop-blur-md border-b border-[#D8E6DD] dark:border-[#1B3B2E]">
+      <div className="sticky top-0 z-20 flex items-center gap-2 px-3 py-2.5 bg-white dark:bg-[#0C1E17] border-b border-[#BDD6C7] dark:border-[#244E3D] shadow-2xs">
         <button
           type="button"
           onClick={onBack}
@@ -163,7 +163,7 @@ export function CustomizeProfileView({
       {/* Form Content */}
       <div className="flex-1 px-4 py-4 space-y-4">
         {/* Email Sync & Provider Card */}
-        <div className="rounded-[20px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] p-4 space-y-2.5 shadow-xs">
+        <div className="rounded-[20px] bg-white dark:bg-[#0C1E17] border-[1.5px] border-[#BDD6C7] dark:border-[#244E3D] p-4 space-y-2.5 shadow-sm">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <CloudCheck className="w-4 h-4 text-[#047857] dark:text-[#34D399]" />
@@ -189,7 +189,7 @@ export function CustomizeProfileView({
         </div>
 
         {/* Avatar & Photo Section */}
-        <div className="rounded-[20px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] p-4 space-y-3.5 shadow-xs">
+        <div className="rounded-[20px] bg-white dark:bg-[#0C1E17] border-[1.5px] border-[#BDD6C7] dark:border-[#244E3D] p-4 space-y-3.5 shadow-sm">
           <div className="flex items-center gap-3.5">
             <ConvoyAvatar
               preset={draft.avatarPreset}
@@ -274,20 +274,20 @@ export function CustomizeProfileView({
         </div>
 
         {/* Personal & Travel Umrah Identity */}
-        <div className="rounded-[20px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] p-4 space-y-3 shadow-xs">
-          <p className="text-xs font-bold uppercase tracking-wider text-[#4D6659] dark:text-[#9CC2AE]">
+        <div className="rounded-[20px] bg-white dark:bg-[#0C1E17] border-[1.5px] border-[#BDD6C7] dark:border-[#244E3D] p-4 space-y-3 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wider text-[#047857] dark:text-[#6EE7B7]">
             Identitas Jamaah &amp; Biro Travel
           </p>
 
           <div>
             <label
               htmlFor="custom-fullname"
-              className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1"
+              className="block text-xs font-semibold text-[#0B1F16] dark:text-[#ECFDF5] mb-1"
             >
               Nama Lengkap Jamaah
             </label>
             <div className="relative">
-              <User className="w-4 h-4 text-[#4D6659] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <User className="w-4 h-4 text-[#047857] dark:text-[#6EE7B7] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 id="custom-fullname"
                 type="text"
@@ -296,7 +296,7 @@ export function CustomizeProfileView({
                   setDraft((prev) => ({ ...prev, fullName: e.target.value }))
                 }
                 placeholder="Contoh: H. Ahmad Fauzi"
-                className="w-full min-h-[44px] pl-10 pr-3.5 rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#C6DACD] dark:border-[#1E3F31] text-sm focus:outline-none focus:ring-2 focus:ring-[#047857]"
+                className="w-full min-h-[44px] pl-10 pr-3.5 rounded-xl bg-[#F8FBF9] dark:bg-[#0F261D] border-[1.5px] border-[#9EC5B0] dark:border-[#2B5D49] text-sm text-[#0B1F16] dark:text-[#ECFDF5] placeholder:text-[#6B8A7A] dark:placeholder:text-[#86B09A] shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#047857] focus:border-[#047857]"
               />
             </div>
           </div>
@@ -304,12 +304,12 @@ export function CustomizeProfileView({
           <div>
             <label
               htmlFor="custom-email"
-              className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1"
+              className="block text-xs font-semibold text-[#0B1F16] dark:text-[#ECFDF5] mb-1"
             >
               Email Sinkronisasi Profil
             </label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-[#4D6659] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Mail className="w-4 h-4 text-[#047857] dark:text-[#6EE7B7] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 id="custom-email"
                 type="email"
@@ -318,7 +318,7 @@ export function CustomizeProfileView({
                   setDraft((prev) => ({ ...prev, email: e.target.value }))
                 }
                 placeholder="nama@email.com"
-                className="w-full min-h-[44px] pl-10 pr-3.5 rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#C6DACD] dark:border-[#1E3F31] text-sm focus:outline-none focus:ring-2 focus:ring-[#047857]"
+                className="w-full min-h-[44px] pl-10 pr-3.5 rounded-xl bg-[#F8FBF9] dark:bg-[#0F261D] border-[1.5px] border-[#9EC5B0] dark:border-[#2B5D49] text-sm text-[#0B1F16] dark:text-[#ECFDF5] placeholder:text-[#6B8A7A] dark:placeholder:text-[#86B09A] shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#047857] focus:border-[#047857]"
               />
             </div>
           </div>
@@ -327,12 +327,12 @@ export function CustomizeProfileView({
             <div>
               <label
                 htmlFor="custom-club"
-                className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1"
+                className="block text-xs font-semibold text-[#0B1F16] dark:text-[#ECFDF5] mb-1"
               >
                 Travel Umroh / KBIHU
               </label>
               <div className="relative">
-                <Users className="w-4 h-4 text-[#4D6659] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Users className="w-4 h-4 text-[#047857] dark:text-[#6EE7B7] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   id="custom-club"
                   type="text"
@@ -341,7 +341,7 @@ export function CustomizeProfileView({
                     setDraft((prev) => ({ ...prev, clubName: e.target.value }))
                   }
                   placeholder="Al-Haramain Travel"
-                  className="w-full min-h-[44px] pl-9 pr-3 rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#C6DACD] dark:border-[#1E3F31] text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#047857]"
+                  className="w-full min-h-[44px] pl-9 pr-3 rounded-xl bg-[#F8FBF9] dark:bg-[#0F261D] border-[1.5px] border-[#9EC5B0] dark:border-[#2B5D49] text-xs sm:text-sm text-[#0B1F16] dark:text-[#ECFDF5] placeholder:text-[#6B8A7A] dark:placeholder:text-[#86B09A] shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#047857] focus:border-[#047857]"
                 />
               </div>
             </div>
@@ -349,12 +349,12 @@ export function CustomizeProfileView({
             <div>
               <label
                 htmlFor="custom-city"
-                className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1"
+                className="block text-xs font-semibold text-[#0B1F16] dark:text-[#ECFDF5] mb-1"
               >
                 Kota Asal / Embarkasi
               </label>
               <div className="relative">
-                <MapPin className="w-4 h-4 text-[#4D6659] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <MapPin className="w-4 h-4 text-[#047857] dark:text-[#6EE7B7] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   id="custom-city"
                   type="text"
@@ -363,7 +363,7 @@ export function CustomizeProfileView({
                     setDraft((prev) => ({ ...prev, homeCity: e.target.value }))
                   }
                   placeholder="Jakarta / SOC"
-                  className="w-full min-h-[44px] pl-9 pr-3 rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#C6DACD] dark:border-[#1E3F31] text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#047857]"
+                  className="w-full min-h-[44px] pl-9 pr-3 rounded-xl bg-[#F8FBF9] dark:bg-[#0F261D] border-[1.5px] border-[#9EC5B0] dark:border-[#2B5D49] text-xs sm:text-sm text-[#0B1F16] dark:text-[#ECFDF5] placeholder:text-[#6B8A7A] dark:placeholder:text-[#86B09A] shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#047857] focus:border-[#047857]"
                 />
               </div>
             </div>
@@ -372,12 +372,12 @@ export function CustomizeProfileView({
           <div>
             <label
               htmlFor="custom-ig"
-              className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1"
+              className="block text-xs font-semibold text-[#0B1F16] dark:text-[#ECFDF5] mb-1"
             >
               Username Instagram (Opsional)
             </label>
             <div className="relative">
-              <AtSign className="w-4 h-4 text-[#4D6659] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <AtSign className="w-4 h-4 text-[#047857] dark:text-[#6EE7B7] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 id="custom-ig"
                 type="text"
@@ -386,7 +386,7 @@ export function CustomizeProfileView({
                   setDraft((prev) => ({ ...prev, instagramHandle: e.target.value }))
                 }
                 placeholder="safar.jamaah"
-                className="w-full min-h-[44px] pl-10 pr-3.5 rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#C6DACD] dark:border-[#1E3F31] text-sm focus:outline-none focus:ring-2 focus:ring-[#047857]"
+                className="w-full min-h-[44px] pl-10 pr-3.5 rounded-xl bg-[#F8FBF9] dark:bg-[#0F261D] border-[1.5px] border-[#9EC5B0] dark:border-[#2B5D49] text-sm text-[#0B1F16] dark:text-[#ECFDF5] placeholder:text-[#6B8A7A] dark:placeholder:text-[#86B09A] shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#047857] focus:border-[#047857]"
               />
             </div>
           </div>
@@ -394,7 +394,7 @@ export function CustomizeProfileView({
           <div>
             <label
               htmlFor="custom-bio"
-              className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1"
+              className="block text-xs font-semibold text-[#0B1F16] dark:text-[#ECFDF5] mb-1"
             >
               Catatan Ibadah / Kesehatan Singkat
             </label>
@@ -407,18 +407,18 @@ export function CustomizeProfileView({
                 setDraft((prev) => ({ ...prev, bio: e.target.value }))
               }
               placeholder="Rombongan Bus 01 · Menggunakan kursi roda saat tawaf / sehat walafiat."
-              className="w-full px-3.5 py-2.5 rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#C6DACD] dark:border-[#1E3F31] text-sm focus:outline-none focus:ring-2 focus:ring-[#047857] resize-none"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-[#F8FBF9] dark:bg-[#0F261D] border-[1.5px] border-[#9EC5B0] dark:border-[#2B5D49] text-sm text-[#0B1F16] dark:text-[#ECFDF5] placeholder:text-[#6B8A7A] dark:placeholder:text-[#86B09A] shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#047857] focus:border-[#047857] resize-none"
             />
           </div>
         </div>
 
         {/* Default Moda, Hotel/Maktab & Emergency Contact */}
-        <div className="rounded-[20px] bg-white dark:bg-[#0C1E17] border border-[#D8E6DD] dark:border-[#1B3B2E] p-4 space-y-3 shadow-xs">
-          <p className="text-xs font-bold uppercase tracking-wider text-[#4D6659] dark:text-[#9CC2AE]">
+        <div className="rounded-[20px] bg-white dark:bg-[#0C1E17] border-[1.5px] border-[#BDD6C7] dark:border-[#244E3D] p-4 space-y-3 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wider text-[#047857] dark:text-[#6EE7B7]">
             Moda Jamaah, Maktab &amp; Kontak Darurat
           </p>
 
-          <div className="grid grid-cols-2 rounded-xl border border-[#C6DACD] dark:border-[#1E3F31] overflow-hidden bg-[#F4F8F5] dark:bg-[#091812]">
+          <div className="grid grid-cols-2 rounded-xl border-[1.5px] border-[#9EC5B0] dark:border-[#2B5D49] overflow-hidden bg-[#F8FBF9] dark:bg-[#0F261D]">
             {(['MOBIL', 'MOTOR'] as VehicleType[]).map((type, idx) => {
               const active = draft.vehicleType === type;
               return (
@@ -430,11 +430,11 @@ export function CustomizeProfileView({
                   }
                   className={`min-h-[42px] flex items-center justify-center gap-2 text-xs font-semibold transition-colors cursor-pointer ${
                     idx === 0
-                      ? 'border-r border-[#C6DACD] dark:border-[#1E3F31]'
+                      ? 'border-r border-[#9EC5B0] dark:border-[#2B5D49]'
                       : ''
                   } ${
                     active
-                      ? 'bg-[#ECFDF5] dark:bg-[#064E3B] text-[#047857] dark:text-[#A7F3D0]'
+                      ? 'bg-[#047857] text-white'
                       : 'text-[#2D4A3D] dark:text-[#D1FAE5]'
                   }`}
                 >
@@ -452,12 +452,12 @@ export function CustomizeProfileView({
           <div>
             <label
               htmlFor="custom-vehicle"
-              className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1"
+              className="block text-xs font-semibold text-[#0B1F16] dark:text-[#ECFDF5] mb-1"
             >
               Hotel / Maktab / No. Bus
             </label>
             <div className="relative">
-              <Hotel className="w-4 h-4 text-[#4D6659] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Hotel className="w-4 h-4 text-[#047857] dark:text-[#6EE7B7] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 id="custom-vehicle"
                 type="text"
@@ -470,7 +470,7 @@ export function CustomizeProfileView({
                     ? 'Contoh: Hotel Ajyad · Bus 01'
                     : 'Contoh: Hotel Kiswah · Jalan Kaki'
                 }
-                className="w-full min-h-[44px] pl-10 pr-3.5 rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#C6DACD] dark:border-[#1E3F31] text-sm focus:outline-none focus:ring-2 focus:ring-[#047857]"
+                className="w-full min-h-[44px] pl-10 pr-3.5 rounded-xl bg-[#F8FBF9] dark:bg-[#0F261D] border-[1.5px] border-[#9EC5B0] dark:border-[#2B5D49] text-sm text-[#0B1F16] dark:text-[#ECFDF5] placeholder:text-[#6B8A7A] dark:placeholder:text-[#86B09A] shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#047857] focus:border-[#047857]"
               />
             </div>
           </div>
@@ -479,12 +479,12 @@ export function CustomizeProfileView({
             <div>
               <label
                 htmlFor="custom-plate"
-                className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1"
+                className="block text-xs font-semibold text-[#0B1F16] dark:text-[#ECFDF5] mb-1"
               >
                 No. Kloter / Kamar
               </label>
               <div className="relative">
-                <BadgeInfo className="w-4 h-4 text-[#4D6659] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <BadgeInfo className="w-4 h-4 text-[#047857] dark:text-[#6EE7B7] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   id="custom-plate"
                   type="text"
@@ -496,7 +496,7 @@ export function CustomizeProfileView({
                     }))
                   }
                   placeholder="JKT-01 / 402"
-                  className="w-full min-h-[44px] pl-9 pr-3 rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#C6DACD] dark:border-[#1E3F31] text-xs font-mono uppercase focus:outline-none focus:ring-2 focus:ring-[#047857]"
+                  className="w-full min-h-[44px] pl-9 pr-3 rounded-xl bg-[#F8FBF9] dark:bg-[#0F261D] border-[1.5px] border-[#9EC5B0] dark:border-[#2B5D49] text-xs font-mono uppercase text-[#0B1F16] dark:text-[#ECFDF5] placeholder:text-[#6B8A7A] dark:placeholder:text-[#86B09A] shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#047857] focus:border-[#047857]"
                 />
               </div>
             </div>
@@ -504,12 +504,12 @@ export function CustomizeProfileView({
             <div>
               <label
                 htmlFor="custom-contact"
-                className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1"
+                className="block text-xs font-semibold text-[#0B1F16] dark:text-[#ECFDF5] mb-1"
               >
                 Kontak Darurat
               </label>
               <div className="relative">
-                <Phone className="w-4 h-4 text-[#4D6659] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Phone className="w-4 h-4 text-[#047857] dark:text-[#6EE7B7] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   id="custom-contact"
                   type="tel"
@@ -521,7 +521,7 @@ export function CustomizeProfileView({
                     }))
                   }
                   placeholder="0812-3456-7890"
-                  className="w-full min-h-[44px] pl-9 pr-3 rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#C6DACD] dark:border-[#1E3F31] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#047857]"
+                  className="w-full min-h-[44px] pl-9 pr-3 rounded-xl bg-[#F8FBF9] dark:bg-[#0F261D] border-[1.5px] border-[#9EC5B0] dark:border-[#2B5D49] text-xs font-mono text-[#0B1F16] dark:text-[#ECFDF5] placeholder:text-[#6B8A7A] dark:placeholder:text-[#86B09A] shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#047857] focus:border-[#047857]"
                 />
               </div>
             </div>
@@ -530,12 +530,12 @@ export function CustomizeProfileView({
           <div>
             <label
               htmlFor="custom-passport"
-              className="block text-xs font-semibold text-[#1E3A2F] dark:text-[#D1FAE5] mb-1"
+              className="block text-xs font-semibold text-[#0B1F16] dark:text-[#ECFDF5] mb-1"
             >
               Nomor Passport (Opsional)
             </label>
             <div className="relative">
-              <FileText className="w-4 h-4 text-[#4D6659] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <FileText className="w-4 h-4 text-[#047857] dark:text-[#6EE7B7] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 id="custom-passport"
                 type="text"
@@ -548,7 +548,7 @@ export function CustomizeProfileView({
                   }))
                 }
                 placeholder="Contoh: C1234567"
-                className="w-full min-h-[44px] pl-10 pr-3.5 rounded-xl bg-[#F4F8F5] dark:bg-[#091812] border border-[#C6DACD] dark:border-[#1E3F31] text-sm font-mono uppercase focus:outline-none focus:ring-2 focus:ring-[#047857]"
+                className="w-full min-h-[44px] pl-10 pr-3.5 rounded-xl bg-[#F8FBF9] dark:bg-[#0F261D] border-[1.5px] border-[#9EC5B0] dark:border-[#2B5D49] text-sm font-mono uppercase text-[#0B1F16] dark:text-[#ECFDF5] placeholder:text-[#6B8A7A] dark:placeholder:text-[#86B09A] shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#047857] focus:border-[#047857]"
               />
             </div>
             <p className="mt-1 text-[11px] text-[#4D6659] dark:text-[#9CC2AE]">
